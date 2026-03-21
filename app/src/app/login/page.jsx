@@ -9,15 +9,26 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  async function handleLogin(e) {
-    e.preventDefault()
-    setLoading(true)
-    // TODO: replace with real API call
-    setTimeout(() => {
-      setLoading(false)
-      router.push("/")
-    }, 1000)
-  }
+async function handleLogin(e) {
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      localStorage.setItem("accessToken", data.accessToken); // store access token
+      router.push("/");
+    } else {
+      alert(data.error);
+    }
+  } catch {
+    alert("Login failed");
+  } finally { setLoading(false); }
+}
 
   return (
     <div className="min-h-screen flex bg-[#080810] text-white">
