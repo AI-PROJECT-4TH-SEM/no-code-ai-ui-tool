@@ -1,11 +1,70 @@
+import puppeteer from "puppeteer"
+
+function isJsHeavySite(html) {
+  const bodyContent = html.replace(/<[^>]*>/g, '').trim()
+  const scriptCount = (html.match(/<script/g) || []).length
+  return bodyContent.length < 500 || scriptCount > 10
+}
+
 export async function POST(request) {
   const { url } = await request.json()
 
+  if (!url) {
+    return Response.json({ error: "URL is required" }, { status: 400 })
+  }
+
   try {
-    const response = await fetch(url)
-    const html = await response.text()
-    return Response.json({ html })
+    // Step 1 — try simple fetch first
+    const simpleRes = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    })
+    const simpleHtml = await simpleRes.text()
+
+    // Step 2 — check if it's a JS heavy site
+    if (isJsHeavySite(simpleHtml)) {
+      console.log("JS heavy site detected, using Puppeteer...")
+      const html = await fetchWithPuppeteer(url)
+      return Response.json({ html, method: "puppeteer" })
+    }
+
+    return Response.json({ html: simpleHtml, method: "fetch" })
+
   } catch (error) {
-    return Response.json({ error: "Could not fetch URL" }, { status: 400 })
+    console.log("Simple fetch failed, trying Puppeteer...")
+    try {
+      const html = await fetchWithPuppeteer(url)
+      return Response.json({ html, method: "puppeteer" })
+    } catch (puppeteerError) {
+      return Response.json({
+        error: "Could not fetch this website. Try pasting HTML manually."
+      }, { status: 400 })
+    }
+  }
+}
+
+async function fetchWithPuppeteer(url) {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+    ]
+  })
+
+  try {
+    const page = await browser.newPage()
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    await page.setViewport({ width: 1280, height: 800 })
+    await page.goto(url, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    })
+    const html = await page.content()
+    return html
+  } finally {
+    await browser.close()
   }
 }

@@ -19,76 +19,86 @@ export default function Themes() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#080810] text-white">
-      <Navbar showBack={true} />
+    <div
+      className="flex flex-col min-h-screen text-white relative"
+      style={{ backgroundImage: "url('/hero-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
+    >
+      {/* dark overlay */}
+      <div className="absolute inset-0 bg-black/75 z-0"></div>
 
-      {/* HEADER */}
-      <div className="px-12 py-10 border-b border-gray-800 relative overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-32 bg-purple-600 opacity-10 rounded-full blur-3xl"></div>
-        <div className="absolute top-0 right-1/4 w-96 h-32 bg-pink-600 opacity-10 rounded-full blur-3xl"></div>
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-gray-400 mb-4">
-            <span className="text-pink-400">✦</span>
-            {themes.length} themes available
-          </div>
-          <h1 className="text-4xl font-bold mb-2">Explore Themes</h1>
-          <p className="text-gray-400">Click any theme to instantly apply it to your website</p>
-        </div>
-      </div>
+      {/* content wrapper */}
+      <div className="relative z-10 flex flex-col min-h-screen">
 
-      {/* THEMES GRID */}
-      <div className="flex-1 p-12 overflow-y-auto">
-        <div className="grid grid-cols-4 gap-6">
-          {themes.map((theme) => (
-            <div
-              key={theme.name}
-              onClick={() => handleSelect(theme)}
-              className="group cursor-pointer rounded-2xl overflow-hidden border border-gray-800 hover:border-pink-400 transition hover:-translate-y-1 bg-[#0a0a18]"
-            >
-              {/* PREVIEW CARD - mini website mockup */}
-              <div
-                className="h-40 p-4 relative overflow-hidden"
-                style={{ background: getThemeBg(theme.name) }}
-              >
-                {/* fake browser bar */}
-                <div className="flex items-center gap-1.5 mb-3">
-                  <div className="w-2 h-2 rounded-full bg-red-400 opacity-70"></div>
-                  <div className="w-2 h-2 rounded-full bg-yellow-400 opacity-70"></div>
-                  <div className="w-2 h-2 rounded-full bg-green-400 opacity-70"></div>
-                  <div className="flex-1 bg-white/10 rounded h-2 ml-1"></div>
-                </div>
-                {/* fake content */}
-                <div className="space-y-2">
-                  <div
-                    className="h-3 rounded w-3/4"
-                    style={{ background: getThemeAccent(theme.name), opacity: 0.9 }}
-                  ></div>
-                  <div className="h-2 rounded w-full bg-white/20"></div>
-                  <div className="h-2 rounded w-5/6 bg-white/15"></div>
-                  <div className="h-2 rounded w-4/6 bg-white/10"></div>
-                  <div
-                    className="h-5 rounded w-20 mt-3"
-                    style={{ background: getThemeAccent(theme.name), opacity: 0.8 }}
-                  ></div>
-                </div>
-              </div>
+        <Navbar />
 
-              {/* CARD FOOTER */}
-              <div className="p-4 flex items-center justify-between">
-                <span className="font-medium text-sm">{theme.name}</span>
-                <span className="text-xs text-gray-600 group-hover:text-pink-400 transition">
-                  Apply →
-                </span>
-              </div>
+        {/* HEADER */}
+        <div className="px-12 py-10 border-b border-gray-800 bg-black/20 relative overflow-hidden">
+          <div className="absolute top-0 left-1/4 w-96 h-32 bg-purple-600 opacity-10 rounded-full blur-3xl"></div>
+          <div className="absolute top-0 right-1/4 w-96 h-32 bg-pink-600 opacity-10 rounded-full blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-gray-400 mb-4">
+              {/* <span className="text-pink-400">✦</span> */}
+              {themes.length} themes available
             </div>
-          ))}
+            <h1 className="text-4xl font-bold mb-2">Explore Themes</h1>
+            <p className="text-gray-400">Click any theme to instantly apply it to your website</p>
+          </div>
         </div>
+
+        {/* THEMES GRID */}
+        <div className="flex-1 p-12 overflow-y-auto bg-black/10">
+          <div className="grid grid-cols-4 gap-6">
+            {themes.map((theme) => (
+              <div
+                key={theme.name}
+                onClick={() => handleSelect(theme)}
+                className="group cursor-pointer rounded-2xl overflow-hidden border border-gray-800 hover:border-pink-400 transition hover:-translate-y-1 bg-black/40 backdrop-blur-sm"
+              >
+                {/* PREVIEW CARD */}
+                <div
+                  className="h-40 p-4 relative overflow-hidden"
+                  style={{ background: getThemeBg(theme.name) }}
+                >
+                  {/* fake browser bar */}
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-red-400 opacity-70"></div>
+                    <div className="w-2 h-2 rounded-full bg-yellow-400 opacity-70"></div>
+                    <div className="w-2 h-2 rounded-full bg-green-400 opacity-70"></div>
+                    <div className="flex-1 bg-white/10 rounded h-2 ml-1"></div>
+                  </div>
+                  {/* fake content */}
+                  <div className="space-y-2">
+                    <div
+                      className="h-3 rounded w-3/4"
+                      style={{ background: getThemeAccent(theme.name), opacity: 0.9 }}
+                    ></div>
+                    <div className="h-2 rounded w-full bg-white/20"></div>
+                    <div className="h-2 rounded w-5/6 bg-white/15"></div>
+                    <div className="h-2 rounded w-4/6 bg-white/10"></div>
+                    <div
+                      className="h-5 rounded w-20 mt-3"
+                      style={{ background: getThemeAccent(theme.name), opacity: 0.8 }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* CARD FOOTER */}
+                <div className="p-4 flex items-center justify-between">
+                  <span className="font-medium text-sm">{theme.name}</span>
+                  <span className="text-xs text-gray-600 group-hover:text-pink-400 transition">
+                    Apply →
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   )
 }
 
-// helper functions to get theme colors for preview
 function getThemeBg(name) {
   const map = {
     "🌑 Dark Mode": "#0f0f0f",

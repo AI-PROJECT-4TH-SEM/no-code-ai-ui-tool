@@ -10,9 +10,9 @@ export default function Navbar() {
 
       {/* LEFT - logo */}
       <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push("/")}>
-        <span className="text-pink-400 text-3xl">✦</span>
+        {/* <span className="text-pink-400 text-3xl">✦</span> */}
         <span className="text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent">
-          UI Theme Lab
+         UI Theme Lab
         </span>
       </div>
 
@@ -57,7 +57,7 @@ export default function Navbar() {
           onClick={() => router.push("/signup")}
           className="px-7 py-3 rounded-xl text-base font-semibold bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:opacity-90 hover:scale-105 transition"
         >
-          Sign Up ✦
+          Sign Up 
         </button>
       </div>
 
