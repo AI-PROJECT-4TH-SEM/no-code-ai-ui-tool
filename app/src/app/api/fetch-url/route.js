@@ -14,11 +14,11 @@ export async function POST(request) {
   }
 
   try {
-<<<<<<< HEAD
+
     const response = await fetch(url)
     const html = await response.text()
     return Response.json({ html})
-=======
+
     // Step 1 — try simple fetch first
     const simpleRes = await fetch(url, {
       headers: {
@@ -36,7 +36,7 @@ export async function POST(request) {
 
     return Response.json({ html: simpleHtml, method: "fetch" })
 
->>>>>>> d25d679f9096bfd2727abbf52f01574263af0d0e
+
   } catch (error) {
     console.log("Simple fetch failed, trying Puppeteer...")
     try {

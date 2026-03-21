@@ -6,16 +6,45 @@ import Navbar from "@/components/Navbar"
 export default function Themes() {
   const router = useRouter()
 
-  function handleSelect(theme) {
+  async function handleSelect(theme) {
     const html = localStorage.getItem("htmlToAnalyse")
     if (!html) {
       alert("Paste some HTML on home page first!")
       router.push("/")
       return
     }
-    const styledHtml = html + `<style>${theme.css}</style>`
-    localStorage.setItem("htmlToAnalyse", styledHtml)
-    router.push("/results")
+
+    const token = localStorage.getItem("accessToken")
+    if (!token) {
+      alert("Please login to apply themes")
+      return
+    }
+
+    try {
+      // Call backend to save selected theme
+      const res = await fetch("/api/theme", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ themeName: theme.name }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || "Failed to apply theme")
+        return
+      }
+
+      const styledHtml = html + `<style>${theme.css}</style>`
+      localStorage.setItem("htmlToAnalyse", styledHtml)
+      alert(`Theme applied: ${data.selectedTheme}`)
+      router.push("/results")
+    } catch (err) {
+      console.error(err)
+      alert("Something went wrong!")
+    }
   }
 
   return (
@@ -28,7 +57,6 @@ export default function Themes() {
 
       {/* content wrapper */}
       <div className="relative z-10 flex flex-col min-h-screen">
-
         <Navbar />
 
         {/* HEADER */}
@@ -37,7 +65,6 @@ export default function Themes() {
           <div className="absolute top-0 right-1/4 w-96 h-32 bg-pink-600 opacity-10 rounded-full blur-3xl"></div>
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-gray-400 mb-4">
-              {/* <span className="text-pink-400">✦</span> */}
               {themes.length} themes available
             </div>
             <h1 className="text-4xl font-bold mb-2">Explore Themes</h1>
@@ -93,7 +120,6 @@ export default function Themes() {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   )

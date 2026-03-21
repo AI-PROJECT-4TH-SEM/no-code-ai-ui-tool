@@ -13,18 +13,22 @@ export default function Signup() {
   const router = useRouter()
 
   async function handleSignup(e) {
-    e.preventDefault()
-    if (password !== confirmPassword) {
-      alert("Passwords don't match!")
-      return
-    }
-    setLoading(true)
-    // TODO: replace with real API call
-    setTimeout(() => {
-      setLoading(false)
-      router.push("/")
-    }, 1000)
-  }
+  e.preventDefault();
+  if (password !== confirmPassword) { alert("Passwords don't match"); return; }
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/signup", {
+      method: "POST",
+      body: JSON.stringify({ firstName, lastName, email, password }),
+    });
+    const data = await res.json();
+    if (res.ok) router.push("/login");
+    else alert(data.error);
+  } catch {
+    alert("Signup failed");
+  } finally { setLoading(false); }
+}
 
   return (
     <div className="min-h-screen flex bg-[#080810] text-white">
