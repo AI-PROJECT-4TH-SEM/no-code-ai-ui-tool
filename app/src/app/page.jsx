@@ -27,37 +27,37 @@ export default function Home() {
   }
 
   async function fetchUrl() {
-    if (!url) return
-    setLoading(true)
+  if (!url) return
+  setLoading(true)
 
-    try {
-      const res = await fetch("/api/fetch-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url })
-      })
+  try {
+    const res = await fetch("/api/fetch-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url })
+    })
 
-      const data = await res.json()
-      console.log(data) // let's see what comes back
+    // Parse JSON first
+    const data = await res.json()
 
-      if (data.error) {
-        alert(data.error)
-        return
-      }
-
-      if (data.html) {
-        setHtml(data.html)
-        setFetchMethod(data.method || "fetch")
-        localStorage.setItem("htmlToAnalyse", data.html)
-      }
-
-    } catch (err) {
-      console.error(err)
-      alert("Something went wrong!")
-    } finally {
-      setLoading(false)
+    if (!res.ok) {
+      alert(data.error || "Failed to fetch the URL")
+      return
     }
+
+    if (data.html) {
+      setHtml(data.html)
+      setFetchMethod(data.method || "fetch")
+      localStorage.setItem("htmlToAnalyse", data.html)
+    }
+
+  } catch (err) {
+    console.error(err)
+    alert("Something went wrong!")
+  } finally {
+    setLoading(false)
   }
+}
   return (
  <div 
   className="flex flex-col min-h-screen text-white relative"
