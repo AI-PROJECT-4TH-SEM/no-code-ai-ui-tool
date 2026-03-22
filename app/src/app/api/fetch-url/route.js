@@ -14,12 +14,6 @@ export async function POST(request) {
   }
 
   try {
-
-    const response = await fetch(url)
-    const html = await response.text()
-    return Response.json({ html})
-
-    // Step 1 — try simple fetch first
     const simpleRes = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -27,7 +21,6 @@ export async function POST(request) {
     })
     const simpleHtml = await simpleRes.text()
 
-    // Step 2 — check if it's a JS heavy site
     if (isJsHeavySite(simpleHtml)) {
       console.log("JS heavy site detected, using Puppeteer...")
       const html = await fetchWithPuppeteer(url)
@@ -35,7 +28,6 @@ export async function POST(request) {
     }
 
     return Response.json({ html: simpleHtml, method: "fetch" })
-
 
   } catch (error) {
     console.log("Simple fetch failed, trying Puppeteer...")
@@ -62,7 +54,9 @@ async function fetchWithPuppeteer(url) {
 
   try {
     const page = await browser.newPage()
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    await page.setExtraHTTPHeaders({
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+})
     await page.setViewport({ width: 1280, height: 800 })
     await page.goto(url, {
       waitUntil: 'networkidle2',
