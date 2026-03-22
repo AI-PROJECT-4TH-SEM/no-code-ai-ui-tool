@@ -1,5 +1,5 @@
 import connectDB from "@/lib/db";
-import User from "@/models/User";
+import User from "@/lib/models/User";
 import jwt from "jsonwebtoken";
 import { parse, serialize } from "cookie";
 

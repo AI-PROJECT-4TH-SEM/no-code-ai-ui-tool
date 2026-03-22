@@ -131,12 +131,14 @@ async function handleLogin(e) {
                 <input type="checkbox" className="accent-pink-500" />
                 <span className="text-gray-500 text-xs">Remember me</span>
               </label>
-              <button
-                type="button"
-                className="text-xs text-gray-500 hover:text-pink-400 transition"
-              >
-                Forgot password?
-              </button>
+              
+             <button
+  type="button"
+  onClick={() => router.push("/forgot-password")}
+  className="text-xs text-gray-500 hover:text-pink-400 transition"
+>
+  Forgot password?
+</button>
             </div>
 
             <button
