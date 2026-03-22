@@ -15,11 +15,8 @@ export async function POST(request) {
 
   try {
 
-    const response = await fetch(url)
-    const html = await response.text()
-    return Response.json({ html})
-
     // Step 1 — try simple fetch first
+
     const simpleRes = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

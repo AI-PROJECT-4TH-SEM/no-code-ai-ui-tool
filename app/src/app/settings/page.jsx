@@ -21,22 +21,32 @@ export default function Settings() {
       return
     }
 
-    fetch("/api/user", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch user")
-        return res.json()
-      })
-      .then(data => {
-        setUser(data.user)
-        setLoggedIn(true)
-      })
-      .catch(err => {
-        console.error(err)
+    const fetchUser = async () => {
+      try {
+        const res = await fetch("/api/user", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) {
+          setLoggedIn(false)
+          setShowPopup(true)
+          return
+        }
+        const data = await res.json()
+        if (data?.user) {
+          setUser(data.user)
+          setLoggedIn(true)
+        } else {
+          setLoggedIn(false)
+          setShowPopup(true)
+        }
+      } catch (err) {
+        console.warn("User fetch warning:", err)
         setLoggedIn(false)
         setShowPopup(true)
-      })
+      }
+    }
+
+    fetchUser()
   }, [])
 
   return (
