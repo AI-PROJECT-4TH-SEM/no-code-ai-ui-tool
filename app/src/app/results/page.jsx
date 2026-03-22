@@ -13,37 +13,97 @@ export default function Results() {
   useEffect(() => {
     const saved = localStorage.getItem("htmlToAnalyse")
     if (saved) setHtml(saved)
-    const savedHistory = localStorage.getItem("history")
-    if (savedHistory) setHistory(JSON.parse(savedHistory))
+
+    // ✅ NEW: load history from Mongo
+    async function loadHistory() {
+      try {
+        const res = await fetch("/api/history")
+        const data = await res.json()
+        setHistory(data)
+      } catch (err) {
+        console.log("Failed to load history")
+      }
+    }
+
+    loadHistory()
   }, [])
 
-  function applyTheme(theme) {
+  async function applyTheme(theme) {
     const originalHtml = localStorage.getItem("htmlToAnalyse")
-    const newHistory = [...history, { label: theme.name, html: html }]
-    setHistory(newHistory)
-    localStorage.setItem("history", JSON.stringify(newHistory))
     const styledHtml = originalHtml + `<style>${theme.css}</style>`
+
     setHtml(styledHtml)
+
+    // ✅ SAVE TO MONGO instead of localStorage
+    try {
+      await fetch("/api/save-history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          label: theme.name,
+          html: styledHtml,
+        }),
+      })
+
+      // reload history
+      const res = await fetch("/api/history")
+      const data = await res.json()
+      setHistory(data)
+
+    } catch (err) {
+      console.log("Failed to save history")
+    }
   }
 
   function restoreHistory(item) {
     setHtml(item.html)
   }
 
+  async function deleteHistory(id) {
+  try {
+    await fetch(`/api/history/${id}`, {
+      method: "DELETE",
+    })
+
+    // update UI instantly
+    setHistory(prev => prev.filter(item => item._id !== id))
+
+  } catch (err) {
+    console.log("Delete failed")
+  }
+}
+async function clearAllHistory() {
+  try {
+    await fetch("/api/history", {
+      method: "DELETE",
+    })
+
+    setHistory([])
+  } catch (err) {
+    console.log("Clear failed")
+  }
+}
+
+
   return (
     <div
       className="flex flex-col h-screen text-white overflow-hidden relative"
-      style={{ backgroundImage: "url('/themes-bg.avif')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
+      style={{
+        backgroundImage: "url('/themes-bg.avif')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
     >
-      {/* dark overlay */}
       <div className="absolute inset-0 bg-black/80 z-0"></div>
 
-      {/* content */}
       <div className="relative z-10 flex flex-col h-screen overflow-hidden">
 
         <Navbar />
 
-        {/* SUBHEADER */}
+        {/* HEADER */}
         <div className="flex items-center justify-between px-8 py-3 bg-black/30 backdrop-blur-sm border-b border-white/10 shrink-0">
           <div className="flex items-center gap-3">
             <button
@@ -55,22 +115,22 @@ export default function Results() {
             <span className="text-gray-700">|</span>
             <span className="text-gray-400 text-sm">Results</span>
           </div>
+
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
             <span className="text-gray-500 text-xs">Live preview active</span>
           </div>
         </div>
 
-        {/* MAIN 3 COLUMN GRID */}
         <div className="grid grid-cols-[1fr_2fr_1fr] flex-1 min-h-0">
 
           {/* LEFT */}
           <div className="flex flex-col gap-4 p-6 border-r border-white/10 overflow-y-auto bg-black/30 backdrop-blur-sm h-full">
 
-            {/* AI SUGGESTIONS */}
             <div>
               <h2 className="text-lg font-semibold">AI Suggestions</h2>
               <p className="text-gray-500 text-sm mt-1">Coming soon...</p>
+
               <div className="flex flex-col gap-2 mt-4">
                 {["Color improvements", "Font suggestions", "Spacing fixes", "Accessibility"].map((item) => (
                   <div
@@ -84,15 +144,16 @@ export default function Results() {
               </div>
             </div>
 
-            {/* THEME SUGGESTIONS */}
             <div className="border-t border-white/10 pt-4">
               <h3 className="text-sm font-semibold text-gray-400 mb-3">
                 Theme Suggestions
               </h3>
+
               <ThemeGrid
                 themes={themes.slice(0, 4)}
                 onSelect={(theme) => applyTheme(theme)}
               />
+
               <button
                 onClick={() => router.push("/themes")}
                 className="mt-3 w-full py-2.5 rounded-lg border border-white/10 text-gray-500 hover:border-pink-400 hover:text-pink-400 transition text-xs"
@@ -103,69 +164,75 @@ export default function Results() {
 
           </div>
 
-          {/* MIDDLE - preview */}
-         {/* MIDDLE - preview */}
-<div className="flex flex-col min-h-0 h-full">
-  <div className="flex items-center gap-2 px-4 py-3 bg-black/40 backdrop-blur-sm border-b border-white/10 shrink-0">
-{/*     
-    <span className="text-gray-600 text-xs ml-2 bg-white/5 px-3 py-1 rounded-full border border-white/10 flex-1 text-center">
-      preview
-    </span> */}
-  </div>
-  <div className="flex-1 min-h-0 overflow-hidden bg-white">  {/* ADD bg-white HERE */}
-    <iframe
-      title="preview"
-      srcDoc={html}
-      className="w-full h-full border-none block"
-    />
-  </div>
-</div>
+          {/* MIDDLE */}
+          <div className="flex flex-col min-h-0 h-full">
+            <div className="flex-1 min-h-0 overflow-hidden bg-white">
+              <iframe
+                title="preview"
+                srcDoc={html}
+                className="w-full h-full border-none block"
+              />
+            </div>
+          </div>
 
-          {/* RIGHT - history */}
+          {/* RIGHT */}
           <div className="flex flex-col gap-4 p-6 border-l border-white/10 overflow-y-auto bg-black/30 backdrop-blur-sm h-full">
 
-            <div className="flex items-center justify-between shrink-0">
-              <h2 className="text-lg font-semibold">History</h2>
-              {history.length > 0 && (
-                <span className="text-xs text-gray-500 bg-white/5 px-2 py-1 rounded-full border border-white/10">
-                  {history.length} changes
-                </span>
-              )}
-            </div>
+            <div className="flex items-center justify-between">
+  <h2 className="text-lg font-semibold">History</h2>
+
+  {history.length > 0 && (
+    <button
+      onClick={clearAllHistory}
+      className="text-xs text-red-400 hover:text-red-300"
+    >
+      Clear all
+    </button>
+  )}
+</div>
 
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center">
                 <span className="text-4xl opacity-20">⏱</span>
                 <p className="text-gray-600 text-sm">No changes yet</p>
-                <p className="text-gray-700 text-xs">Apply a theme to see history</p>
               </div>
             ) : (
               <>
                 <div className="flex flex-col gap-2">
-                  {history.map((item, i) => (
-                    <div
-                      key={i}
-                      onClick={() => restoreHistory(item)}
-                      className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm cursor-pointer hover:border-pink-400 transition group backdrop-blur-sm"
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-white font-medium">{item.label}</p>
-                        <span className="text-xs text-gray-600 group-hover:text-pink-400 transition">restore →</span>
-                      </div>
-                      <p className="text-gray-600 text-xs mt-1">#{history.length - i} change</p>
-                    </div>
-                  ))}
-                </div>
+                {history.map((item) => (
+  <div
+    key={item._id}
+    className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm backdrop-blur-sm flex items-center justify-between group"
+  >
+    {/* LEFT */}
+    <div
+      onClick={() => restoreHistory(item)}
+      className="cursor-pointer flex-1"
+    >
+      <p className="text-white font-medium">{item.label}</p>
+    </div>
 
-                <button
-                  onClick={() => {
-                    setHistory([])
-                    localStorage.removeItem("history")
-                  }}
-                  className="mt-2 w-full py-2.5 rounded-lg border border-white/10 text-gray-600 hover:border-red-500 hover:text-red-400 transition text-xs shrink-0"
-                >
-                  Clear all history
-                </button>
+    {/* RIGHT */}
+    <div className="flex items-center gap-3">
+
+      <span
+        onClick={() => restoreHistory(item)}
+        className="text-xs text-gray-500 hover:text-pink-400 cursor-pointer"
+      >
+        restore →
+      </span>
+
+      <span
+        onClick={() => deleteHistory(item._id)}
+        className="text-xs text-red-500 hover:text-red-400 cursor-pointer opacity-0 group-hover:opacity-100 transition"
+      >
+        delete ✕
+      </span>
+
+    </div>
+  </div>
+))}
+                </div>
               </>
             )}
 

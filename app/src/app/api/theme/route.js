@@ -1,5 +1,5 @@
 import connectDB from "@/lib/db";
-import Theme from "@/models/Theme";
+import Theme from "@/lib/models/Theme";
 import jwt from "jsonwebtoken";
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;

@@ -1,5 +1,5 @@
 import connectDB from "@/lib/db";
-import User from "@/models/User";
+import User from "@/lib/models/User";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { serialize } from "cookie";

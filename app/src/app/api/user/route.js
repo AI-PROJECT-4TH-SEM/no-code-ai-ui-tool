@@ -1,5 +1,5 @@
 import connectDB from "@/lib/db";
-import User from "@/models/User";
+import User from "@/lib/models/User";
 import jwt from "jsonwebtoken";
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -39,7 +39,7 @@ export async function PATCH(req) {
   const body = await req.json();
   const { firstName, lastName, email } = body;
 
-  if (!firstName || !lastName || !email) {
+  if (!firstName || !lastName) {
     return new Response(JSON.stringify({ error: "All fields are required" }), { status: 400 });
   }
 
@@ -49,7 +49,7 @@ export async function PATCH(req) {
 
     user.firstName = firstName;
     user.lastName = lastName;
-    user.email = email;
+    
 
     await user.save();
 
