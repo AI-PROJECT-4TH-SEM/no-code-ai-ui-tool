@@ -10,9 +10,10 @@ export async function POST(req) {
 
   const user = await User.findOne({ email })
 
-  if (!user) {
-    return Response.json({ error: "User not found" }, { status: 404 })
-  }
+ if (!user) {
+  // pretend success (security)
+  return Response.json({ success: true })
+}
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString()
 
