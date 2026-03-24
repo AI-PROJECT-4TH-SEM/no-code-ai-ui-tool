@@ -1,241 +1,341 @@
 "use client"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { themes } from "@/lib/themes"
-import ThemeGrid from "@/components/ThemeGrid"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Navbar from "@/components/Navbar"
+import { useAuth } from "@/context/AuthContext"
 
 export default function Results() {
   const [html, setHtml] = useState("")
-  const [history, setHistory] = useState([])
+  const [session, setSession] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [score, setScore] = useState(null)
+  const [violationCount, setViolationCount] = useState(0)
+  const [analysing, setAnalysing] = useState(false)
+  const [analysed, setAnalysed] = useState(false)
+  const [changes, setChanges] = useState([])
+  const [error, setError] = useState(null)
+  const [openId, setOpenId] = useState(null)
+  const [iframeKey, setIframeKey] = useState(0)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const sessionId = searchParams.get("sessionId")
+  const { accessToken } = useAuth()
 
   useEffect(() => {
-    const saved = localStorage.getItem("htmlToAnalyse")
-    if (saved) setHtml(saved)
+    if (!accessToken || !sessionId) return
 
-    // ✅ NEW: load history from Mongo
-    async function loadHistory() {
+    async function loadSession() {
       try {
-        const res = await fetch("/api/history")
+        const res = await fetch(`/api/session/${sessionId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
         const data = await res.json()
-        setHistory(data)
-      } catch (err) {
-        console.log("Failed to load history")
+
+        if (res.ok) {
+          setSession(data)
+          setHtml(data.currentHtml || "")
+          setChanges(data.changes || [])
+        } else {
+          setError("Failed to load session")
+        }
+      } catch {
+        setError("Failed to load session")
       }
     }
 
-    loadHistory()
-  }, [])
+    loadSession()
+  }, [accessToken, sessionId])
 
-  async function applyTheme(theme) {
-    const originalHtml = localStorage.getItem("htmlToAnalyse")
-    const styledHtml = originalHtml + `<style>${theme.css}</style>`
+  const runAnalysis = useCallback(async () => {
+    const currentHtml = html || session?.currentHtml
+    const currentUrl = session?.url
 
-    setHtml(styledHtml)
+    if (!currentHtml && !currentUrl) return
 
-    // ✅ SAVE TO MONGO instead of localStorage
+    setAnalysing(true)
+    setError(null)
+    setOpenId(null)
+
     try {
-      await fetch("/api/save-history", {
+      const res = await fetch("/api/analyse", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          label: theme.name,
-          html: styledHtml,
+          html: currentHtml,
+          url: currentUrl,
         }),
       })
 
-      // reload history
-      const res = await fetch("/api/history")
       const data = await res.json()
-      setHistory(data)
 
+      if (!res.ok) {
+        throw new Error(data.error || "Analysis failed")
+      }
+
+      setScore(data.score ?? 0)
+      setViolationCount(data.violations ?? 0)
+      setSuggestions(data.suggestions || [])
+      setAnalysed(true)
     } catch (err) {
-      console.log("Failed to save history")
+      console.error(err)
+      setError(err.message || "Analysis failed")
+    } finally {
+      setAnalysing(false)
     }
-  }
+  }, [html, session])
 
-  function restoreHistory(item) {
-    setHtml(item.html)
-  }
+  useEffect(() => {
+    if (session?.currentHtml && !analysed && !analysing) {
+      runAnalysis()
+    }
+  }, [session, analysed, analysing, runAnalysis])
 
-  async function deleteHistory(id) {
-  try {
-    await fetch(`/api/history/${id}`, {
-      method: "DELETE",
+  function applyFix(suggestion) {
+    console.log("domFix object:", JSON.stringify(suggestion.domFix))
+    if (!suggestion.domFix) return
+
+    const { type, selector, attribute, value, style, styleValue } = suggestion.domFix
+    const noSelectorNeeded = ["wrapMain", "ensureH1", "fixContrast", "beautify"]
+
+    if (!selector && !noSelectorNeeded.includes(type)) {
+      alert("No selector provided for this fix")
+      return
+    }
+
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, "text/html")
+    const elements = doc.querySelectorAll(selector)
+
+    console.log("TRYING SELECTOR:", selector, "FOUND:", elements.length)
+
+    if (!elements.length) {
+      alert(`Element not found: ${selector}`)
+      return
+    }
+
+    elements.forEach((el) => {
+      if (type === "setAttribute") el.setAttribute(attribute, value)
+      else if (type === "setStyle") el.style[style] = styleValue
+      else if (type === "setInnerText") el.textContent = value
+      else if (type === "addClass") el.classList.add(value)
+      else if (type === "replaceHtml") el.outerHTML = value
     })
 
-    // update UI instantly
-    setHistory(prev => prev.filter(item => item._id !== id))
+    const newHtml = doc.documentElement.outerHTML
+    setHtml(newHtml)
+    setIframeKey(prev => prev + 1) // force iframe to re-render
 
-  } catch (err) {
-    console.log("Delete failed")
+    setSuggestions((prev) =>
+      prev.map((s, idx) =>
+        idx === suggestions.indexOf(suggestion) ? { ...s, fixed: true } : s
+      )
+    )
+
+    setChanges((prev) => [
+      {
+        _id: Date.now().toString(),
+        themeName: `Fix: ${suggestion.title}`,
+        html: newHtml,
+        appliedAt: new Date(),
+      },
+      ...prev,
+    ])
   }
-}
-async function clearAllHistory() {
-  try {
-    await fetch("/api/history", {
-      method: "DELETE",
-    })
 
-    setHistory([])
-  } catch (err) {
-    console.log("Clear failed")
+  const safeScore = score ?? 0
+
+  const scoreColor =
+    safeScore >= 80
+      ? "text-green-400"
+      : safeScore >= 50
+        ? "text-yellow-400"
+        : "text-red-400"
+
+  const impactColor = {
+    critical: "text-red-400",
+    serious: "text-orange-400",
+    moderate: "text-yellow-400",
+    minor: "text-blue-400",
   }
-}
-
 
   return (
     <div
-      className="flex flex-col h-screen text-white overflow-hidden relative"
+      className="flex flex-col min-h-screen text-white relative"
       style={{
-        backgroundImage: "url('/themes-bg.avif')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
+        backgroundImage: "url('/hero-bg.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
       }}
     >
-      <div className="absolute inset-0 bg-black/80 z-0"></div>
+      <div className="absolute inset-0 bg-black/50 z-0" />
 
-      <div className="relative z-10 flex flex-col h-screen overflow-hidden">
-
+      <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar />
 
-        {/* HEADER */}
-        <div className="flex items-center justify-between px-8 py-3 bg-black/30 backdrop-blur-sm border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/")}
-              className="text-gray-500 hover:text-white transition text-sm flex items-center gap-1"
-            >
-              ← Back
-            </button>
-            <span className="text-gray-700">|</span>
-            <span className="text-gray-400 text-sm">Results</span>
-          </div>
+        <div className="flex-1 flex flex-col md:grid md:grid-cols-[1fr_2fr_1fr] md:h-[calc(100vh-64px)] overflow-hidden">
 
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-            <span className="text-gray-500 text-xs">Live preview active</span>
-          </div>
-        </div>
+          {/* LEFT PANEL */}
+          <div className="order-2 md:order-1 flex flex-col p-4 border-t md:border-t-0 md:border-r border-white/10 overflow-y-auto bg-black/20 backdrop-blur-md">
+            <h2 className="text-lg font-semibold mb-4">AI Suggestions</h2>
 
-        <div className="grid grid-cols-[1fr_2fr_1fr] flex-1 min-h-0">
-
-          {/* LEFT */}
-          <div className="flex flex-col gap-4 p-6 border-r border-white/10 overflow-y-auto bg-black/30 backdrop-blur-sm h-full">
-
-            <div>
-              <h2 className="text-lg font-semibold">AI Suggestions</h2>
-              <p className="text-gray-500 text-sm mt-1">Coming soon...</p>
-
-              <div className="flex flex-col gap-2 mt-4">
-                {["Color improvements", "Font suggestions", "Spacing fixes", "Accessibility"].map((item) => (
-                  <div
-                    key={item}
-                    className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-gray-500 flex items-center gap-2 backdrop-blur-sm"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-gray-600"></span>
-                    {item}
-                  </div>
-                ))}
+            {error && (
+              <div className="mb-3 p-3 bg-red-900/30 backdrop-blur-sm border border-red-500/30 rounded text-sm text-red-300">
+                {error}
+                <button onClick={runAnalysis} className="block mt-2 text-xs underline">
+                  Retry
+                </button>
               </div>
-            </div>
-
-            <div className="border-t border-white/10 pt-4">
-              <h3 className="text-sm font-semibold text-gray-400 mb-3">
-                Theme Suggestions
-              </h3>
-
-              <ThemeGrid
-                themes={themes.slice(0, 4)}
-                onSelect={(theme) => applyTheme(theme)}
-              />
-
-              <button
-                onClick={() => router.push("/themes")}
-                className="mt-3 w-full py-2.5 rounded-lg border border-white/10 text-gray-500 hover:border-pink-400 hover:text-pink-400 transition text-xs"
-              >
-                Explore all {themes.length} themes →
-              </button>
-            </div>
-
-          </div>
-
-          {/* MIDDLE */}
-          <div className="flex flex-col min-h-0 h-full">
-            <div className="flex-1 min-h-0 overflow-hidden bg-white">
-              <iframe
-                title="preview"
-                srcDoc={html}
-                className="w-full h-full border-none block"
-              />
-            </div>
-          </div>
-
-          {/* RIGHT */}
-          <div className="flex flex-col gap-4 p-6 border-l border-white/10 overflow-y-auto bg-black/30 backdrop-blur-sm h-full">
-
-            <div className="flex items-center justify-between">
-  <h2 className="text-lg font-semibold">History</h2>
-
-  {history.length > 0 && (
-    <button
-      onClick={clearAllHistory}
-      className="text-xs text-red-400 hover:text-red-300"
-    >
-      Clear all
-    </button>
-  )}
-</div>
-
-            {history.length === 0 ? (
-              <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center">
-                <span className="text-4xl opacity-20">⏱</span>
-                <p className="text-gray-600 text-sm">No changes yet</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col gap-2">
-                {history.map((item) => (
-  <div
-    key={item._id}
-    className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm backdrop-blur-sm flex items-center justify-between group"
-  >
-    {/* LEFT */}
-    <div
-      onClick={() => restoreHistory(item)}
-      className="cursor-pointer flex-1"
-    >
-      <p className="text-white font-medium">{item.label}</p>
-    </div>
-
-    {/* RIGHT */}
-    <div className="flex items-center gap-3">
-
-      <span
-        onClick={() => restoreHistory(item)}
-        className="text-xs text-gray-500 hover:text-pink-400 cursor-pointer"
-      >
-        restore →
-      </span>
-
-      <span
-        onClick={() => deleteHistory(item._id)}
-        className="text-xs text-red-500 hover:text-red-400 cursor-pointer opacity-0 group-hover:opacity-100 transition"
-      >
-        delete ✕
-      </span>
-
-    </div>
-  </div>
-))}
-                </div>
-              </>
             )}
 
+            {analysing && (
+              <div className="flex items-center gap-2 text-gray-400 text-sm">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                Analysing your page...
+              </div>
+            )}
+
+            {!analysed && !analysing && !error && (
+              <button
+                onClick={runAnalysis}
+                className="w-full py-2 bg-purple-600 hover:bg-purple-700 rounded transition-colors"
+              >
+                Analyse
+              </button>
+            )}
+
+            {analysed && !analysing && (
+              <>
+                {/* Score block */}
+                <div className="mb-4 p-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded">
+                  <p className={`text-2xl font-bold ${scoreColor}`}>
+                    {safeScore}
+                    <span className="text-sm text-gray-400 font-normal">/100</span>
+                  </p>
+                  <p className="text-sm text-gray-400 mt-0.5">{violationCount} issues found</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setAnalysed(false)
+                    setSuggestions([])
+                    setScore(null)
+                    setViolationCount(0)
+                    runAnalysis()
+                  }}
+                  className="mb-4 w-full py-1.5 text-sm border border-white/10 rounded hover:bg-white/10 transition-colors"
+                >
+                  Re-analyse
+                </button>
+
+                {suggestions.length === 0 && (
+                  <p className="text-green-400 text-sm">No issues found ✓</p>
+                )}
+
+                {/* Accordion suggestions */}
+                {suggestions.map((s, i) => (
+                  <div
+                    key={i}
+                    className="mb-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded overflow-hidden"
+                  >
+                    {/* Header — always visible */}
+                    <div
+                      onClick={() => setOpenId(openId === i ? null : i)}
+                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-xs font-medium shrink-0 ${impactColor[s.impact] ?? "text-gray-400"}`}>
+                          {s.impact}
+                        </span>
+                        <p className="font-semibold text-sm truncate">{s.title}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {s.fixed && <span className="text-xs text-green-400">✓</span>}
+                        <span className="text-gray-400 text-xs">
+                          {openId === i ? "▲" : "▼"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Body — only when expanded */}
+                    {openId === i && (
+                      <div className="px-3 pb-3 border-t border-white/10">
+                        <p className="text-sm text-gray-400 mt-2">{s.explanation}</p>
+                        {s.fixDescription && (
+                          <p className="text-xs text-gray-500 mt-1 italic">{s.fixDescription}</p>
+                        )}
+                        <div className="mt-2">
+                          {s.fixed ? (
+                            <span className="text-xs text-green-400">✓ Fixed</span>
+                          ) : s.domFix ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                applyFix(s)
+                              }}
+                              className="text-sm px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 transition-colors"
+                            >
+                              Fix →
+                            </button>
+                          ) : (
+                            <div className="mt-1 p-2 bg-yellow-900/20 border border-yellow-500/20 rounded">
+                              <p className="text-xs text-yellow-400 font-medium">⚠ Manual fix required</p>
+                              <p className="text-xs text-gray-400 mt-0.5">{s.fixDescription}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* CENTER PANEL */}
+          <div className="order-1 md:order-2 flex flex-col h-[60vh] md:h-full md:border-x border-white/10">
+            <div className="flex-1 bg-white overflow-hidden">
+              {html ? (
+                <iframe
+                  key={iframeKey}
+                  title="preview"
+                  srcDoc={html}
+                  className="w-full h-full border-none"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                  No preview available
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT PANEL */}
+          <div className="order-3 flex flex-col p-4 border-t md:border-t-0 md:border-l border-white/10 overflow-y-auto bg-black/20 backdrop-blur-md">
+            <h2 className="text-lg font-semibold mb-4">Changes</h2>
+
+            {changes.length === 0 ? (
+              <p className="text-gray-500 text-sm">No changes yet</p>
+            ) : (
+              changes.map((c, i) => (
+                <div
+                  key={c._id ?? i}
+                  onClick={() => setHtml(c.html)}
+                  className="mb-2 p-2 bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer rounded transition-colors hover:bg-white/10"
+                >
+                  <p className="text-sm">{c.themeName}</p>
+                  {c.appliedAt && (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {new Date(c.appliedAt).toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
           </div>
 
         </div>

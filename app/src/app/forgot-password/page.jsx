@@ -14,10 +14,9 @@ export default function ForgotPassword() {
 
   const router = useRouter()
 
-  // 🔥 SEND OTP
   async function sendOtp() {
     if (!email) {
-      setMessage("Enter email ❌")
+      setMessage("Enter email ")
       return
     }
 
@@ -27,21 +26,20 @@ export default function ForgotPassword() {
     try {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" }, // ✅ FIXED
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        setMessage(data.error || "Failed to send OTP ❌")
+        setMessage(data.error || "Failed to send OTP ")
         return
       }
 
       setStep(2)
-      setMessage("OTP sent to your email 📩")
+      setMessage("OTP sent to your email ")
 
-      // ⏱️ timer
       setTimer(30)
       const interval = setInterval(() => {
         setTimer((prev) => {
@@ -54,16 +52,15 @@ export default function ForgotPassword() {
       }, 1000)
 
     } catch {
-      setMessage("Server error ❌")
+      setMessage("Server error ")
     }
 
     setLoading(false)
   }
 
-  // 🔥 RESET PASSWORD
   async function resetPassword() {
     if (!otp || !password) {
-      setMessage("Fill all fields ❌")
+      setMessage("Fill all fields ")
       return
     }
 
@@ -81,23 +78,29 @@ export default function ForgotPassword() {
 
       if (res.ok) {
         setMessage("Password updated ✅")
-
         setTimeout(() => {
           router.push("/login")
         }, 2000)
       } else {
-        setMessage(data.error || "Reset failed ❌")
+        setMessage(data.error || "Reset failed ")
       }
 
     } catch {
-      setMessage("Server error ❌")
+      setMessage("Server error ")
     }
 
     setLoading(false)
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-black text-white">
+    <div
+      className="flex items-center justify-center min-h-screen text-white"
+      style={{
+        backgroundImage: "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('/forgot-password-bg2.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
 
       <div className="p-6 bg-white/5 border border-white/10 rounded-xl w-[350px] backdrop-blur">
 
@@ -152,7 +155,6 @@ export default function ForgotPassword() {
               {loading ? "Updating..." : "Reset Password"}
             </button>
 
-            {/* 🔁 RESEND */}
             <button
               onClick={sendOtp}
               disabled={timer > 0}
@@ -163,14 +165,12 @@ export default function ForgotPassword() {
           </>
         )}
 
-        {/* MESSAGE */}
         {message && (
           <p className="mt-4 text-sm text-center text-gray-400">
             {message}
           </p>
         )}
 
-        {/* BACK TO LOGIN */}
         <p
           onClick={() => router.push("/login")}
           className="text-xs text-center mt-6 text-gray-500 hover:text-pink-400 cursor-pointer"
