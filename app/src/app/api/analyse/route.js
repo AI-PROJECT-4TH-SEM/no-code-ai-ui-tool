@@ -2,15 +2,15 @@ import puppeteer from "puppeteer"
 import { AxePuppeteer } from "@axe-core/puppeteer"
 import { CohereClient } from "cohere-ai"
 import { mapAxeToFix } from "@/lib/fixEngine/rules"
+import { buildContrastFix } from "@/lib/fixEngine/contrast"
+
 const cohere = new CohereClient({ token: process.env.COHERE_KEY })
- import { buildContrastFix } from "@/lib/fixEngine/contrast"
 
 export async function POST(req) {
   let browser
 
   try {
     const { html, url } = await req.json()
-
     if (!html && !url) {
       return Response.json({ error: "No input" }, { status: 400 })
     }
@@ -32,32 +32,58 @@ export async function POST(req) {
     }
 
     const axeResults = await new AxePuppeteer(page).analyze()
-   
-// extract real colors for every color-contrast violation node
-const contrastFixes = {}
 
-for (const v of axeResults.violations.filter(v => v.id === "color-contrast")) {
-  for (const node of v.nodes.slice(0, 3)) {
-    const selector = node.target?.[0]
-    if (!selector) continue
-    try {
-      const colors = await page.evaluate((sel) => {
-        const el = document.querySelector(sel)
-        if (!el) return null
-        const s = window.getComputedStyle(el)
-        return { color: s.color, background: s.backgroundColor }
-      }, selector)
+    // extract real computed colors for every color-contrast node BEFORE browser closes
+    // REPLACE this entire contrastFixes block
 
-      if (colors) {
-        const fix = buildContrastFix(selector, colors.color, colors.background)
-        if (fix) contrastFixes[selector] = fix
+    const contrastFixes = {}
+    for (const v of axeResults.violations.filter(v => v.id === "color-contrast")) {
+      for (const node of v.nodes.slice(0, 3)) {
+        console.log("RAW TARGET:", JSON.stringify(node.target))
+
+        const rawTarget = node.target?.[0]
+        const selector = typeof rawTarget === "string" ? rawTarget : rawTarget?.[0]
+
+        console.log("USING SELECTOR:", selector)
+
+        if (!selector || typeof selector !== "string") continue
+
+        try {
+          const colors = await page.evaluate((sel) => {
+            const el = document.querySelector(sel)
+            if (!el) return null
+            const fg = window.getComputedStyle(el).color
+
+            let bg = "rgb(255, 255, 255)"
+            let node = el
+            while (node && node !== document.documentElement) {
+              const nodeBg = window.getComputedStyle(node).backgroundColor
+              if (nodeBg && nodeBg !== "rgba(0, 0, 0, 0)" && nodeBg !== "transparent") {
+                bg = nodeBg
+                break
+              }
+              node = node.parentElement
+            }
+
+            return { color: fg, background: bg }
+          }, selector)
+
+          console.log("COLORS EXTRACTED:", colors)
+
+          if (colors) {
+            const fix = buildContrastFix(selector, colors.color, colors.background)
+            console.log("FIX BUILT:", fix)
+            if (fix) contrastFixes[selector] = fix
+          }
+        } catch (err) {
+          console.log("EVALUATE ERROR:", err.message)
+        }
       }
-    } catch {}
-  }
-}
+    }
+    console.log("CONTRAST FIXES BUILT:", JSON.stringify(contrastFixes, null, 2))
+    console.log("CONTRAST FIXES BUILT:", JSON.stringify(contrastFixes, null, 2))
 
     console.log("VIOLATIONS FOUND:", axeResults.violations.length)
-    console.log("VIOLATION IDS:", axeResults.violations.map(v => v.id))
 
     const violations = axeResults.violations.map((v) => ({
       id: v.id,
@@ -74,21 +100,19 @@ for (const v of axeResults.violations.filter(v => v.id === "color-contrast")) {
 
     const impactWeights = { critical: 25, serious: 15, moderate: 8, minor: 3 }
     const totalDeductions = violations.reduce(
-      (sum, v) => sum + (impactWeights[v.impact] || 0),
-      0
+      (sum, v) => sum + (impactWeights[v.impact] || 0), 0
     )
     const score = Math.max(0, 100 - totalDeductions)
 
     const response = await cohere.chat({
       model: "command-a-03-2025",
       message: `
-You are an accessibility expert.
+  You are an accessibility expert.
 
-Here are axe-core violations found on a webpage:
-${JSON.stringify(violations, null, 2)}
+  Here are axe-core violations found on a webpage:
+  ${JSON.stringify(violations, null, 2)}
 
-For each violation return a JSON array:
-
+  For each violation return a JSON array:
 [
   {
     "id": "violation-id",
@@ -104,53 +128,96 @@ For each violation return a JSON array:
     }
   }
 ]
-
 Rules:
 - Return ONLY the JSON array
-- No markdown
-- No explanation outside the JSON
+- No markdown, no explanation outside the JSON
 - Use the selector exactly from the violation nodes target field
-- If fix is too complex set domFix to null
 - Make values context aware based on the actual HTML
-      `,
+- For color-contrast violations always set domFix to null (handled separately)
+- For "region" and "landmark-one-main" violations use type "wrapWithMain" and set 
+  selector to a specific single element that wraps the main content 
+  (e.g. ".content", "#app", "div.container"). 
+  NEVER use "body", "html", or "body > *" as the selector.
+- For "page-has-heading-one" use type "ensureH1" with no selector needed
+`,
     })
 
     const rawText = (response.text ?? "").replace(/```json|```/g, "").trim()
 
-    const suggestions = parsed.map(s => {
-  if (s.id === "color-contrast" && !s.domFix) {
-    const selector = s.domFix?.selector ?? violations
-      .find(v => v.id === "color-contrast")
-      ?.nodes[0]?.target?.[0]
-    if (selector && contrastFixes[selector]) {
-      return { ...s, domFix: contrastFixes[selector] }
+    // parse Cohere response
+    let parsed = []
+    try {
+      parsed = JSON.parse(rawText)
+    } catch (err) {
+      console.error("Cohere parse failed:", rawText)
+      parsed = violations.map((v) => ({
+        id: v.id,
+        impact: v.impact,
+        title: v.help,
+        explanation: v.description,
+        fixDescription: v.nodes[0]?.failureSummary || "Fix manually",
+        domFix: null,
+      }))
     }
-  }
-  return s
-})
 
-    // deduplicate by id
-    const seen = new Set()
-   const dedupedSuggestions = suggestions
-  .filter((s) => {
-    if (seen.has(s.id)) return false
-    seen.add(s.id)
-    return true
-  })
-  .map((s) => {
-    // 🔥 fallback to heuristics if AI gives null
-    if (!s.domFix) {
-      const fallbackFix = mapAxeToFix(s)
-      if (fallbackFix) {
-        return { ...s, domFix: fallbackFix }
+    // inject computed contrast fixes
+    const withContrastFixes = parsed.map(s => {
+      if (s.id === "color-contrast") {
+        const violation = violations.find(v => v.id === "color-contrast")
+
+        // collect ALL fixes for this violation, not just the first
+        const allFixes = []
+        for (const node of violation?.nodes ?? []) {
+          const selector = node.target?.[0]
+          if (selector && contrastFixes[selector]) {
+            allFixes.push(contrastFixes[selector])
+          }
+        }
+
+        if (allFixes.length > 0) {
+          return {
+            ...s,
+            domFix: {
+              type: "multifix",
+              fixes: allFixes   // array of all setStyle fixes
+            }
+          }
+        }
       }
-    }
-    return s
-  })
+      return s
+    })
+    // deduplicate by id + fallback to heuristics if still no domFix
+    const seen = new Set()
+    const dedupedSuggestions = withContrastFixes
+      .filter(s => {
+        const key = `${s.id}::${s.domFix?.selector ?? "no-selector"}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .filter(s => {
+        // if we already have a wrapWithMain suggestion, drop any other wrapWithMain
+        if (s.domFix?.type === "wrapWithMain" || s.domFix?.type === "wrapMain") {
+          if (seen.has("wrapMain-done")) return false
+          seen.add("wrapMain-done")
+        }
+        return true
+      })
+      .map(s => {
+        if (!s.domFix) {
+          const fallbackFix = mapAxeToFix(s)
+          if (fallbackFix) return { ...s, domFix: fallbackFix }
+        }
+        return s
+      })
 
     console.log("SUGGESTIONS:", JSON.stringify(dedupedSuggestions, null, 2))
 
-    return Response.json({ score, violations: violations.length, suggestions: dedupedSuggestions })
+    return Response.json({
+      score,
+      violations: violations.length,
+      suggestions: dedupedSuggestions,
+    })
 
   } catch (err) {
     console.error("Analyse error:", err)
@@ -159,3 +226,5 @@ Rules:
     if (browser) await browser.close()
   }
 }
+
+

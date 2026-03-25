@@ -1,8 +1,109 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
+
+function applyDomFix(doc, fix) {
+  if (!fix?.type) return
+
+  switch (fix.type) {
+
+    case "setAttribute": {
+      doc.querySelectorAll(fix.selector).forEach(el =>
+        el.setAttribute(fix.attribute, fix.value)
+      )
+      break
+    }
+
+    case "setStyle": {
+      doc.querySelectorAll(fix.selector).forEach(el => {
+        el.style[fix.style] = fix.styleValue
+      })
+      break
+    }
+
+    case "setInnerText": {
+      doc.querySelectorAll(fix.selector).forEach(el => {
+        el.textContent = fix.value
+      })
+      break
+    }
+
+    case "addClass": {
+      doc.querySelectorAll(fix.selector).forEach(el =>
+        el.classList.add(fix.value)
+      )
+      break
+    }
+
+    case "replaceHtml": {
+      const el = doc.querySelector(fix.selector)
+      if (el) el.outerHTML = fix.value
+      break
+    }
+
+    case "wrapMain": {
+      if (doc.querySelector("main")) break
+      const body = doc.querySelector("body")
+      if (!body) break
+      const main = doc.createElement("main")
+      Array.from(body.children).forEach(child => {
+        if (!["HEADER", "NAV", "FOOTER"].includes(child.tagName)) {
+          main.appendChild(child)
+        }
+      })
+      body.appendChild(main)
+      break
+    }
+
+  case "wrapWithMain": {
+  if (doc.querySelector("main")) break  // already has main — nothing to do
+  const body = doc.querySelector("body")
+  if (!body) break
+  const main = doc.createElement("main")
+  const invalidSelectors = ["body", "html", "body > *"]
+  const el = (fix.selector && !invalidSelectors.includes(fix.selector))
+    ? doc.querySelector(fix.selector)
+    : null
+
+  if (el) {
+    el.replaceWith(main)
+    main.appendChild(el)
+  } else {
+    // wrap ALL body children that aren't landmark elements
+    const landmarks = ["HEADER", "NAV", "FOOTER", "MAIN", "ASIDE"]
+    Array.from(body.children).forEach(child => {
+      if (!landmarks.includes(child.tagName)) {
+        main.appendChild(child)
+      }
+    })
+    body.appendChild(main)
+  }
+  break
+}
+
+    case "multifix": {
+      fix.fixes.forEach(f => applyDomFix(doc, f))
+      break
+    }
+
+    case "ensureH1": {
+      if (doc.querySelector("h1")) break
+      const text =
+        doc.querySelector("title")?.textContent ||
+        doc.querySelector("h2")?.textContent ||
+        "Page title"
+      const h1 = doc.createElement("h1")
+      h1.textContent = text
+      doc.querySelector("body")?.prepend(h1)
+      break
+    }
+
+    default:
+      console.warn("Unknown fix type:", fix.type)
+  }
+}
 
 export default function Results() {
   const [html, setHtml] = useState("")
@@ -13,10 +114,12 @@ export default function Results() {
   const [analysing, setAnalysing] = useState(false)
   const [analysed, setAnalysed] = useState(false)
   const [changes, setChanges] = useState([])
+  const [historyIndex, setHistoryIndex] = useState(0)
   const [error, setError] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [iframeKey, setIframeKey] = useState(0)
-  const router = useRouter()
+  const [saving, setSaving] = useState(false)
+
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("sessionId")
   const { accessToken } = useAuth()
@@ -30,11 +133,11 @@ export default function Results() {
           headers: { Authorization: `Bearer ${accessToken}` },
         })
         const data = await res.json()
-
         if (res.ok) {
           setSession(data)
           setHtml(data.currentHtml || "")
           setChanges(data.changes || [])
+          setHistoryIndex(0)
         } else {
           setError("Failed to load session")
         }
@@ -49,7 +152,6 @@ export default function Results() {
   const runAnalysis = useCallback(async () => {
     const currentHtml = html || session?.currentHtml
     const currentUrl = session?.url
-
     if (!currentHtml && !currentUrl) return
 
     setAnalysing(true)
@@ -60,17 +162,10 @@ export default function Results() {
       const res = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          html: currentHtml,
-          url: currentUrl,
-        }),
+        body: JSON.stringify({ html: currentHtml, url: currentUrl }),
       })
-
       const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || "Analysis failed")
-      }
+      if (!res.ok) throw new Error(data.error || "Analysis failed")
 
       setScore(data.score ?? 0)
       setViolationCount(data.violations ?? 0)
@@ -90,48 +185,96 @@ export default function Results() {
     }
   }, [session, analysed, analysing, runAnalysis])
 
+ async function saveToBackend(htmlToSave, themeName = "Saved") {
+  setSaving(true)
+  try {
+    const res = await fetch(`/api/session/${sessionId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ html: htmlToSave, themeName }),
+    })
+    console.log("SAVE STATUS:", res.status)  // ← add this
+  } catch (err) {
+    console.error("Save failed:", err)
+  } finally {
+    setSaving(false)
+  }
+}
+
+  function downloadHtml() {
+    const blob = new Blob([html], { type: "text/html" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "fixed-page.html"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function undo() {
+    const targetIndex = historyIndex
+    if (targetIndex >= changes.length) return
+    const target = changes[targetIndex]
+    setHtml(target.html)
+    setIframeKey(prev => prev + 1)
+    setHistoryIndex(prev => prev + 1)
+  }
+
+  function redo() {
+    if (historyIndex <= 0) return
+    const targetIndex = historyIndex - 2
+    if (targetIndex < 0) {
+      setHistoryIndex(0)
+      return
+    }
+    const target = changes[targetIndex]
+    setHtml(target.html)
+    setIframeKey(prev => prev + 1)
+    setHistoryIndex(prev => prev - 1)
+  }
+
   function applyFix(suggestion) {
     console.log("domFix object:", JSON.stringify(suggestion.domFix))
     if (!suggestion.domFix) return
 
-    const { type, selector, attribute, value, style, styleValue } = suggestion.domFix
-    const noSelectorNeeded = ["wrapMain", "ensureH1", "fixContrast", "beautify"]
-
-    if (!selector && !noSelectorNeeded.includes(type)) {
-      alert("No selector provided for this fix")
-      return
-    }
+    const { type } = suggestion.domFix
+    const noSelectorNeeded = ["wrapMain", "wrapWithMain", "ensureH1", "multifix"]
 
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, "text/html")
-    const elements = doc.querySelectorAll(selector)
 
-    console.log("TRYING SELECTOR:", selector, "FOUND:", elements.length)
-
-    if (!elements.length) {
-      alert(`Element not found: ${selector}`)
-      return
+    if (!noSelectorNeeded.includes(type)) {
+      const { selector } = suggestion.domFix
+      if (!selector) {
+        alert("No selector provided for this fix")
+        return
+      }
+      const elements = doc.querySelectorAll(selector)
+      console.log("TRYING SELECTOR:", selector, "FOUND:", elements.length)
+      if (!elements.length) {
+        alert(`Element not found: ${selector}`)
+        return
+      }
     }
 
-    elements.forEach((el) => {
-      if (type === "setAttribute") el.setAttribute(attribute, value)
-      else if (type === "setStyle") el.style[style] = styleValue
-      else if (type === "setInnerText") el.textContent = value
-      else if (type === "addClass") el.classList.add(value)
-      else if (type === "replaceHtml") el.outerHTML = value
-    })
+    applyDomFix(doc, suggestion.domFix)
 
     const newHtml = doc.documentElement.outerHTML
     setHtml(newHtml)
-    setIframeKey(prev => prev + 1) // force iframe to re-render
+    setIframeKey(prev => prev + 1)
+    setHistoryIndex(0)
+    saveToBackend(newHtml)
 
-    setSuggestions((prev) =>
+    setSuggestions(prev =>
       prev.map((s, idx) =>
         idx === suggestions.indexOf(suggestion) ? { ...s, fixed: true } : s
       )
     )
 
-    setChanges((prev) => [
+    setChanges(prev => [
       {
         _id: Date.now().toString(),
         themeName: `Fix: ${suggestion.title}`,
@@ -143,13 +286,10 @@ export default function Results() {
   }
 
   const safeScore = score ?? 0
-
   const scoreColor =
-    safeScore >= 80
-      ? "text-green-400"
-      : safeScore >= 50
-        ? "text-yellow-400"
-        : "text-red-400"
+    safeScore >= 80 ? "text-green-400" :
+    safeScore >= 50 ? "text-yellow-400" :
+    "text-red-400"
 
   const impactColor = {
     critical: "text-red-400",
@@ -157,6 +297,9 @@ export default function Results() {
     moderate: "text-yellow-400",
     minor: "text-blue-400",
   }
+
+  const canUndo = historyIndex < changes.length
+  const canRedo = historyIndex > 0
 
   return (
     <div
@@ -182,9 +325,7 @@ export default function Results() {
             {error && (
               <div className="mb-3 p-3 bg-red-900/30 backdrop-blur-sm border border-red-500/30 rounded text-sm text-red-300">
                 {error}
-                <button onClick={runAnalysis} className="block mt-2 text-xs underline">
-                  Retry
-                </button>
+                <button onClick={runAnalysis} className="block mt-2 text-xs underline">Retry</button>
               </div>
             )}
 
@@ -199,17 +340,13 @@ export default function Results() {
             )}
 
             {!analysed && !analysing && !error && (
-              <button
-                onClick={runAnalysis}
-                className="w-full py-2 bg-purple-600 hover:bg-purple-700 rounded transition-colors"
-              >
+              <button onClick={runAnalysis} className="w-full py-2 bg-purple-600 hover:bg-purple-700 rounded transition-colors">
                 Analyse
               </button>
             )}
 
             {analysed && !analysing && (
               <>
-                {/* Score block */}
                 <div className="mb-4 p-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded">
                   <p className={`text-2xl font-bold ${scoreColor}`}>
                     {safeScore}
@@ -235,13 +372,8 @@ export default function Results() {
                   <p className="text-green-400 text-sm">No issues found ✓</p>
                 )}
 
-                {/* Accordion suggestions */}
                 {suggestions.map((s, i) => (
-                  <div
-                    key={i}
-                    className="mb-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded overflow-hidden"
-                  >
-                    {/* Header — always visible */}
+                  <div key={i} className="mb-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded overflow-hidden">
                     <div
                       onClick={() => setOpenId(openId === i ? null : i)}
                       className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/10 transition-colors"
@@ -254,13 +386,10 @@ export default function Results() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-2">
                         {s.fixed && <span className="text-xs text-green-400">✓</span>}
-                        <span className="text-gray-400 text-xs">
-                          {openId === i ? "▲" : "▼"}
-                        </span>
+                        <span className="text-gray-400 text-xs">{openId === i ? "▲" : "▼"}</span>
                       </div>
                     </div>
 
-                    {/* Body — only when expanded */}
                     {openId === i && (
                       <div className="px-3 pb-3 border-t border-white/10">
                         <p className="text-sm text-gray-400 mt-2">{s.explanation}</p>
@@ -272,10 +401,7 @@ export default function Results() {
                             <span className="text-xs text-green-400">✓ Fixed</span>
                           ) : s.domFix ? (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                applyFix(s)
-                              }}
+                              onClick={(e) => { e.stopPropagation(); applyFix(s) }}
                               className="text-sm px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 transition-colors"
                             >
                               Fix →
@@ -296,8 +422,35 @@ export default function Results() {
           </div>
 
           {/* CENTER PANEL */}
-          <div className="order-1 md:order-2 flex flex-col h-[60vh] md:h-full md:border-x border-white/10">
-            <div className="flex-1 bg-white overflow-hidden">
+          <div className="order-1 md:order-2 flex flex-col h-[60vh] md:h-full md:border-x border-white/10 relative">
+            {/* toolbar */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-black/30 border-b border-white/10 shrink-0">
+              <button
+                onClick={undo}
+                disabled={!canUndo}
+                className="px-2 py-1 text-xs rounded border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                ← Undo
+              </button>
+              <button
+                onClick={redo}
+                disabled={!canRedo}
+                className="px-2 py-1 text-xs rounded border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Redo →
+              </button>
+              <div className="flex-1" />
+              {saving && <span className="text-xs text-gray-400">Saving...</span>}
+              <button
+                onClick={downloadHtml}
+                className="px-3 py-1 text-xs rounded bg-purple-600 hover:bg-purple-700 transition-colors"
+              >
+                Download HTML
+              </button>
+            </div>
+
+            {/* preview */}
+            <div className="flex-1 bg-white overflow-hidden relative">
               {html ? (
                 <iframe
                   key={iframeKey}
@@ -309,6 +462,17 @@ export default function Results() {
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
                   No preview available
+                </div>
+              )}
+
+              {analysing && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-10">
+                  <svg className="animate-spin h-8 w-8 text-purple-600" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  <p className="text-gray-600 text-sm font-medium">Scanning for accessibility issues...</p>
+                  <p className="text-gray-400 text-xs">This usually takes 20–30 seconds</p>
                 </div>
               )}
             </div>
@@ -324,8 +488,13 @@ export default function Results() {
               changes.map((c, i) => (
                 <div
                   key={c._id ?? i}
-                  onClick={() => setHtml(c.html)}
-                  className="mb-2 p-2 bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer rounded transition-colors hover:bg-white/10"
+                  onClick={() => {
+                    setHtml(c.html)
+                    setIframeKey(prev => prev + 1)
+                    setHistoryIndex(i + 1)
+                  }}
+                  className={`mb-2 p-2 backdrop-blur-sm border cursor-pointer rounded transition-colors hover:bg-white/10
+                    ${historyIndex === i + 1 ? "bg-white/15 border-purple-500/40" : "bg-white/5 border-white/10"}`}
                 >
                   <p className="text-sm">{c.themeName}</p>
                   {c.appliedAt && (

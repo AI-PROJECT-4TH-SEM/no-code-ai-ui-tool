@@ -1,5 +1,4 @@
-import { ensureH1, wrapMain } from "./heuristics"
-import { fixContrast } from "./contrast"
+import { ensureH1, wrapMain, wrapWithMain } from "./heuristics"
 
 export function applyFix(container, fix) {
   if (!fix || !fix.type) return
@@ -9,39 +8,55 @@ export function applyFix(container, fix) {
 
       case "setAttribute": {
         const elements = container.querySelectorAll(fix.selector)
+        elements.forEach(el => el.setAttribute(fix.attribute, fix.value))
+        break
+      }
+
+      case "setStyle": {
+        const elements = container.querySelectorAll(fix.selector)
         elements.forEach(el => {
-          el.setAttribute(fix.attribute, fix.value)
+          el.style[fix.style] = fix.styleValue
         })
         break
       }
-      case "beautify": {
-  const body = container.querySelector("body")
-  if (body) {
-    body.style.background = "#121212"
-    body.style.color = "#ffffff"
-    body.style.fontFamily = "Arial, sans-serif"
-    body.style.padding = "20px"
-  }
-  break
-}
+
+      case "setInnerText": {
+        const elements = container.querySelectorAll(fix.selector)
+        elements.forEach(el => { el.textContent = fix.value })
+        break
+      }
+
+      case "addClass": {
+        const elements = container.querySelectorAll(fix.selector)
+        elements.forEach(el => el.classList.add(fix.value))
+        break
+      }
+
+      case "replaceHtml": {
+        const el = container.querySelector(fix.selector)
+        if (el) el.outerHTML = fix.value
+        break
+      }
 
       case "wrapMain":
         wrapMain(container)
         break
 
+      case "wrapWithMain": {
+        // AI-driven — wraps a specific selector instead of guessing
+        wrapWithMain(container, fix.selector)
+        break
+      }
+
       case "ensureH1":
         ensureH1(container)
         break
 
-      case "fixContrast":
-        fixContrast(container)
-        break
-
       default:
-        console.warn("Unknown fix:", fix)
+        console.warn("Unknown fix type:", fix.type, fix)
     }
 
   } catch (err) {
-    console.error("Fix failed:", fix, err)
+    console.error("applyFix failed:", fix, err)
   }
 }

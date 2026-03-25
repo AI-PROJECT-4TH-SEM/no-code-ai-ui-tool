@@ -16,27 +16,6 @@ export function contrastRatio(rgb1, rgb2) {
   return (Math.max(lum1, lum2) + 0.05) / (Math.min(lum1, lum2) + 0.05)
 }
 
-// your original — keep this for the "beautify" nuclear fix
-export function fixContrast(container) {
-  const elements = container.querySelectorAll("*")
-  const body = container.querySelector("body")
-  if (body) {
-    body.style.setProperty("background", "#ffffff", "important")
-    body.style.setProperty("color", "#111111", "important")
-  }
-  elements.forEach(el => {
-    const style = window.getComputedStyle(el)
-    const color = style.color.match(/\d+/g)?.map(Number)
-    const bg = style.backgroundColor.match(/\d+/g)?.map(Number)
-    if (!color || !bg) return
-    if (contrastRatio(color, bg) < 4.5) {
-      el.style.setProperty("color", "#111", "important")
-      el.style.setProperty("background-color", "#fff", "important")
-    }
-  })
-}
-
-// 🔥 NEW — smart per-element fix, called from route.js on the server
 function parseRgb(str) {
   if (!str || str === "transparent") return null
   const m = str.match(/\d+(\.\d+)?/g)
@@ -49,30 +28,45 @@ function clamp(v) {
 
 function nudgeToTarget(fg, bg, target = 4.5) {
   const bgLum = luminance(...bg)
-  const darken = bgLum > 0.5   // light bg → push text darker
+  const darken = bgLum > 0.5
   let [r, g, b] = fg
 
+  // if color is near-white/near-black with no real hue, just go straight to
+  // a readable gray rather than nudging 200 steps to get near-gray anyway
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const isNeutral = (max - min) < 20  // no real hue — it's a gray/white/black
+
+  if (isNeutral) {
+    // just pick a known-good neutral that passes
+    return darken ? [68, 68, 68] : [187, 187, 187]
+  }
+
+  // has real hue — scale proportionally to preserve it
   for (let i = 0; i < 200; i++) {
     if (contrastRatio([r, g, b], bg) >= target) break
-    r = clamp(darken ? r - 2 : r + 2)
-    g = clamp(darken ? g - 2 : g + 2)
-    b = clamp(darken ? b - 2 : b + 2)
+    if (darken) {
+      // scale toward black proportionally
+      r = clamp(r * 0.93)
+      g = clamp(g * 0.93)
+      b = clamp(b * 0.93)
+    } else {
+      // scale toward white proportionally
+      r = clamp(r + (255 - r) * 0.07)
+      g = clamp(g + (255 - g) * 0.07)
+      b = clamp(b + (255 - b) * 0.07)
+    }
   }
 
   return [r, g, b]
 }
 
-// called from route.js with strings like "rgb(150, 150, 150)"
 export function buildContrastFix(selector, fgStr, bgStr) {
   const fg = parseRgb(fgStr)
   const bg = parseRgb(bgStr)
   if (!fg || !bg) return null
-
-  // already passes — no fix needed
   if (contrastRatio(fg, bg) >= 4.5) return null
-
   const [r, g, b] = nudgeToTarget(fg, bg)
-
   return {
     type: "setStyle",
     selector,
@@ -80,3 +74,4 @@ export function buildContrastFix(selector, fgStr, bgStr) {
     styleValue: `rgb(${r}, ${g}, ${b})`,
   }
 }
+
