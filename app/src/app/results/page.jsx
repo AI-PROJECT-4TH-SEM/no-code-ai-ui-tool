@@ -8,41 +8,35 @@ function applyDomFix(doc, fix) {
   if (!fix?.type) return
 
   switch (fix.type) {
-
     case "setAttribute": {
       doc.querySelectorAll(fix.selector).forEach(el =>
         el.setAttribute(fix.attribute, fix.value)
       )
       break
     }
-
     case "setStyle": {
       doc.querySelectorAll(fix.selector).forEach(el => {
         el.style[fix.style] = fix.styleValue
       })
       break
     }
-
     case "setInnerText": {
       doc.querySelectorAll(fix.selector).forEach(el => {
         el.textContent = fix.value
       })
       break
     }
-
     case "addClass": {
       doc.querySelectorAll(fix.selector).forEach(el =>
         el.classList.add(fix.value)
       )
       break
     }
-
     case "replaceHtml": {
       const el = doc.querySelector(fix.selector)
       if (el) el.outerHTML = fix.value
       break
     }
-
     case "wrapMain": {
       if (doc.querySelector("main")) break
       const body = doc.querySelector("body")
@@ -56,38 +50,24 @@ function applyDomFix(doc, fix) {
       body.appendChild(main)
       break
     }
-
-  case "wrapWithMain": {
-  if (doc.querySelector("main")) break  // already has main — nothing to do
-  const body = doc.querySelector("body")
-  if (!body) break
-  const main = doc.createElement("main")
-  const invalidSelectors = ["body", "html", "body > *"]
-  const el = (fix.selector && !invalidSelectors.includes(fix.selector))
-    ? doc.querySelector(fix.selector)
-    : null
-
-  if (el) {
-    el.replaceWith(main)
-    main.appendChild(el)
-  } else {
-    // wrap ALL body children that aren't landmark elements
-    const landmarks = ["HEADER", "NAV", "FOOTER", "MAIN", "ASIDE"]
-    Array.from(body.children).forEach(child => {
-      if (!landmarks.includes(child.tagName)) {
-        main.appendChild(child)
-      }
-    })
-    body.appendChild(main)
-  }
-  break
-}
-
+    case "wrapWithMain": {
+      if (doc.querySelector("main")) break
+      const body = doc.querySelector("body")
+      if (!body) break
+      const main = doc.createElement("main")
+      const landmarks = ["HEADER", "NAV", "FOOTER", "MAIN", "ASIDE"]
+      Array.from(body.children).forEach(child => {
+        if (!landmarks.includes(child.tagName)) {
+          main.appendChild(child)
+        }
+      })
+      body.appendChild(main)
+      break
+    }
     case "multifix": {
       fix.fixes.forEach(f => applyDomFix(doc, f))
       break
     }
-
     case "ensureH1": {
       if (doc.querySelector("h1")) break
       const text =
@@ -99,7 +79,6 @@ function applyDomFix(doc, fix) {
       doc.querySelector("body")?.prepend(h1)
       break
     }
-
     default:
       console.warn("Unknown fix type:", fix.type)
   }
@@ -114,7 +93,8 @@ export default function Results() {
   const [analysing, setAnalysing] = useState(false)
   const [analysed, setAnalysed] = useState(false)
   const [changes, setChanges] = useState([])
-  const [historyIndex, setHistoryIndex] = useState(0)
+  const [undoStack, setUndoStack] = useState([])
+  const [redoStack, setRedoStack] = useState([])
   const [error, setError] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [iframeKey, setIframeKey] = useState(0)
@@ -123,6 +103,11 @@ export default function Results() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("sessionId")
   const { accessToken } = useAuth()
+
+  // remount iframe every time html changes — this is what makes undo/redo visible
+  useEffect(() => {
+    setIframeKey(prev => prev + 1)
+  }, [html])
 
   useEffect(() => {
     if (!accessToken || !sessionId) return
@@ -135,9 +120,10 @@ export default function Results() {
         const data = await res.json()
         if (res.ok) {
           setSession(data)
-          setHtml(data.currentHtml || "")
+          setHtml(data.originalHtml || "")  // always start from original
           setChanges(data.changes || [])
-          setHistoryIndex(0)
+          setUndoStack([])
+          setRedoStack([])
         } else {
           setError("Failed to load session")
         }
@@ -150,7 +136,9 @@ export default function Results() {
   }, [accessToken, sessionId])
 
   const runAnalysis = useCallback(async () => {
-    const currentHtml = html || session?.currentHtml
+    const currentHtml = html || session?.originalHtml
+    console.log("ANALYSING HTML LENGTH:", currentHtml?.length)
+    console.log("HAS MAIN:", currentHtml?.includes("<main>"))
     const currentUrl = session?.url
     if (!currentHtml && !currentUrl) return
 
@@ -180,29 +168,28 @@ export default function Results() {
   }, [html, session])
 
   useEffect(() => {
-    if (session?.currentHtml && !analysed && !analysing) {
+    if (session?.originalHtml && !analysed && !analysing) {
       runAnalysis()
     }
   }, [session, analysed, analysing, runAnalysis])
 
- async function saveToBackend(htmlToSave, themeName = "Saved") {
-  setSaving(true)
-  try {
-    const res = await fetch(`/api/session/${sessionId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ html: htmlToSave, themeName }),
-    })
-    console.log("SAVE STATUS:", res.status)  // ← add this
-  } catch (err) {
-    console.error("Save failed:", err)
-  } finally {
-    setSaving(false)
+  async function saveToBackend(htmlToSave, themeName = "Saved") {
+    setSaving(true)
+    try {
+      await fetch(`/api/session/${sessionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ html: htmlToSave, themeName }),
+      })
+    } catch (err) {
+      console.error("Save failed:", err)
+    } finally {
+      setSaving(false)
+    }
   }
-}
 
   function downloadHtml() {
     const blob = new Blob([html], { type: "text/html" })
@@ -215,29 +202,22 @@ export default function Results() {
   }
 
   function undo() {
-    const targetIndex = historyIndex
-    if (targetIndex >= changes.length) return
-    const target = changes[targetIndex]
-    setHtml(target.html)
-    setIframeKey(prev => prev + 1)
-    setHistoryIndex(prev => prev + 1)
+    if (undoStack.length === 0) return
+    const previous = undoStack[undoStack.length - 1]
+    setRedoStack(prev => [html, ...prev])
+    setUndoStack(prev => prev.slice(0, -1))
+    setHtml(previous)  // useEffect will remount iframe
   }
 
   function redo() {
-    if (historyIndex <= 0) return
-    const targetIndex = historyIndex - 2
-    if (targetIndex < 0) {
-      setHistoryIndex(0)
-      return
-    }
-    const target = changes[targetIndex]
-    setHtml(target.html)
-    setIframeKey(prev => prev + 1)
-    setHistoryIndex(prev => prev - 1)
+    if (redoStack.length === 0) return
+    const next = redoStack[0]
+    setUndoStack(prev => [...prev, html])
+    setRedoStack(prev => prev.slice(1))
+    setHtml(next)  // useEffect will remount iframe
   }
 
   function applyFix(suggestion) {
-    console.log("domFix object:", JSON.stringify(suggestion.domFix))
     if (!suggestion.domFix) return
 
     const { type } = suggestion.domFix
@@ -248,25 +228,22 @@ export default function Results() {
 
     if (!noSelectorNeeded.includes(type)) {
       const { selector } = suggestion.domFix
-      if (!selector) {
-        alert("No selector provided for this fix")
-        return
-      }
+      if (!selector) { alert("No selector provided for this fix"); return }
       const elements = doc.querySelectorAll(selector)
-      console.log("TRYING SELECTOR:", selector, "FOUND:", elements.length)
-      if (!elements.length) {
-        alert(`Element not found: ${selector}`)
-        return
-      }
+      if (!elements.length) { alert(`Element not found: ${selector}`); return }
     }
 
     applyDomFix(doc, suggestion.domFix)
-
     const newHtml = doc.documentElement.outerHTML
-    setHtml(newHtml)
-    setIframeKey(prev => prev + 1)
-    setHistoryIndex(0)
-    saveToBackend(newHtml)
+    console.log("HAS MAIN:", newHtml.includes("<main>"))
+    console.log("HAS NAV:", newHtml.includes("<nav>"))
+
+
+
+    setUndoStack(prev => [...prev, html])
+    setRedoStack([])
+    setHtml(newHtml)  // useEffect will remount iframe
+    saveToBackend(newHtml, `Fix: ${suggestion.title}`)
 
     setSuggestions(prev =>
       prev.map((s, idx) =>
@@ -288,8 +265,8 @@ export default function Results() {
   const safeScore = score ?? 0
   const scoreColor =
     safeScore >= 80 ? "text-green-400" :
-    safeScore >= 50 ? "text-yellow-400" :
-    "text-red-400"
+      safeScore >= 50 ? "text-yellow-400" :
+        "text-red-400"
 
   const impactColor = {
     critical: "text-red-400",
@@ -298,8 +275,8 @@ export default function Results() {
     minor: "text-blue-400",
   }
 
-  const canUndo = historyIndex < changes.length
-  const canRedo = historyIndex > 0
+  const canUndo = undoStack.length > 0
+  const canRedo = redoStack.length > 0
 
   return (
     <div
@@ -423,7 +400,6 @@ export default function Results() {
 
           {/* CENTER PANEL */}
           <div className="order-1 md:order-2 flex flex-col h-[60vh] md:h-full md:border-x border-white/10 relative">
-            {/* toolbar */}
             <div className="flex items-center gap-2 px-3 py-2 bg-black/30 border-b border-white/10 shrink-0">
               <button
                 onClick={undo}
@@ -449,7 +425,6 @@ export default function Results() {
               </button>
             </div>
 
-            {/* preview */}
             <div className="flex-1 bg-white overflow-hidden relative">
               {html ? (
                 <iframe
@@ -489,12 +464,11 @@ export default function Results() {
                 <div
                   key={c._id ?? i}
                   onClick={() => {
-                    setHtml(c.html)
-                    setIframeKey(prev => prev + 1)
-                    setHistoryIndex(i + 1)
+                    setUndoStack(prev => [...prev, html])
+                    setRedoStack([])
+                    setHtml(c.html)  // useEffect will remount iframe
                   }}
-                  className={`mb-2 p-2 backdrop-blur-sm border cursor-pointer rounded transition-colors hover:bg-white/10
-                    ${historyIndex === i + 1 ? "bg-white/15 border-purple-500/40" : "bg-white/5 border-white/10"}`}
+                  className="mb-2 p-2 bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer rounded transition-colors hover:bg-white/10"
                 >
                   <p className="text-sm">{c.themeName}</p>
                   {c.appliedAt && (

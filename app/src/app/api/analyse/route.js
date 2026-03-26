@@ -33,19 +33,12 @@ export async function POST(req) {
 
     const axeResults = await new AxePuppeteer(page).analyze()
 
-    // extract real computed colors for every color-contrast node BEFORE browser closes
-    // REPLACE this entire contrastFixes block
-
+    // extract real computed colors — slice(0,10) to catch more failing nodes
     const contrastFixes = {}
     for (const v of axeResults.violations.filter(v => v.id === "color-contrast")) {
-      for (const node of v.nodes.slice(0, 3)) {
-        console.log("RAW TARGET:", JSON.stringify(node.target))
-
+      for (const node of v.nodes.slice(0, 10)) {
         const rawTarget = node.target?.[0]
         const selector = typeof rawTarget === "string" ? rawTarget : rawTarget?.[0]
-
-        console.log("USING SELECTOR:", selector)
-
         if (!selector || typeof selector !== "string") continue
 
         try {
@@ -68,19 +61,16 @@ export async function POST(req) {
             return { color: fg, background: bg }
           }, selector)
 
-          console.log("COLORS EXTRACTED:", colors)
-
           if (colors) {
             const fix = buildContrastFix(selector, colors.color, colors.background)
-            console.log("FIX BUILT:", fix)
+            console.log("FIX BUILT:", selector, "→", fix?.styleValue ?? "null (already passes)")
             if (fix) contrastFixes[selector] = fix
           }
         } catch (err) {
-          console.log("EVALUATE ERROR:", err.message)
+          console.log("EVALUATE ERROR:", selector, err.message)
         }
       }
     }
-    console.log("CONTRAST FIXES BUILT:", JSON.stringify(contrastFixes, null, 2))
     console.log("CONTRAST FIXES BUILT:", JSON.stringify(contrastFixes, null, 2))
 
     console.log("VIOLATIONS FOUND:", axeResults.violations.length)
@@ -91,7 +81,7 @@ export async function POST(req) {
       description: v.description,
       help: v.help,
       helpUrl: v.helpUrl,
-      nodes: v.nodes.slice(0, 3).map((n) => ({
+      nodes: v.nodes.slice(0, 10).map((n) => ({
         html: n.html,
         target: n.target,
         failureSummary: n.failureSummary,
@@ -107,12 +97,12 @@ export async function POST(req) {
     const response = await cohere.chat({
       model: "command-a-03-2025",
       message: `
-  You are an accessibility expert.
+You are an accessibility expert.
 
-  Here are axe-core violations found on a webpage:
-  ${JSON.stringify(violations, null, 2)}
+Here are axe-core violations found on a webpage:
+${JSON.stringify(violations, null, 2)}
 
-  For each violation return a JSON array:
+For each violation return a JSON array:
 [
   {
     "id": "violation-id",
@@ -134,17 +124,18 @@ Rules:
 - Use the selector exactly from the violation nodes target field
 - Make values context aware based on the actual HTML
 - For color-contrast violations always set domFix to null (handled separately)
-- For "region" and "landmark-one-main" violations use type "wrapWithMain" and set 
-  selector to a specific single element that wraps the main content 
-  (e.g. ".content", "#app", "div.container"). 
-  NEVER use "body", "html", or "body > *" as the selector.
+- For "region" and "landmark-one-main" violations use type "wrapWithMain" and set
+  selector to null. Do NOT select a specific child element. The fix engine will
+  wrap all body content automatically.
 - For "page-has-heading-one" use type "ensureH1" with no selector needed
+- For "heading-order" violations use type "replaceTag", set selector to the 
+  exact heading element, and set "tag" to the correct heading level (e.g. "h2").
+  NEVER use setAttribute to change heading levels — it does not work.
 `,
     })
 
     const rawText = (response.text ?? "").replace(/```json|```/g, "").trim()
 
-    // parse Cohere response
     let parsed = []
     try {
       parsed = JSON.parse(rawText)
@@ -160,33 +151,37 @@ Rules:
       }))
     }
 
-    // inject computed contrast fixes
+    // inject computed contrast fixes — collect ALL nodes
     const withContrastFixes = parsed.map(s => {
       if (s.id === "color-contrast") {
         const violation = violations.find(v => v.id === "color-contrast")
 
-        // collect ALL fixes for this violation, not just the first
         const allFixes = []
+        const failingSelectors = []
+
         for (const node of violation?.nodes ?? []) {
           const selector = node.target?.[0]
           if (selector && contrastFixes[selector]) {
             allFixes.push(contrastFixes[selector])
+            failingSelectors.push(selector)
           }
         }
 
         if (allFixes.length > 0) {
           return {
             ...s,
+            explanation: `${s.explanation} Failing elements: ${failingSelectors.join(", ")}`,
             domFix: {
               type: "multifix",
-              fixes: allFixes   // array of all setStyle fixes
+              fixes: allFixes
             }
           }
         }
       }
       return s
     })
-    // deduplicate by id + fallback to heuristics if still no domFix
+
+    // deduplicate — also collapse duplicate wrapWithMain
     const seen = new Set()
     const dedupedSuggestions = withContrastFixes
       .filter(s => {
@@ -196,7 +191,6 @@ Rules:
         return true
       })
       .filter(s => {
-        // if we already have a wrapWithMain suggestion, drop any other wrapWithMain
         if (s.domFix?.type === "wrapWithMain" || s.domFix?.type === "wrapMain") {
           if (seen.has("wrapMain-done")) return false
           seen.add("wrapMain-done")
@@ -226,5 +220,3 @@ Rules:
     if (browser) await browser.close()
   }
 }
-
-

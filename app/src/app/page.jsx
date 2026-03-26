@@ -18,21 +18,21 @@ export default function Home() {
 const [label, setLabel] = useState("")
 
   // Load saved HTML on mount
-  useEffect(() => {
-    if (!accessToken) return
-    async function loadHtml() {
-      try {
-        const res = await fetch("/api/html", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        })
-        const data = await res.json()
-        if (data.html) setHtml(data.html)
-      } catch {
-        console.log("Failed to load HTML")
-      }
-    }
-    loadHtml()
-  }, [accessToken])
+  // useEffect(() => {
+  //   if (!accessToken) return
+  //   async function loadHtml() {
+  //     try {
+  //       const res = await fetch("/api/html", {
+  //         headers: { Authorization: `Bearer ${accessToken}` },
+  //       })
+  //       const data = await res.json()
+  //       if (data.html) setHtml(data.html)
+  //     } catch {
+  //       console.log("Failed to load HTML")
+  //     }
+  //   }
+  //   loadHtml()
+  // }, [accessToken])
 
   async function saveHtml(content) {
     if (!accessToken) return
@@ -191,7 +191,7 @@ async function handleAnalyse() {
                 value={html}
                 onChange={async (e) => {
                   setHtml(e.target.value)
-                  await saveHtml(e.target.value)
+                  // await saveHtml(e.target.value)
                 }}
               />
             )}

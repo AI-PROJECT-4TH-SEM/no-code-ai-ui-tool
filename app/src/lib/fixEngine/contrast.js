@@ -31,31 +31,35 @@ function nudgeToTarget(fg, bg, target = 4.5) {
   const darken = bgLum > 0.5
   let [r, g, b] = fg
 
-  // if color is near-white/near-black with no real hue, just go straight to
-  // a readable gray rather than nudging 200 steps to get near-gray anyway
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
-  const isNeutral = (max - min) < 20  // no real hue — it's a gray/white/black
+  const isNeutral = (max - min) < 20
 
   if (isNeutral) {
-    // just pick a known-good neutral that passes
-    return darken ? [68, 68, 68] : [187, 187, 187]
+    // pick direction based on bg luminance and verify it actually passes
+    const candidate = darken ? [68, 68, 68] : [187, 187, 187]
+    if (contrastRatio(candidate, bg) >= target) return candidate
+    // if it doesn't pass, force to black or white
+    return darken ? [0, 0, 0] : [255, 255, 255]
   }
 
-  // has real hue — scale proportionally to preserve it
+  // has real hue — scale proportionally
   for (let i = 0; i < 200; i++) {
     if (contrastRatio([r, g, b], bg) >= target) break
     if (darken) {
-      // scale toward black proportionally
       r = clamp(r * 0.93)
       g = clamp(g * 0.93)
       b = clamp(b * 0.93)
     } else {
-      // scale toward white proportionally
       r = clamp(r + (255 - r) * 0.07)
       g = clamp(g + (255 - g) * 0.07)
       b = clamp(b + (255 - b) * 0.07)
     }
+  }
+
+  // final safety check — if still failing after 200 steps, force it
+  if (contrastRatio([r, g, b], bg) < target) {
+    return darken ? [0, 0, 0] : [255, 255, 255]
   }
 
   return [r, g, b]
