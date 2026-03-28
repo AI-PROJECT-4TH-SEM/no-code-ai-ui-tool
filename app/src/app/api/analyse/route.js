@@ -24,7 +24,15 @@ export async function POST(req) {
 
     if (html) {
       await page.setRequestInterception(true)
-      page.on("request", (req) => req.abort())
+      page.on("request", (interceptedReq) => {
+        const type = interceptedReq.resourceType()
+        // allow stylesheets and fonts, block everything else
+        if (type === "stylesheet" || type === "font") {
+          interceptedReq.continue()
+        } else {
+          interceptedReq.abort()
+        }
+      })
       await page.setContent(html, { waitUntil: "domcontentloaded" })
     } else {
       const finalUrl = url.startsWith("http") ? url : "https://" + url
@@ -33,7 +41,6 @@ export async function POST(req) {
 
     const axeResults = await new AxePuppeteer(page).analyze()
 
-    // extract real computed colors — slice(0,10) to catch more failing nodes
     const contrastFixes = {}
     for (const v of axeResults.violations.filter(v => v.id === "color-contrast")) {
       for (const node of v.nodes.slice(0, 10)) {
@@ -124,13 +131,25 @@ Rules:
 - Use the selector exactly from the violation nodes target field
 - Make values context aware based on the actual HTML
 - For color-contrast violations always set domFix to null (handled separately)
-- For "region" and "landmark-one-main" violations use type "wrapWithMain" and set
-  selector to null. Do NOT select a specific child element. The fix engine will
-  wrap all body content automatically.
+- For ANY violation where id is "landmark-one-main" or "region", you MUST return
+  domFix with type "wrapWithMain" and selector set to null. No exceptions.
+  NEVER return domFix: null for these — the fix engine handles it automatically.
+  Example: { "type": "wrapWithMain", "selector": null }
 - For "page-has-heading-one" use type "ensureH1" with no selector needed
-- For "heading-order" violations use type "replaceTag", set selector to the 
-  exact heading element, and set "tag" to the correct heading level (e.g. "h2").
-  NEVER use setAttribute to change heading levels — it does not work.
+- For "heading-order" violations, you MUST return a domFix with type "replaceTag".
+  Look at the nodes array to find which heading element has the wrong level.
+  Set "selector" to the exact CSS selector from node.target[0].
+  Set "tag" to the correct heading level it should be changed to (e.g. if an h3
+  appears after an h1 with no h2, it should become "h2").
+  Example: { "type": "replaceTag", "selector": "h3.some-class", "tag": "h2" }
+  NEVER return domFix: null for heading-order. NEVER use setAttribute.
+- For "image-alt" violations, ALWAYS return a domFix with type "setAttribute",
+  attribute "alt", and selector from node.target[0].
+  For the value, use the image's filename, surrounding context, or nearby text
+  to make a best-guess descriptive alt text. For example if the src is
+  "hero-banner.jpg" use "Hero banner". If src is "logo.png" use "Site logo".
+  NEVER return domFix: null for image-alt — a guessed alt is always better
+  than no fix at all. If truly no context exists, use "Decorative image".
 `,
     })
 
@@ -140,15 +159,46 @@ Rules:
     try {
       parsed = JSON.parse(rawText)
     } catch (err) {
-      console.error("Cohere parse failed:", rawText)
-      parsed = violations.map((v) => ({
-        id: v.id,
-        impact: v.impact,
-        title: v.help,
-        explanation: v.description,
-        fixDescription: v.nodes[0]?.failureSummary || "Fix manually",
-        domFix: null,
-      }))
+      // Try to salvage malformed JSON by extracting the array portion
+      try {
+        const match = rawText.match(/\[[\s\S]*\]/)
+        if (match) {
+          parsed = JSON.parse(match[0])
+        } else {
+          throw new Error("No JSON array found")
+        }
+      } catch (salvageErr) {
+        console.error("Cohere parse failed entirely:", rawText)
+        // Smart fallback — reconstruct domFix for known violation types
+        parsed = violations.map((v) => {
+          let domFix = null
+
+          if (v.id === "heading-order") {
+            const target = v.nodes[0]?.target?.[0]
+            if (target) {
+              domFix = { type: "replaceTag", selector: target, tag: "h2" }
+            }
+          } else if (v.id === "region" || v.id === "landmark-one-main") {
+            domFix = { type: "wrapWithMain", selector: null }
+          } else if (v.id === "page-has-heading-one") {
+            domFix = { type: "ensureH1" }
+          } else if (v.id === "image-alt") {
+            const target = v.nodes[0]?.target?.[0]
+            if (target) {
+              domFix = { type: "setAttribute", selector: target, attribute: "alt", value: "Decorative image" }
+            }
+          }
+
+          return {
+            id: v.id,
+            impact: v.impact,
+            title: v.help,
+            explanation: v.description,
+            fixDescription: v.nodes[0]?.failureSummary || "Fix manually",
+            domFix,
+          }
+        })
+      }
     }
 
     // inject computed contrast fixes — collect ALL nodes
@@ -173,8 +223,8 @@ Rules:
             explanation: `${s.explanation} Failing elements: ${failingSelectors.join(", ")}`,
             domFix: {
               type: "multifix",
-              fixes: allFixes
-            }
+              fixes: allFixes,
+            },
           }
         }
       }

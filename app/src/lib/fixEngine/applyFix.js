@@ -19,6 +19,12 @@ export function applyFix(container, fix) {
         })
         break
       }
+      case "setStyleImportant": {
+        container.querySelectorAll(fix.selector).forEach(el => {
+          el.style.setProperty(fix.style, fix.styleValue, "important")
+        })
+        break
+      }
 
       case "setInnerText": {
         const elements = container.querySelectorAll(fix.selector)

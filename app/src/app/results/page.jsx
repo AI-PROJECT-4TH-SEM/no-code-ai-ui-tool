@@ -20,6 +20,12 @@ function applyDomFix(doc, fix) {
       })
       break
     }
+    case "setStyleImportant": {
+      doc.querySelectorAll(fix.selector).forEach(el => {
+        el.style.setProperty(fix.style, fix.styleValue, "important")
+      })
+      break
+    }
     case "setInnerText": {
       doc.querySelectorAll(fix.selector).forEach(el => {
         el.textContent = fix.value
@@ -61,7 +67,13 @@ function applyDomFix(doc, fix) {
           main.appendChild(child)
         }
       })
-      body.appendChild(main)
+      // insert before footer if it exists, otherwise append
+      const footer = body.querySelector("footer")
+      if (footer) {
+        body.insertBefore(main, footer)
+      } else {
+        body.appendChild(main)
+      }
       break
     }
     case "multifix": {
@@ -77,6 +89,19 @@ function applyDomFix(doc, fix) {
       const h1 = doc.createElement("h1")
       h1.textContent = text
       doc.querySelector("body")?.prepend(h1)
+      break
+    }
+
+    case "replaceTag": {
+      if (!fix.selector || !fix.tag) break
+      doc.querySelectorAll(fix.selector).forEach(el => {
+        const newEl = doc.createElement(fix.tag)
+        newEl.innerHTML = el.innerHTML
+        Array.from(el.attributes).forEach(attr =>
+          newEl.setAttribute(attr.name, attr.value)
+        )
+        el.replaceWith(newEl)
+      })
       break
     }
     default:
@@ -120,7 +145,7 @@ export default function Results() {
         const data = await res.json()
         if (res.ok) {
           setSession(data)
-          setHtml(data.originalHtml || "")  // always start from original
+          setHtml(data.changes?.[0]?.html || data.originalHtml || "")  // always start from original
           setChanges(data.changes || [])
           setUndoStack([])
           setRedoStack([])
