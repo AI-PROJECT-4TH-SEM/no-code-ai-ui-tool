@@ -12,6 +12,7 @@ const sessionSchema = new mongoose.Schema({
   originalHtml: { type: String, required: true },
   currentHtml: { type: String, required: true },
   changes: [changeSchema],
+  suppressedIds: { type: [String], default: [] }
 }, { timestamps: true })
 
 export default mongoose.models.Session || mongoose.model("Session", sessionSchema)
