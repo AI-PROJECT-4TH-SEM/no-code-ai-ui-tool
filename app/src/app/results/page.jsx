@@ -1,8 +1,31 @@
 "use client"
-import { useState, useEffect, useCallback } from "react"
-import { useSearchParams } from "next/navigation"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
+import { themes } from "@/lib/themes"
+
+const STRUCTURAL_IDS = new Set([
+  "region",
+  "landmark-one-main",
+  "heading-order",
+  "page-has-heading-one",
+])
+
+const LANDMARK_GROUP = new Set(["region", "landmark-one-main"])
+
+function buildNewSuppressed(fixedSuggestions, existing) {
+  const updated = new Set(existing)
+  for (const s of fixedSuggestions) {
+    if (STRUCTURAL_IDS.has(s.id)) {
+      updated.add(s.id)
+      if (LANDMARK_GROUP.has(s.id)) {
+        LANDMARK_GROUP.forEach(id => updated.add(id))
+      }
+    }
+  }
+  return updated
+}
 
 function applyDomFix(doc, fix) {
   if (!fix?.type) return
@@ -48,7 +71,8 @@ function applyDomFix(doc, fix) {
       const body = doc.querySelector("body")
       if (!body) break
       const main = doc.createElement("main")
-      Array.from(body.children).forEach(child => {
+      const children = Array.from(body.children)
+      children.forEach(child => {
         if (!["HEADER", "NAV", "FOOTER"].includes(child.tagName)) {
           main.appendChild(child)
         }
@@ -62,12 +86,12 @@ function applyDomFix(doc, fix) {
       if (!body) break
       const main = doc.createElement("main")
       const landmarks = ["HEADER", "NAV", "FOOTER", "MAIN", "ASIDE"]
-      Array.from(body.children).forEach(child => {
+      const children = Array.from(body.children)
+      children.forEach(child => {
         if (!landmarks.includes(child.tagName)) {
           main.appendChild(child)
         }
       })
-      // insert before footer if it exists, otherwise append
       const footer = body.querySelector("footer")
       if (footer) {
         body.insertBefore(main, footer)
@@ -91,7 +115,6 @@ function applyDomFix(doc, fix) {
       doc.querySelector("body")?.prepend(h1)
       break
     }
-
     case "replaceTag": {
       if (!fix.selector || !fix.tag) break
       doc.querySelectorAll(fix.selector).forEach(el => {
@@ -117,6 +140,7 @@ export default function Results() {
   const [violationCount, setViolationCount] = useState(0)
   const [analysing, setAnalysing] = useState(false)
   const [analysed, setAnalysed] = useState(false)
+  const [isFreshSession, setIsFreshSession] = useState(false)
   const [changes, setChanges] = useState([])
   const [undoStack, setUndoStack] = useState([])
   const [redoStack, setRedoStack] = useState([])
@@ -124,15 +148,46 @@ export default function Results() {
   const [openId, setOpenId] = useState(null)
   const [iframeKey, setIframeKey] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [suppressedIds, setSuppressedIds] = useState(new Set())
+  const [activeTheme, setActiveTheme] = useState(null)
+
+  const suppressedIdsRef = useRef(new Set())
+  const htmlRef = useRef("")
+  const sessionRef = useRef(null)
+  const activeThemeRef = useRef(null)   // ← NEW
 
   const searchParams = useSearchParams()
+  const router = useRouter()
   const sessionId = searchParams.get("sessionId")
+  const themeParam = searchParams.get("theme")
   const { accessToken } = useAuth()
 
-  // remount iframe every time html changes — this is what makes undo/redo visible
+  useEffect(() => {
+    suppressedIdsRef.current = suppressedIds
+  }, [suppressedIds])
+
+  useEffect(() => {
+    htmlRef.current = html
+  }, [html])
+
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
+
+  useEffect(() => {
+    activeThemeRef.current = activeTheme   // ← NEW
+  }, [activeTheme])
+
   useEffect(() => {
     setIframeKey(prev => prev + 1)
-  }, [html])
+  }, [html, activeTheme])
+
+  useEffect(() => {
+    if (themeParam) {
+      const found = themes.find(t => t.name === decodeURIComponent(themeParam))
+      if (found) setActiveTheme(found)
+    }
+  }, [themeParam])
 
   useEffect(() => {
     if (!accessToken || !sessionId) return
@@ -145,10 +200,20 @@ export default function Results() {
         const data = await res.json()
         if (res.ok) {
           setSession(data)
-          setHtml(data.changes?.[0]?.html || data.originalHtml || "")  // always start from original
+          sessionRef.current = data
+          const hasChanges = data.changes?.length > 0
+          const latestHtml = hasChanges
+            ? data.changes[0].html
+            : data.originalHtml
+          setHtml(latestHtml || "")
+          htmlRef.current = latestHtml || ""
           setChanges(data.changes || [])
           setUndoStack([])
           setRedoStack([])
+          setIsFreshSession(!hasChanges)
+          const restored = new Set(data.suppressedIds || [])
+          setSuppressedIds(restored)
+          suppressedIdsRef.current = restored
         } else {
           setError("Failed to load session")
         }
@@ -161,11 +226,14 @@ export default function Results() {
   }, [accessToken, sessionId])
 
   const runAnalysis = useCallback(async () => {
-    const currentHtml = html || session?.originalHtml
-    console.log("ANALYSING HTML LENGTH:", currentHtml?.length)
-    console.log("HAS MAIN:", currentHtml?.includes("<main>"))
-    const currentUrl = session?.url
+    const currentHtml = htmlRef.current || sessionRef.current?.originalHtml
+    const currentUrl = sessionRef.current?.url
     if (!currentHtml && !currentUrl) return
+
+    // ← THE FIX: include theme CSS so axe sees what the user sees
+    const htmlWithTheme = activeThemeRef.current
+      ? currentHtml + `<style>${activeThemeRef.current.css}</style>`
+      : currentHtml
 
     setAnalysing(true)
     setError(null)
@@ -175,14 +243,19 @@ export default function Results() {
       const res = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html: currentHtml, url: currentUrl }),
+        body: JSON.stringify({ html: htmlWithTheme, url: currentUrl }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Analysis failed")
 
+      const currentSuppressed = suppressedIdsRef.current
+      const filtered = (data.suggestions || []).filter(
+        s => !currentSuppressed.has(s.id)
+      )
+
       setScore(data.score ?? 0)
       setViolationCount(data.violations ?? 0)
-      setSuggestions(data.suggestions || [])
+      setSuggestions(filtered)
       setAnalysed(true)
     } catch (err) {
       console.error(err)
@@ -190,15 +263,15 @@ export default function Results() {
     } finally {
       setAnalysing(false)
     }
-  }, [html, session])
+  }, [])
 
   useEffect(() => {
-    if (session?.originalHtml && !analysed && !analysing) {
+    if (isFreshSession && sessionRef.current?.originalHtml && !analysed && !analysing) {
       runAnalysis()
     }
-  }, [session, analysed, analysing, runAnalysis])
+  }, [isFreshSession, analysed, analysing, runAnalysis])
 
-  async function saveToBackend(htmlToSave, themeName = "Saved") {
+  async function saveToBackend(htmlToSave, themeName = "Saved", newSuppressedIds = suppressedIds) {
     setSaving(true)
     try {
       await fetch(`/api/session/${sessionId}`, {
@@ -207,7 +280,11 @@ export default function Results() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ html: htmlToSave, themeName }),
+        body: JSON.stringify({
+          html: htmlToSave,
+          themeName,
+          suppressedIds: [...newSuppressedIds],
+        }),
       })
     } catch (err) {
       console.error("Save failed:", err)
@@ -216,8 +293,52 @@ export default function Results() {
     }
   }
 
+  function fixAll() {
+    const fixable = suggestions.filter(s => s.domFix && !s.fixed)
+    if (fixable.length === 0) return
+
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(htmlRef.current, "text/html")
+
+    for (const suggestion of fixable) {
+      const { type } = suggestion.domFix
+      const noSelectorNeeded = ["wrapMain", "wrapWithMain", "ensureH1", "multifix"]
+      if (!noSelectorNeeded.includes(type)) {
+        const { selector } = suggestion.domFix
+        if (!selector) continue
+        const elements = doc.querySelectorAll(selector)
+        if (!elements.length) continue
+      }
+      applyDomFix(doc, suggestion.domFix)
+    }
+
+    const newHtml = doc.documentElement.outerHTML
+    const newSuppressed = buildNewSuppressed(fixable, suppressedIdsRef.current)
+
+    suppressedIdsRef.current = newSuppressed
+    htmlRef.current = newHtml
+    setSuppressedIds(newSuppressed)
+    setUndoStack(prev => [...prev, html])
+    setRedoStack([])
+    setHtml(newHtml)
+    saveToBackend(newHtml, "Fix All", newSuppressed)
+    setSuggestions(prev => prev.map(s => s.domFix ? { ...s, fixed: true } : s))
+    setChanges(prev => [
+      {
+        _id: Date.now().toString(),
+        themeName: "Fix All",
+        html: newHtml,
+        appliedAt: new Date(),
+      },
+      ...prev,
+    ])
+  }
+
   function downloadHtml() {
-    const blob = new Blob([html], { type: "text/html" })
+    const finalHtml = activeTheme
+      ? html + `<style>${activeTheme.css}</style>`
+      : html
+    const blob = new Blob([finalHtml], { type: "text/html" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
@@ -231,7 +352,8 @@ export default function Results() {
     const previous = undoStack[undoStack.length - 1]
     setRedoStack(prev => [html, ...prev])
     setUndoStack(prev => prev.slice(0, -1))
-    setHtml(previous)  // useEffect will remount iframe
+    setHtml(previous)
+    htmlRef.current = previous
   }
 
   function redo() {
@@ -239,7 +361,8 @@ export default function Results() {
     const next = redoStack[0]
     setUndoStack(prev => [...prev, html])
     setRedoStack(prev => prev.slice(1))
-    setHtml(next)  // useEffect will remount iframe
+    setHtml(next)
+    htmlRef.current = next
   }
 
   function applyFix(suggestion) {
@@ -249,7 +372,7 @@ export default function Results() {
     const noSelectorNeeded = ["wrapMain", "wrapWithMain", "ensureH1", "multifix"]
 
     const parser = new DOMParser()
-    const doc = parser.parseFromString(html, "text/html")
+    const doc = parser.parseFromString(htmlRef.current, "text/html")
 
     if (!noSelectorNeeded.includes(type)) {
       const { selector } = suggestion.domFix
@@ -260,15 +383,15 @@ export default function Results() {
 
     applyDomFix(doc, suggestion.domFix)
     const newHtml = doc.documentElement.outerHTML
-    console.log("HAS MAIN:", newHtml.includes("<main>"))
-    console.log("HAS NAV:", newHtml.includes("<nav>"))
+    const newSuppressed = buildNewSuppressed([suggestion], suppressedIdsRef.current)
 
-
-
+    suppressedIdsRef.current = newSuppressed
+    htmlRef.current = newHtml
+    setSuppressedIds(newSuppressed)
     setUndoStack(prev => [...prev, html])
     setRedoStack([])
-    setHtml(newHtml)  // useEffect will remount iframe
-    saveToBackend(newHtml, `Fix: ${suggestion.title}`)
+    setHtml(newHtml)
+    saveToBackend(newHtml, `Fix: ${suggestion.title}`, newSuppressed)
 
     setSuggestions(prev =>
       prev.map((s, idx) =>
@@ -342,7 +465,10 @@ export default function Results() {
             )}
 
             {!analysed && !analysing && !error && (
-              <button onClick={runAnalysis} className="w-full py-2 bg-purple-600 hover:bg-purple-700 rounded transition-colors">
+              <button
+                onClick={runAnalysis}
+                className="w-full py-2 bg-purple-600 hover:bg-purple-700 rounded transition-colors"
+              >
                 Analyse
               </button>
             )}
@@ -365,10 +491,19 @@ export default function Results() {
                     setViolationCount(0)
                     runAnalysis()
                   }}
-                  className="mb-4 w-full py-1.5 text-sm border border-white/10 rounded hover:bg-white/10 transition-colors"
+                  className="mb-2 w-full py-1.5 text-sm border border-white/10 rounded hover:bg-white/10 transition-colors"
                 >
                   Re-analyse
                 </button>
+
+                {suggestions.some(s => s.domFix && !s.fixed) && (
+                  <button
+                    onClick={fixAll}
+                    className="mb-4 w-full py-1.5 text-sm rounded bg-green-600 hover:bg-green-700 transition-colors font-medium"
+                  >
+                    ⚡ Fix All ({suggestions.filter(s => s.domFix && !s.fixed).length})
+                  </button>
+                )}
 
                 {suggestions.length === 0 && (
                   <p className="text-green-400 text-sm">No issues found ✓</p>
@@ -409,9 +544,21 @@ export default function Results() {
                               Fix →
                             </button>
                           ) : (
-                            <div className="mt-1 p-2 bg-yellow-900/20 border border-yellow-500/20 rounded">
-                              <p className="text-xs text-yellow-400 font-medium">⚠ Manual fix required</p>
-                              <p className="text-xs text-gray-400 mt-0.5">{s.fixDescription}</p>
+                            <div className="mt-2 space-y-2">
+                              <div className="p-2 bg-yellow-900/20 border border-yellow-500/20 rounded">
+                                <p className="text-xs text-yellow-400 font-medium">⚠ Manual fix required</p>
+                                <p className="text-xs text-gray-400 mt-0.5">{s.fixDescription}</p>
+                              </div>
+                              {s.codeExample && (
+                                <div className="rounded overflow-hidden border border-white/10">
+                                  <div className="px-3 py-1.5 bg-white/5 border-b border-white/10">
+                                    <span className="text-xs text-gray-400 font-medium">How to fix</span>
+                                  </div>
+                                  <pre className="text-xs text-green-300 bg-black/40 p-3 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                                    {s.codeExample}
+                                  </pre>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -455,7 +602,7 @@ export default function Results() {
                 <iframe
                   key={iframeKey}
                   title="preview"
-                  srcDoc={html}
+                  srcDoc={activeTheme ? html + `<style>${activeTheme.css}</style>` : html}
                   className="w-full h-full border-none"
                   sandbox="allow-scripts allow-same-origin"
                 />
@@ -480,8 +627,38 @@ export default function Results() {
 
           {/* RIGHT PANEL */}
           <div className="order-3 flex flex-col p-4 border-t md:border-t-0 md:border-l border-white/10 overflow-y-auto bg-black/20 backdrop-blur-md">
-            <h2 className="text-lg font-semibold mb-4">Changes</h2>
 
+            {/* THEME SECTION */}
+            <h2 className="text-lg font-semibold mb-3">Theme</h2>
+            {activeTheme ? (
+              <div className="mb-6 p-3 bg-white/5 border border-white/10 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">{activeTheme.name}</span>
+                  <button
+                    onClick={() => setActiveTheme(null)}
+                    className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <button
+                  onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
+                  className="w-full py-1.5 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors"
+                >
+                  Change Theme
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
+                className="mb-6 w-full py-2 text-sm border border-white/10 rounded hover:bg-white/10 transition-colors"
+              >
+                🎨 Pick a Theme
+              </button>
+            )}
+
+            {/* CHANGES SECTION */}
+            <h2 className="text-lg font-semibold mb-4">Changes</h2>
             {changes.length === 0 ? (
               <p className="text-gray-500 text-sm">No changes yet</p>
             ) : (
@@ -491,7 +668,8 @@ export default function Results() {
                   onClick={() => {
                     setUndoStack(prev => [...prev, html])
                     setRedoStack([])
-                    setHtml(c.html)  // useEffect will remount iframe
+                    setHtml(c.html)
+                    htmlRef.current = c.html
                   }}
                   className="mb-2 p-2 bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer rounded transition-colors hover:bg-white/10"
                 >

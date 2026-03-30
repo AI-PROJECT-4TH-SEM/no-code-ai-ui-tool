@@ -35,16 +35,21 @@ export async function PATCH(req, context) {
   if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
 
   const { id } = await context.params
-
-  const { themeName, html } = await req.json()
+  const { themeName, html, suppressedIds } = await req.json()
 
   const session = await Session.findOneAndUpdate(
     { _id: id, userId },
     {
       currentHtml: html,
-      $push: { changes: { themeName, html, appliedAt: new Date() } }
+      suppressedIds: suppressedIds ?? [],
+      $push: {
+        changes: {
+          $each: [{ themeName, html, appliedAt: new Date() }],
+          $position: 0
+        }
+      }
     },
-    { new: true }
+    { returnDocument: "after" }
   )
 
   if (!session) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
