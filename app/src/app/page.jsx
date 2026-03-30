@@ -4,180 +4,200 @@ import { useRouter } from "next/navigation"
 import { themes } from "@/lib/themes"
 import ThemeGrid from "@/components/ThemeGrid"
 import Navbar from "@/components/Navbar"
+import { useAuth } from "@/context/AuthContext"
+
 
 export default function Home() {
   const [html, setHtml] = useState("")
   const [mode, setMode] = useState("html")
   const [url, setUrl] = useState("")
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
   const [fetchMethod, setFetchMethod] = useState("")
+  const router = useRouter()
+  const { accessToken } = useAuth()
+const [label, setLabel] = useState("")
 
-  useEffect(() => {
-    const saved = localStorage.getItem("htmlToAnalyse")
-    if (saved) setHtml(saved)
-  }, [])
+  // Load saved HTML on mount
+  // useEffect(() => {
+  //   if (!accessToken) return
+  //   async function loadHtml() {
+  //     try {
+  //       const res = await fetch("/api/html", {
+  //         headers: { Authorization: `Bearer ${accessToken}` },
+  //       })
+  //       const data = await res.json()
+  //       if (data.html) setHtml(data.html)
+  //     } catch {
+  //       console.log("Failed to load HTML")
+  //     }
+  //   }
+  //   loadHtml()
+  // }, [accessToken])
 
-  function handleAnalyse() {
-    if (!html) {
-      alert("Please paste some HTML first!")
-      return
-    }
-    router.push("/results")
-  }
-
-  async function fetchUrl() {
-    if (!url) {
-      alert("Enter a URL")
-      return
-    }
-
-    if (loading) return
-    setLoading(true)
-
+  async function saveHtml(content) {
+    if (!accessToken) return
     try {
-      const res = await fetch("/api/fetch-url", {
+      await fetch("/api/html", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ content }),
       })
-
-      let data
-
-      try {
-        data = await res.json()
-      } catch (err) {
-        const text = await res.text()
-        console.error("NOT JSON RESPONSE ↓")
-        console.log(text)
-        return
-      }
-
-      console.log("JSON:", data)
-
-      if (data.method === "failed") {
-        alert("This site blocks scraping or failed to load")
-        return
-      }
-
-      if (!data.html) {
-        alert("No HTML returned")
-        return
-      }
-
-      setHtml(data.html)
-      setFetchMethod(data.method)
-
-      // ✅ FIXED: store FULL HTML (no substring)
-      try {
-        localStorage.setItem("htmlToAnalyse", data.html)
-      } catch (e) {
-        console.log("Storage full → clearing")
-        localStorage.removeItem("htmlToAnalyse")
-      }
-
-    } catch (err) {
-      console.error(err)
-      alert("Fetch failed")
-    } finally {
-      setLoading(false)
+    } catch {
+      console.log("Failed to save HTML")
     }
   }
 
+
+
+
+
+// update handleAnalyse
+async function handleAnalyse() {
+  if (!html) { alert("Please paste some HTML first!"); return }
+  if (!accessToken) { alert("Please login first!"); router.push("/login"); return }
+
+  try {
+    // save HTML first
+    await fetch("/api/html", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ content: html }),
+    })
+
+    const sessionLabel = url
+      ? new URL(url.startsWith("http") ? url : "https://" + url).hostname.replace("www.", "")
+      : `Paste ${new Date().toLocaleTimeString()}`
+
+    const res = await fetch("/api/session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ label: sessionLabel, html }),
+    })
+
+    const data = await res.json()
+    if (!res.ok) { alert("Failed to create session"); return }
+
+    router.push(`/results?sessionId=${data.sessionId}`)
+  } catch (err) {
+    console.error(err)
+    alert("Something went wrong!")
+  }
+}
+ async function fetchUrl() {
+  if (!url) { alert("Enter a URL"); return }
+  if (loading) return
+  setLoading(true)
+  try {
+    const res = await fetch("/api/fetch-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    })
+
+    // read body ONCE
+    const text = await res.text()
+    
+    let data
+    try {
+      data = JSON.parse(text)
+    } catch {
+      console.error("NOT JSON RESPONSE:", text)
+      alert("Fetch failed — invalid response")
+      return
+    }
+
+    if (data.method === "failed") { alert("This site blocks scraping or failed to load"); return }
+    if (!data.html) { alert("No HTML returned"); return }
+    
+    setHtml(data.html)
+    setFetchMethod(data.method)
+    await saveHtml(data.html)
+  } catch (err) {
+    console.error(err)
+    alert("Fetch failed")
+  } finally {
+    setLoading(false)
+  }
+}
+
   return (
-    <div 
+    <div
       className="flex flex-col min-h-screen text-white relative"
       style={{
         backgroundImage: "url('/hero-bg.jpg')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
       }}
     >
-      <div className="absolute inset-0 bg-black/75 z-0"></div>
+      <div className="absolute inset-0 bg-black/75 z-0" />
 
       <div className="relative z-10 flex flex-col min-h-screen">
-
         <Navbar />
 
         {/* HERO */}
-        <div className="flex flex-col items-center justify-center text-center px-8 py-16 border-b border-gray-800 relative overflow-hidden">
+        <div className="flex flex-col items-center justify-center text-center px-6 md:px-8 py-12 md:py-16 border-b border-gray-800 relative overflow-hidden">
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-gray-400 mb-6">
               <span className="text-pink-400">✦</span>
               AI powered UI transformation
             </div>
-
-            <h1 className="text-5xl font-bold mb-4 leading-tight">
+            <h1 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">
               Transform Your Website's UI
               <br />
               <span className="bg-gradient-to-r from-pink-400 to-purple-500 bg-clip-text text-transparent">
                 with AI in Seconds
               </span>
             </h1>
-
-            <p className="text-gray-400 text-lg max-w-xl mx-auto">
+            <p className="text-gray-400 text-base md:text-lg max-w-xl mx-auto">
               Paste your HTML, pick a theme, and let AI suggest design improvements — no coding required.
             </p>
           </div>
         </div>
 
         {/* MAIN GRID */}
-        <div className="grid grid-cols-2 flex-1 overflow-hidden">
+        <div className="flex flex-col md:grid md:grid-cols-2 flex-1 md:overflow-hidden">
 
           {/* LEFT */}
-          <div className="flex flex-col gap-4 p-8 border-r border-gray-800 min-h-0 bg-black/30">
-
-            {/* TABS */}
+          <div className="flex flex-col gap-4 p-6 md:p-8 md:border-r border-b md:border-b-0 border-gray-800 bg-black/30">
             <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
               <button
                 onClick={() => setMode("html")}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${
-                  mode === "html"
-                    ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg"
-                    : "text-gray-400 hover:text-white"
-                }`}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${mode === "html" ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}
               >
                 Paste HTML
               </button>
-
               <button
                 onClick={() => setMode("url")}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${
-                  mode === "url"
-                    ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg"
-                    : "text-gray-400 hover:text-white"
-                }`}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${mode === "url" ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}
               >
                 Enter URL
               </button>
             </div>
 
-            {/* HTML MODE */}
             {mode === "html" && (
               <textarea
-                className="flex-1 min-h-[400px] bg-white/5 border border-gray-700 rounded-xl text-white p-4 text-sm resize-none outline-none focus:border-pink-400 transition placeholder-gray-600"
+                className="flex-1 min-h-[280px] md:min-h-[400px] bg-white/5 border border-gray-700 rounded-xl text-white p-4 text-sm resize-none outline-none focus:border-pink-400 transition placeholder-gray-600"
                 placeholder="Paste your HTML here..."
                 value={html}
-                onChange={(e) => {
+                onChange={async (e) => {
                   setHtml(e.target.value)
-
-                  // ✅ FIXED: store full HTML
-                  try {
-                    localStorage.setItem("htmlToAnalyse", e.target.value)
-                  } catch {
-                    localStorage.removeItem("htmlToAnalyse")
-                  }
+                  // await saveHtml(e.target.value)
                 }}
               />
             )}
 
-            {/* URL MODE */}
             {mode === "url" && (
               <div className="flex flex-col gap-3 flex-1">
-
                 <input
                   type="text"
                   className="bg-white/5 border border-gray-700 rounded-xl text-white p-4 text-sm outline-none focus:border-pink-400 transition placeholder-gray-600"
@@ -185,7 +205,6 @@ export default function Home() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                 />
-
                 <button
                   onClick={fetchUrl}
                   disabled={loading}
@@ -193,19 +212,12 @@ export default function Home() {
                 >
                   {loading ? "Fetching..." : "Fetch HTML →"}
                 </button>
-
                 {html && (
                   <div className="flex-1 bg-white/5 border border-gray-700 rounded-xl p-4 text-xs text-gray-500 overflow-y-auto">
                     {html.substring(0, 300)}...
-
-                    <p className="text-green-400 mt-2">
-                      ✓ HTML fetched successfully!
-                    </p>
-
+                    <p className="text-green-400 mt-2">✓ HTML fetched successfully!</p>
                     <p className="text-gray-600 mt-1">
-                      {fetchMethod === "puppeteer"
-                        ? "⚡ Used deep browser fetch"
-                        : "✓ Used fast fetch"}
+                      {fetchMethod === "puppeteer" ? "⚡ Used deep browser fetch" : "✓ Used fast fetch"}
                     </p>
                   </div>
                 )}
@@ -221,16 +233,12 @@ export default function Home() {
           </div>
 
           {/* RIGHT */}
-          <div className="flex flex-col gap-4 p-8 overflow-y-auto bg-black/20">
-
+          <div className="flex flex-col gap-4 p-6 md:p-8 md:overflow-y-auto bg-black/20">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold">Sample Themes</h2>
-                <p className="text-gray-500 text-sm mt-1">
-                  Click any theme to preview it
-                </p>
+                <p className="text-gray-500 text-sm mt-1">Click any theme to preview it</p>
               </div>
-
               <span className="text-xs text-gray-600 bg-white/5 px-3 py-1 rounded-full border border-white/10">
                 {themes.length} themes available
               </span>
@@ -238,16 +246,10 @@ export default function Home() {
 
             <ThemeGrid
               themes={themes.slice(0, 4)}
-              onSelect={(theme) => {
+              onSelect={async (theme) => {
                 const styledHtml = html + `<style>${theme.css}</style>`
                 setHtml(styledHtml)
-
-                // ✅ FIXED: store full HTML
-                try {
-                  localStorage.setItem("htmlToAnalyse", styledHtml)
-                } catch {
-                  localStorage.removeItem("htmlToAnalyse")
-                }
+                await saveHtml(styledHtml)
               }}
             />
 
@@ -257,7 +259,6 @@ export default function Home() {
             >
               Explore all {themes.length} themes →
             </button>
-
           </div>
         </div>
       </div>

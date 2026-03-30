@@ -7,11 +7,11 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   refreshToken: { type: String },
   createdAt: { type: Date, default: Date.now },
-   resetPasswordToken: String,
-   resetPasswordExpire: Date,
-   otp: String,
-otpExpire: Date,
-
+  resetPasswordToken: String,
+  resetPasswordExpire: Date,
+  otp: String,
+  otpExpire: Date,
+  totalAnalyses: { type: Number, default: 0 },
 });
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);
