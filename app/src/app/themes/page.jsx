@@ -1,6 +1,8 @@
 "use client"
+
 import { useRouter, useSearchParams } from "next/navigation"
-import { themes } from "@/lib/themes"
+import { useEffect } from "react"
+import { themes } from "@/lib/themes.js"
 import Navbar from "@/components/Navbar"
 
 export default function Themes() {
@@ -8,96 +10,148 @@ export default function Themes() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("sessionId")
 
-  function handleSelect(theme) {
+  // ✅ Apply saved theme
+  useEffect(() => {
+    const saved = localStorage.getItem("themeClass")
+    if (saved) {
+      document.documentElement.className = saved
+    }
+  }, [])
+
+  // ✅ 3D TILT EFFECT (NEW 🔥)
+  function handleMouseMove(e) {
+    const card = e.currentTarget
+    const rect = card.getBoundingClientRect()
+
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    const rotateX = ((y / rect.height) - 0.5) * 10
+    const rotateY = ((x / rect.width) - 0.5) * -10
+
+    card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.05)`
+  }
+
+  function handleMouseLeave(e) {
+    e.currentTarget.style.transform = "perspective(800px) rotateX(0) rotateY(0) scale(1)"
+  }
+
+  // ✅ Apply + Save theme
+  async function handleSelect(theme) {
+    document.documentElement.className = theme.class
+    localStorage.setItem("themeClass", theme.class)
+
+    const token = localStorage.getItem("token")
+    if (token) {
+      await fetch("/api/theme", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ themeName: theme.class }),
+      })
+    }
+
     router.push(`/results?sessionId=${sessionId}&theme=${encodeURIComponent(theme.name)}`)
   }
 
   return (
-    <div
-      className="flex flex-col min-h-screen text-white relative"
-      style={{ backgroundImage: "url('/hero-bg.jpg')", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}
-    >
-      <div className="absolute inset-0 bg-black/75 z-0" />
+    <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] transition-all duration-300">
 
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <Navbar />
+      <Navbar />
 
-        <div className="px-6 md:px-12 py-8 md:py-10 border-b border-gray-800 bg-black/20 relative overflow-hidden">
-          <div className="absolute top-0 left-1/4 w-96 h-32 bg-purple-600 opacity-10 rounded-full blur-3xl" />
-          <div className="absolute top-0 right-1/4 w-96 h-32 bg-pink-600 opacity-10 rounded-full blur-3xl" />
-          <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-gray-400 mb-4">
-              {themes.length} themes available
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">Explore Themes</h1>
-            <p className="text-gray-400 text-sm md:text-base">Click any theme to instantly apply it to your website</p>
-          </div>
-        </div>
+      
 
-        <div className="flex-1 p-6 md:p-12 overflow-y-auto bg-black/10">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {themes.map((theme) => (
-              <div
-                key={theme.name}
-                onClick={() => handleSelect(theme)}
-                className="group cursor-pointer rounded-2xl overflow-hidden border border-gray-800 hover:border-pink-400 transition hover:-translate-y-1 bg-black/40 backdrop-blur-sm"
-              >
-                <div className="h-40 p-4 relative overflow-hidden" style={{ background: getThemeBg(theme.name) }}>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-red-400 opacity-70" />
-                    <div className="w-2 h-2 rounded-full bg-yellow-400 opacity-70" />
-                    <div className="w-2 h-2 rounded-full bg-green-400 opacity-70" />
-                    <div className="flex-1 bg-white/10 rounded h-2 ml-1" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-3 rounded w-3/4" style={{ background: getThemeAccent(theme.name), opacity: 0.9 }} />
-                    <div className="h-2 rounded w-full bg-white/20" />
-                    <div className="h-2 rounded w-5/6 bg-white/15" />
-                    <div className="h-2 rounded w-4/6 bg-white/10" />
-                    <div className="h-5 rounded w-20 mt-3" style={{ background: getThemeAccent(theme.name), opacity: 0.8 }} />
-                  </div>
-                </div>
-                <div className="p-4 flex items-center justify-between">
-                  <span className="font-medium text-sm">{theme.name}</span>
-                  <span className="text-xs text-gray-600 group-hover:text-pink-400 transition">Apply →</span>
-                </div>
+      {/* ✅ GRID */}
+      <div className="flex-1 p-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {themes.map((theme) => (
+            <div
+              key={theme.name}
+              onClick={() => handleSelect(theme)}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              className="card cursor-pointer"
+            >
+              <div className="h-24 mb-4 flex items-center justify-center opacity-70">
+                Preview
               </div>
-            ))}
-          </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">{theme.name}</span>
+                <span className="text-xs text-[var(--primary)]">Apply →</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+
+      {/* ✅ UPGRADED THEME ENGINE */}
+      <style jsx global>{`
+        :root {
+          --bg: #0f172a;
+          --text: #ffffff;
+          --primary: #7c3aed;
+          --card: rgba(255,255,255,0.05);
+          --border: rgba(255,255,255,0.1);
+          --radius: 16px;
+          --scale: 1;
+          --font-weight: 400;
+          --font-style: normal;
+        }
+
+        /* CYBERPUNK */
+        .theme-cyberpunk {
+          --bg: radial-gradient(circle at top, #0a0015, #000);
+          --text: #00f0ff;
+          --primary: #ff00ff;
+          --card: rgba(255, 0, 255, 0.08);
+          --border: rgba(0, 255, 255, 0.3);
+          --font-weight: 600;
+          --font-style: italic;
+        }
+
+        /* GLASS */
+        .theme-glass .card {
+          backdrop-filter: blur(20px);
+          box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        /* ELECTRIC */
+        .theme-electric .card {
+          box-shadow: 0 0 20px #facc15;
+        }
+
+        /* MATRIX */
+        .theme-matrix {
+          text-shadow: 0 0 5px #00ff00;
+          font-style: italic;
+        }
+
+        /* GLOBAL */
+        body {
+          background: var(--bg);
+          color: var(--text);
+          font-weight: var(--font-weight);
+          font-style: var(--font-style);
+          transition: all 0.4s ease;
+        }
+
+        /* CARD BASE */
+        .card {
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          padding: 16px;
+          transition: all 0.3s ease;
+          transform-style: preserve-3d;
+        }
+
+        .card:hover {
+          transform: translateY(-8px) scale(1.05);
+        }
+      `}</style>
     </div>
   )
-}
-
-function getThemeBg(name) {
-  const map = {
-    "🌑 Dark Mode": "#0f0f0f",
-    "🌸 Pastel": "#fdf6ff",
-    "💼 Corporate": "#ffffff",
-    "🌈 Colorful": "#fff7ed",
-    "🌊 Ocean": "#0c1e3c",
-    "🌿 Nature": "#f0fdf4",
-    "🔥 Fiery": "#1c0a00",
-    "🌙 Midnight": "#0f0f1a",
-    "☀️ Sunny": "#fefce8",
-    "🍬 Candy": "#fdf2f8",
-  }
-  return map[name] || "#1a1a2e"
-}
-
-function getThemeAccent(name) {
-  const map = {
-    "🌑 Dark Mode": "#7c6dfa",
-    "🌸 Pastel": "#c084fc",
-    "💼 Corporate": "#0ea5e9",
-    "🌈 Colorful": "#f97316",
-    "🌊 Ocean": "#38bdf8",
-    "🌿 Nature": "#22c55e",
-    "🔥 Fiery": "#ea580c",
-    "🌙 Midnight": "#a78bfa",
-    "☀️ Sunny": "#eab308",
-    "🍬 Candy": "#ec4899",
-  }
-  return map[name] || "#ff6fd8"
 }
