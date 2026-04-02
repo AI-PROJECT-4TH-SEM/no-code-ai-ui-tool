@@ -113,6 +113,44 @@
   },
 
   {
+    name: "🔥 Fiery",
+    css: `
+      body { background: #1c0a00 !important; color: #fed7aa !important; }
+      h1, h2, h3 { color: #f97316 !important; }
+      button { background: #ea580c !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #f97316 !important; }
+    `
+  },
+  {
+    name: "🌙 Midnight",
+    css: `
+      body { background: #0f0f1a !important; color: #c4b5fd !important; }
+      h1, h2, h3 { color: #a78bfa !important; }
+      button { background: #7c3aed !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #a78bfa !important; }
+    `
+  },
+  {
+    name: "☀️ Sunny",
+    css: `
+      body { background: #fefce8 !important; color: #713f12 !important; }
+      h1, h2, h3 { color: #ca8a04 !important; }
+      button { background: #eab308 !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #ca8a04 !important; }
+    `
+  },
+  {
+    name: "🍬 Candy",
+    css: `
+      body { background: #fdf2f8 !important; color: #831843 !important; }
+      h1, h2, h3 { color: #db2777 !important; }
+      button { background: #ec4899 !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #db2777 !important; }
+    `
+  },
+
+
+  {
     name: "🌈 Colorful",
     css:`
       body { background: #fff7ed !important; color: #333 !important; }

@@ -15,7 +15,45 @@ const THEMES = [
   { id:"nature",     name:"🌿 Nature",              preview:["#f0fdf4","#22c55e","#166534"],
     css:`body{background:#f0fdf4!important;color:#166534!important}h1,h2,h3{color:#16a34a!important}button{background:#22c55e!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#16a34a!important}` },
   { id:"matrix",     name:"🧬 Matrix Terminal",     preview:["#000000","#00ff00","#003300"],
-    css:`body{background:#000!important;color:#00ff00!important;font-family:monospace!important;font-style:italic!important}h1,h2,h3{color:#00ff00!important;text-shadow:0 0 5px #00ff00!important}button{background:transparent!important;border:1px solid #00ff00!important;color:#00ff00!important}a{color:#00ff00!important}` }
+    css:`body{background:#000!important;color:#00ff00!important;font-family:monospace!important;font-style:italic!important}h1,h2,h3{color:#00ff00!important;text-shadow:0 0 5px #00ff00!important}button{background:transparent!important;border:1px solid #00ff00!important;color:#00ff00!important}a{color:#00ff00!important}` },
+    
+    {id:"fiery",      name:"🔥 Fiery",              preview:["#1c0a00","#f97316","#fed7aa"],
+    
+    css: `
+      body { background: #1c0a00 !important; color: #fed7aa !important; }
+      h1, h2, h3 { color: #f97316 !important; }
+      button { background: #ea580c !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #f97316 !important; }
+    `
+  },
+  {id:"midnight",    name:"🌙 Midnight",           preview:["#0f0f1a","#a78bfa","#c4b5fd"],
+   
+    css: `
+      body { background: #0f0f1a !important; color: #c4b5fd !important; }
+      h1, h2, h3 { color: #a78bfa !important; }
+      button { background: #7c3aed !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #a78bfa !important; }
+    `
+  },
+  { id:"sunny", name:"☀️ Sunny",              preview:["#fefce8","#ca8a04","#713f12"],
+   
+    css: `
+      body { background: #fefce8 !important; color: #713f12 !important; }
+      h1, h2, h3 { color: #ca8a04 !important; }
+      button { background: #eab308 !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #ca8a04 !important; }
+    `
+  },
+  { id :"candy", name:"🍬 Candy",              preview:["#fdf2f8","#db2777","#831843"],
+    
+    css: `
+      body { background: #fdf2f8 !important; color: #831843 !important; }
+      h1, h2, h3 { color: #db2777 !important; }
+      button { background: #ec4899 !important; color: white !important; border: none !important; border-radius: 8px !important; }
+      a { color: #db2777 !important; }
+    `
+  }
+
 ]
 
 // ─── State ────────────────────────────────────────────────────────────────────
