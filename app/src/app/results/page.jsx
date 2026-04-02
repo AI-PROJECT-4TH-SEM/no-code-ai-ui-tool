@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
-import { themes } from "@/lib/themes"
+import { themes } from "@/lib/themes.js"
 
 const STRUCTURAL_IDS = new Set([
   "region",
@@ -333,10 +333,69 @@ export default function Results() {
       ...prev,
     ])
   }
+  function injectTheme(html, theme) {
+  if (!theme) return html
+
+  return `
+    <div class="theme-wrapper">
+      <style>
+        ${theme.css}
+
+        /* 🔥 GLOBAL UI TRANSFORMATION */
+        .theme-wrapper * {
+          transition: all 0.3s ease !important;
+        }
+
+        /* FLOATING EFFECT */
+        .theme-wrapper {
+          perspective: 1200px;
+        }
+
+        .theme-wrapper *:hover {
+          transform: translateY(-2px);
+        }
+
+        /* 3D CARD EFFECT */
+        .theme-wrapper div, 
+        .theme-wrapper section, 
+        .theme-wrapper article {
+          transform-style: preserve-3d;
+        }
+
+        /* GLASSMORPHISM */
+        .theme-wrapper .glass {
+          backdrop-filter: blur(12px);
+          background: rgba(255,255,255,0.1);
+        }
+
+        /* TYPOGRAPHY BOOST */
+        .theme-wrapper h1 { font-size: 2.2em !important; }
+        .theme-wrapper h2 { font-size: 1.8em !important; }
+        .theme-wrapper h3 { font-size: 1.4em !important; }
+
+        /* BUTTON UPGRADE */
+        .theme-wrapper button {
+          transform: scale(1);
+        }
+
+        .theme-wrapper button:hover {
+          transform: scale(1.05);
+        }
+
+        /* LINK HOVER */
+        .theme-wrapper a:hover {
+          text-decoration: underline;
+        }
+      </style>
+
+      ${html}
+    </div>
+  `
+}
 
   function downloadHtml() {
     const finalHtml = activeTheme
-      ? html + `<style>${activeTheme.css}</style>`
+      ? injectTheme(html, activeTheme)
       : html
     const blob = new Blob([finalHtml], { type: "text/html" })
     const url = URL.createObjectURL(blob)

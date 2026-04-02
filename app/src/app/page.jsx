@@ -159,7 +159,7 @@ async function handleAnalyse() {
               </span>
             </h1>
             <p className="text-gray-400 text-base md:text-lg max-w-xl mx-auto">
-              Paste your HTML, pick a theme, and let AI suggest design improvements — no coding required.
+              Paste your HTML, pick a theme, and let AI suggest design improvements — no coding Headache.
             </p>
           </div>
         </div>
