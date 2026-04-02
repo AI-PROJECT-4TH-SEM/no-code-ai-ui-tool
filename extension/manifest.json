@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Chai Ke Sath AI",
+  "version": "2.0.0",
+  "description": "Scan pages for accessibility issues, apply live fixes, and restyle with themes.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Chai Ke Sath AI"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

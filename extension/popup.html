@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AccessiScan</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+  <!-- confetti layer -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- ══ TOP BAR ══ -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-icon">♿</span>
+      <span class="brand-name">Chai Ke Sath AI</span>
+      <span class="version-chip">v2</span>
+    </div>
+    <div class="tab-row">
+      <button class="tab active" data-tab="scan">Scan</button>
+      <button class="tab" data-tab="themes">Themes</button>
+      <button class="tab" data-tab="history">History</button>
+    </div>
+  </div>
+
+  <!-- ══ SCAN TAB ══ -->
+  <div id="tab-scan" class="tab-panel active">
+
+    <div class="scan-panel">
+      <div id="current-url" class="url-pill">Loading URL…</div>
+      <button id="scan-btn" class="btn-primary">
+        <span>🔍</span> Scan This Page
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="loading-area hidden">
+      <div class="loader-wrap">
+        <svg class="loader-svg" viewBox="0 0 50 50">
+          <circle class="l-track" cx="25" cy="25" r="20"/>
+          <circle class="l-spin"  cx="25" cy="25" r="20"/>
+        </svg>
+        <span class="loader-inner">♿</span>
+      </div>
+      <p class="loading-label">Analysing accessibility…</p>
+      <div class="loading-steps">
+        <div class="lstep" id="lstep-1">🌐 Fetching page</div>
+        <div class="lstep" id="lstep-2">🔍 Running axe-core</div>
+        <div class="lstep" id="lstep-3">🤖 AI generating fixes</div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="hidden">
+
+      <!-- Score Card -->
+      <div class="score-card">
+        <div class="score-ring-wrap">
+          <svg class="score-svg" viewBox="0 0 80 80">
+            <circle class="s-track" cx="40" cy="40" r="32"/>
+            <circle id="score-arc" class="s-arc" cx="40" cy="40" r="32"/>
+          </svg>
+          <div class="score-inner">
+            <span id="score-val" class="score-num">--</span>
+            <span class="score-sub-num">/100</span>
+          </div>
+        </div>
+        <div class="score-meta">
+          <div class="grade-row">
+            <span id="score-grade" class="grade-badge">--</span>
+            <span id="score-label-text" class="grade-label"></span>
+          </div>
+          <div id="violations-label" class="viol-sub"></div>
+          <div id="impact-bar"    class="impact-bar hidden"></div>
+          <div id="impact-legend" class="impact-legend hidden"></div>
+        </div>
+        <button id="rescan-btn" class="btn-rescan" title="Rescan">↺</button>
+      </div>
+
+      <!-- Fix Progress -->
+      <div id="fix-progress-wrap" class="fix-progress-wrap hidden">
+        <div class="fp-top">
+          <span class="fp-label">Auto-fixes applied</span>
+          <span id="fix-counter" class="fp-count">0 / 0</span>
+        </div>
+        <div class="fp-track"><div id="fp-bar" class="fp-bar" style="width:0%"></div></div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <button id="fix-all-btn"      class="btn-act btn-act-fix">⚡ Fix All</button>
+        <button id="save-btn"         class="btn-act">💾 Save</button>
+        <button id="copy-report-btn"  class="btn-act">📋 Report</button>
+        <button id="expand-all-btn"   class="btn-act">↕ Expand</button>
+      </div>
+
+      <!-- Violation Cards -->
+      <div id="suggestions-wrap" class="suggestions-wrap"></div>
+
+    </div>
+  </div>
+
+  <!-- ══ THEMES TAB ══ -->
+  <div id="tab-themes" class="tab-panel hidden">
+    <div class="themes-header">
+      <p class="themes-desc">Inject a live CSS theme into the current page. Resets on reload.</p>
+      <button id="remove-theme-btn" class="btn-ghost btn-sm">✕ Remove</button>
+    </div>
+    <div id="themes-grid" class="themes-grid"></div>
+  </div>
+
+  <!-- ══ HISTORY TAB ══ -->
+  <div id="tab-history" class="tab-panel hidden">
+    <div class="history-header">
+      <span id="history-count" class="hist-count">0 scans</span>
+      <button id="clear-history-btn" class="btn-ghost btn-sm btn-danger">🗑 Clear All</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="__toast" class="toast"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
