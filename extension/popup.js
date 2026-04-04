@@ -364,7 +364,7 @@ function updateInspectorUI() {
     btn.classList.remove("active")
   }
 }
-
+// message from content script when inspector is closed from page
 // ─────────────────────────────────────────────────────────────────────────────
 //  THEMES
 // ─────────────────────────────────────────────────────────────────────────────
