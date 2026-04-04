@@ -5,6 +5,11 @@ import { themes } from "@/lib/themes"
 import ThemeGrid from "@/components/ThemeGrid"
 import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
+import AddChromeExtension from '@/components/AddChromeExtension'
+
+
+
+
 
 
 export default function Home() {
@@ -33,6 +38,8 @@ const [label, setLabel] = useState("")
   //   }
   //   loadHtml()
   // }, [accessToken])
+
+ 
 
   async function saveHtml(content) {
     if (!accessToken) return
@@ -164,6 +171,14 @@ async function handleAnalyse() {
           </div>
         </div>
 
+<div className="relative z-10">
+  ...
+  <AddChromeExtension />
+</div>
+
+
+
+
         {/* MAIN GRID */}
         <div className="flex flex-col md:grid md:grid-cols-2 flex-1 md:overflow-hidden">
 
@@ -265,3 +280,4 @@ async function handleAnalyse() {
     </div>
   )
 }
+

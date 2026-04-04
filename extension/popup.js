@@ -1,69 +1,40 @@
-// ─── Themes ──────────────────────────────────────────────────────────────────
+// ─── Themes ───────────────────────────────────────────────────────────────────
 const THEMES = [
-  { id:"cyberpunk",  name:"🚀 Neon Cyberpunk",     preview:["#0a0015","#ff00ff","#00f0ff"],
+  { id:"cyberpunk",  name:"🚀 Neon Cyberpunk",   preview:["#0a0015","#ff00ff","#00f0ff"],
     css:`body{background:radial-gradient(circle at top,#0a0015,#000)!important;color:#00f0ff!important;font-family:Orbitron,sans-serif!important;letter-spacing:1px!important}h1,h2,h3{color:#ff00ff!important;text-shadow:0 0 10px #ff00ff!important}button{background:#ff00ff!important;color:white!important;border-radius:12px!important;box-shadow:0 0 20px #ff00ff!important}a{color:#00f0ff!important}*{transition:all 0.3s ease!important}` },
-  { id:"ai-minimal", name:"🧠 AI Minimal",          preview:["#0b0f19","#6366f1","#e5e7eb"],
+  { id:"ai-minimal", name:"🧠 AI Minimal",        preview:["#0b0f19","#6366f1","#e5e7eb"],
     css:`body{background:#0b0f19!important;color:#e5e7eb!important;font-family:Inter,sans-serif!important}h1,h2,h3{color:#6366f1!important;font-weight:600!important}button{background:#6366f1!important;color:white!important;border-radius:10px!important}*{transition:all 0.2s ease!important}` },
-  { id:"glass",      name:"🌌 Glass Futuristic",    preview:["#0f172a","#38bdf8","#ffffff"],
+  { id:"glass",      name:"🌌 Glass Futuristic",  preview:["#0f172a","#38bdf8","#ffffff"],
     css:`body{background:linear-gradient(135deg,#0f172a,#1e293b)!important;color:#fff!important;font-family:Poppins,sans-serif!important}div,section,article{background:rgba(255,255,255,0.07)!important;backdrop-filter:blur(15px)!important;border-radius:16px!important}h1,h2,h3{color:#38bdf8!important}button{background:rgba(255,255,255,0.15)!important;border:1px solid rgba(255,255,255,0.2)!important;border-radius:12px!important;color:white!important}` },
-  { id:"electric",   name:"⚡ Electric Bold",       preview:["#000000","#f97316","#facc15"],
+  { id:"electric",   name:"⚡ Electric Bold",     preview:["#000000","#f97316","#facc15"],
     css:`body{background:#000!important;color:#facc15!important;font-family:Rajdhani,sans-serif!important;font-weight:bold!important;text-transform:uppercase!important}h1,h2,h3{color:#f97316!important}button{background:#f97316!important;color:white!important;transform:scale(1.05)!important}*{transition:all 0.3s ease!important}` },
-  { id:"colorful",   name:"🌈 Colorful",            preview:["#fff7ed","#f97316","#fb923c"],
+  { id:"colorful",   name:"🌈 Colorful",          preview:["#fff7ed","#f97316","#fb923c"],
     css:`body{background:#fff7ed!important;color:#333!important}h1,h2,h3{color:#f97316!important}button{background:#f97316!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#f97316!important}` },
-  { id:"ocean",      name:"🌊 Ocean",               preview:["#0c1e3c","#0ea5e9","#e0f0ff"],
+  { id:"ocean",      name:"🌊 Ocean",             preview:["#0c1e3c","#0ea5e9","#e0f0ff"],
     css:`body{background:#0c1e3c!important;color:#e0f0ff!important}h1,h2,h3{color:#38bdf8!important}button{background:#0ea5e9!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#38bdf8!important}` },
-  { id:"nature",     name:"🌿 Nature",              preview:["#f0fdf4","#22c55e","#166534"],
+  { id:"nature",     name:"🌿 Nature",            preview:["#f0fdf4","#22c55e","#166534"],
     css:`body{background:#f0fdf4!important;color:#166534!important}h1,h2,h3{color:#16a34a!important}button{background:#22c55e!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#16a34a!important}` },
-  { id:"matrix",     name:"🧬 Matrix Terminal",     preview:["#000000","#00ff00","#003300"],
+  { id:"matrix",     name:"🧬 Matrix Terminal",   preview:["#000000","#00ff00","#003300"],
     css:`body{background:#000!important;color:#00ff00!important;font-family:monospace!important;font-style:italic!important}h1,h2,h3{color:#00ff00!important;text-shadow:0 0 5px #00ff00!important}button{background:transparent!important;border:1px solid #00ff00!important;color:#00ff00!important}a{color:#00ff00!important}` },
-    
-    {id:"fiery",      name:"🔥 Fiery",              preview:["#1c0a00","#f97316","#fed7aa"],
-    
-    css: `
-      body { background: #1c0a00 !important; color: #fed7aa !important; }
-      h1, h2, h3 { color: #f97316 !important; }
-      button { background: #ea580c !important; color: white !important; border: none !important; border-radius: 8px !important; }
-      a { color: #f97316 !important; }
-    `
-  },
-  {id:"midnight",    name:"🌙 Midnight",           preview:["#0f0f1a","#a78bfa","#c4b5fd"],
-   
-    css: `
-      body { background: #0f0f1a !important; color: #c4b5fd !important; }
-      h1, h2, h3 { color: #a78bfa !important; }
-      button { background: #7c3aed !important; color: white !important; border: none !important; border-radius: 8px !important; }
-      a { color: #a78bfa !important; }
-    `
-  },
-  { id:"sunny", name:"☀️ Sunny",              preview:["#fefce8","#ca8a04","#713f12"],
-   
-    css: `
-      body { background: #fefce8 !important; color: #713f12 !important; }
-      h1, h2, h3 { color: #ca8a04 !important; }
-      button { background: #eab308 !important; color: white !important; border: none !important; border-radius: 8px !important; }
-      a { color: #ca8a04 !important; }
-    `
-  },
-  { id :"candy", name:"🍬 Candy",              preview:["#fdf2f8","#db2777","#831843"],
-    
-    css: `
-      body { background: #fdf2f8 !important; color: #831843 !important; }
-      h1, h2, h3 { color: #db2777 !important; }
-      button { background: #ec4899 !important; color: white !important; border: none !important; border-radius: 8px !important; }
-      a { color: #db2777 !important; }
-    `
-  }
-
+  { id:"fiery",      name:"🔥 Fiery",             preview:["#1c0a00","#f97316","#fed7aa"],
+    css:`body{background:#1c0a00!important;color:#fed7aa!important}h1,h2,h3{color:#f97316!important}button{background:#ea580c!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#f97316!important}` },
+  { id:"midnight",   name:"🌙 Midnight",          preview:["#0f0f1a","#a78bfa","#c4b5fd"],
+    css:`body{background:#0f0f1a!important;color:#c4b5fd!important}h1,h2,h3{color:#a78bfa!important}button{background:#7c3aed!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#a78bfa!important}` },
+  { id:"sunny",      name:"☀️ Sunny",             preview:["#fefce8","#ca8a04","#713f12"],
+    css:`body{background:#fefce8!important;color:#713f12!important}h1,h2,h3{color:#ca8a04!important}button{background:#eab308!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#ca8a04!important}` },
+  { id:"candy",      name:"🍬 Candy",             preview:["#fdf2f8","#db2777","#831843"],
+    css:`body{background:#fdf2f8!important;color:#831843!important}h1,h2,h3{color:#db2777!important}button{background:#ec4899!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#db2777!important}` },
 ]
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let currentTabId  = null
-let currentUrl    = ""
-let lastResults   = null
-let activeThemeId = null
-let allExpanded   = false
-let fixTotal      = 0
-let fixApplied    = 0
+let currentTabId    = null
+let currentUrl      = ""
+let lastResults     = null
+let activeThemeId   = null
+let allExpanded     = false
+let fixTotal        = 0
+let fixApplied      = 0
+let inspectorOn     = false
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
@@ -74,6 +45,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   chrome.storage.local.get(["activeThemeId"], d => { activeThemeId = d.activeThemeId || null })
   setupTabs()
   setupScan()
+  setupInspector()
   setupThemes()
   setupHistory()
 })
@@ -99,7 +71,6 @@ function setupScan() {
   document.getElementById("scan-btn").addEventListener("click", startScan)
   document.getElementById("rescan-btn").addEventListener("click", startScan)
 
-  // Save
   document.getElementById("save-btn").addEventListener("click", async () => {
     if (!lastResults) return
     const btn = document.getElementById("save-btn")
@@ -109,28 +80,30 @@ function setupScan() {
       entry: { url: currentUrl, score: lastResults.score, violations: lastResults.violations, suggestions: lastResults.suggestions }
     })
     if (res?.success) {
-      btn.innerHTML = "✅ Saved!"; btn.classList.add("saved")
-      setTimeout(() => { btn.innerHTML = "💾 Save"; btn.classList.remove("saved"); btn.disabled = false }, 2200)
+      const src = res.source === "mongodb" ? "☁️ Saved to MongoDB!" : "💾 Saved locally!"
+      btn.innerHTML = "✅ " + (res.source === "mongodb" ? "Saved to DB!" : "Saved!")
+      btn.classList.add("saved")
+      showToast(src, "success")
+      setTimeout(() => { btn.innerHTML = "💾 Save"; btn.classList.remove("saved"); btn.disabled = false }, 2500)
     } else { btn.disabled = false }
   })
 
-  // Copy Report
   document.getElementById("copy-report-btn").addEventListener("click", () => {
     if (!lastResults) return
     const { score, violations, suggestions } = lastResults
     const lines = [
-      `AccessiScan Report — ${new Date().toLocaleString()}`,
+      `Chai Ke Sath AI — Accessibility Report`,
+      `Generated: ${new Date().toLocaleString()}`,
       `URL: ${currentUrl}`,
       `Score: ${score}/100  |  Grade: ${calcGrade(score).grade}  |  Violations: ${violations}`,
       ``,
-      ...( suggestions || []).map((s, i) =>
-        `${i+1}. [${(s.impact||"").toUpperCase()}] ${s.title || s.id}\n   ${s.fixDescription || ""}`)
+      ...(suggestions||[]).map((s, i) =>
+        `${i+1}. [${(s.impact||"").toUpperCase()}] ${s.title||s.id}\n   ${s.fixDescription||""}`)
     ]
     navigator.clipboard.writeText(lines.join("\n"))
-    showToast("📋 Report copied to clipboard!", "success")
+    showToast("📋 Report copied!", "success")
   })
 
-  // Expand All
   document.getElementById("expand-all-btn").addEventListener("click", () => {
     allExpanded = !allExpanded
     document.querySelectorAll(".card").forEach(card => {
@@ -138,38 +111,29 @@ function setupScan() {
       allExpanded ? card.classList.add("open") : card.classList.remove("open")
       if (body) body.style.display = allExpanded ? "flex" : "none"
     })
-    document.getElementById("expand-all-btn").innerHTML =
-      allExpanded ? "↕ Collapse" : "↕ Expand"
+    document.getElementById("expand-all-btn").innerHTML = allExpanded ? "↕ Collapse" : "↕ Expand"
   })
 
-  // Fix All
   document.getElementById("fix-all-btn").addEventListener("click", async () => {
     const btns = [...document.querySelectorAll(".btn-fix:not([data-applied='true']):not(:disabled)")]
-    if (!btns.length) { showToast("No pending auto-fixes!", "info"); return }
+    if (!btns.length) { showToast("No pending fixes!", "info"); return }
     const fixBtn = document.getElementById("fix-all-btn")
-    fixBtn.disabled = true
-    fixBtn.innerHTML = "⏳ Fixing…"
-    for (const btn of btns) {
-      btn.click()
-      await new Promise(r => setTimeout(r, 400))
-    }
-    fixBtn.disabled = false
-    fixBtn.innerHTML = "⚡ Fix All"
+    fixBtn.disabled = true; fixBtn.innerHTML = "⏳ Fixing…"
+    for (const b of btns) { b.click(); await new Promise(r => setTimeout(r, 400)) }
+    fixBtn.disabled = false; fixBtn.innerHTML = "⚡ Fix All"
   })
 }
 
 async function startScan() {
-  const scanBtn   = document.getElementById("scan-btn")
-  const loading   = document.getElementById("loading")
-  const results   = document.getElementById("results")
+  const scanBtn = document.getElementById("scan-btn")
+  const loading = document.getElementById("loading")
+  const results = document.getElementById("results")
 
   scanBtn.disabled = true
   scanBtn.innerHTML = "<span>⏳</span> Scanning…"
   loading.classList.remove("hidden")
   results.classList.add("hidden")
   allExpanded = false; fixApplied = 0; fixTotal = 0
-
-  // animate loading steps
   animateLoadingSteps()
 
   try {
@@ -205,82 +169,63 @@ function stopLoadingSteps() { clearInterval(stepTimer) }
 
 // ─── Render Results ───────────────────────────────────────────────────────────
 function renderResults({ score, violations, suggestions }) {
-  // Score ring animation
   const arc = document.getElementById("score-arc")
-  const C   = 2 * Math.PI * 32  // r=32
+  const C   = 2 * Math.PI * 32
   arc.style.strokeDasharray  = C
   arc.style.strokeDashoffset = C
   document.getElementById("score-val").textContent = score
-  setTimeout(() => { arc.style.strokeDashoffset = C - (score / 100) * C }, 60)
+  setTimeout(() => { arc.style.strokeDashoffset = C - (score/100)*C }, 60)
   arc.style.stroke = score >= 80 ? "#22c55e" : score >= 50 ? "#f59e0b" : "#ef4444"
 
-  // Grade
   const { grade, label, cls } = calcGrade(score)
   const gradeEl = document.getElementById("score-grade")
   gradeEl.textContent = grade
-  gradeEl.className   = `grade-badge grade-${cls}`
+  gradeEl.className = `grade-badge grade-${cls}`
   document.getElementById("score-label-text").textContent = label
-
-  // Violations line
   document.getElementById("violations-label").textContent =
-    violations === 0 ? "✅ No violations — perfectly accessible!"
-    : `${violations} violation${violations !== 1 ? "s" : ""} found`
+    violations === 0 ? "✅ No violations — perfectly accessible!" : `${violations} violation${violations!==1?"s":""} found`
 
-  // Impact breakdown bar
   if (suggestions?.length) {
     const counts = { critical:0, serious:0, moderate:0, minor:0 }
-    suggestions.forEach(s => { if (counts[s.impact] !== undefined) counts[s.impact]++ })
+    suggestions.forEach(s => { if (counts[s.impact]!==undefined) counts[s.impact]++ })
     const total = suggestions.length
     const bar   = document.getElementById("impact-bar")
-    bar.innerHTML = ""
-    bar.classList.remove("hidden")
+    bar.innerHTML = ""; bar.classList.remove("hidden")
     const colors = { critical:"#ef4444", serious:"#f97316", moderate:"#facc15", minor:"#60a5fa" }
     Object.entries(counts).forEach(([impact, cnt]) => {
       if (!cnt) return
       const seg = document.createElement("div")
       seg.className = "bar-seg"
-      seg.style.width = `${(cnt/total)*100}%`
-      seg.style.background = colors[impact]
+      seg.style.cssText = `width:${(cnt/total)*100}%;background:${colors[impact]}`
       seg.title = `${impact}: ${cnt}`
       bar.appendChild(seg)
     })
     const legend = document.getElementById("impact-legend")
-    legend.innerHTML = Object.entries(counts)
-      .filter(([,c]) => c)
-      .map(([k,c]) => `<span class="leg-dot" style="background:${colors[k]}"></span><span>${c} ${k}</span>`)
-      .join("")
+    legend.innerHTML = Object.entries(counts).filter(([,c])=>c)
+      .map(([k,c])=>`<span class="leg-dot" style="background:${colors[k]}"></span><span>${c} ${k}</span>`).join("")
     legend.classList.remove("hidden")
   }
 
-  // Build cards
   const wrap = document.getElementById("suggestions-wrap")
   wrap.innerHTML = ""
   fixTotal = 0; fixApplied = 0
 
   if (!suggestions?.length) {
-    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">🎉</div><p>Fully accessible — no issues!</p></div>'
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">🎉</div><p>Fully accessible!</p></div>'
     if (score >= 90) launchConfetti()
   } else {
     const order = { critical:0, serious:1, moderate:2, minor:3 }
     const sorted = [...suggestions].sort((a,b) => (order[a.impact]??9)-(order[b.impact]??9))
-    sorted.forEach((s, i) => {
-      if (s.domFix) fixTotal++
-      wrap.appendChild(buildCard(s, i))
-    })
+    sorted.forEach((s, i) => { if (s.domFix) fixTotal++; wrap.appendChild(buildCard(s, i)) })
   }
 
-  // Fix progress bar
   if (fixTotal > 0) {
     document.getElementById("fix-progress-wrap").classList.remove("hidden")
     updateFixProgress()
   }
 
   document.getElementById("results").classList.remove("hidden")
-
-  // Celebrate if score is great
-  if (score >= 90 && violations > 0) {
-    setTimeout(launchConfetti, 600)
-  }
+  if (score >= 90 && violations > 0) setTimeout(launchConfetti, 600)
 }
 
 function calcGrade(score) {
@@ -293,7 +238,7 @@ function calcGrade(score) {
 }
 
 function updateFixProgress() {
-  const pct = fixTotal ? (fixApplied / fixTotal) * 100 : 0
+  const pct = fixTotal ? (fixApplied/fixTotal)*100 : 0
   document.getElementById("fix-counter").textContent = `${fixApplied} / ${fixTotal}`
   document.getElementById("fp-bar").style.width = `${pct}%`
   if (fixApplied === fixTotal && fixTotal > 0) {
@@ -303,23 +248,22 @@ function updateFixProgress() {
   }
 }
 
-// ─── Suggestion Card ──────────────────────────────────────────────────────────
 function buildCard(s, index) {
-  const card   = document.createElement("div")
+  const card = document.createElement("div")
+  card.className = "card"
   const impact = s.impact || "minor"
   const hasFix = !!s.domFix
 
-  card.className = "card"
   card.innerHTML = `
     <div class="card-head">
       <span class="badge badge-${impact}">${impact}</span>
-      <span class="card-title">${esc(s.title || s.id)}</span>
+      <span class="card-title">${esc(s.title||s.id)}</span>
       <span class="chevron">▾</span>
     </div>
     <div class="card-body" style="display:none">
-      ${s.explanation ? `<p class="card-text">${esc(s.explanation)}</p>` : ""}
+      ${s.explanation    ? `<p class="card-text">${esc(s.explanation)}</p>` : ""}
       ${s.fixDescription ? `<div class="card-hint">${esc(s.fixDescription)}</div>` : ""}
-      ${s.codeExample   ? `<pre class="code-pre">${esc(s.codeExample)}</pre>` : ""}
+      ${s.codeExample    ? `<pre class="code-pre">${esc(s.codeExample)}</pre>` : ""}
       <div class="card-actions">
         ${hasFix
           ? `<button class="btn-fix" data-idx="${index}" data-applied="false">
@@ -332,16 +276,14 @@ function buildCard(s, index) {
     </div>
   `
 
-  // Toggle
   card.querySelector(".card-head").addEventListener("click", () => {
     const body = card.querySelector(".card-body")
     const open = card.classList.toggle("open")
     body.style.display = open ? "flex" : "none"
   })
 
-  // Fix button
   if (hasFix) {
-    card.querySelector(".btn-fix").addEventListener("click", async (e) => {
+    card.querySelector(".btn-fix").addEventListener("click", async e => {
       e.stopPropagation()
       await doApplyFix(e.currentTarget, s.domFix)
     })
@@ -350,15 +292,14 @@ function buildCard(s, index) {
   return card
 }
 
-// ─── Apply Fix ────────────────────────────────────────────────────────────────
 async function doApplyFix(btn, domFix) {
   if (btn.dataset.applied === "true") return
   btn.disabled = true
   btn.innerHTML = '<span class="fix-icon spin">⚙</span> Applying…'
 
   try {
-    await chrome.scripting.executeScript({ target: { tabId: currentTabId }, files: ["content.js"] }).catch(() => {})
-    const resp = await chrome.tabs.sendMessage(currentTabId, { type: "APPLY_FIX", domFix })
+    await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+    const resp = await chrome.tabs.sendMessage(currentTabId, { type:"APPLY_FIX", domFix })
 
     if (resp?.success) {
       btn.innerHTML = "✅ Fixed"
@@ -376,6 +317,51 @@ async function doApplyFix(btn, domFix) {
     btn.disabled = false
     btn.innerHTML = '<span class="fix-icon">⚡</span> Apply Fix'
     showToast("Could not reach page. Try reloading the tab.", "error")
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  LAYOUT INSPECTOR
+// ─────────────────────────────────────────────────────────────────────────────
+function setupInspector() {
+  const toggleBtn = document.getElementById("inspector-toggle-btn")
+  if (!toggleBtn) return
+
+  toggleBtn.addEventListener("click", async () => {
+    inspectorOn = !inspectorOn
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      await chrome.tabs.sendMessage(currentTabId, { type:"TOGGLE_INSPECTOR", active: inspectorOn })
+    } catch {
+      showToast("Could not activate on this page.", "error")
+      inspectorOn = false
+    }
+    updateInspectorUI()
+    // close popup so user can freely click elements on page
+    if (inspectorOn) setTimeout(() => window.close(), 350)
+  })
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "INSPECTOR_CLOSED") {
+      inspectorOn = false
+      updateInspectorUI()
+    }
+  })
+}
+
+function updateInspectorUI() {
+  const badge = document.getElementById("insp-status-badge")
+  const btn   = document.getElementById("inspector-toggle-btn")
+  if (!btn) return
+
+  if (inspectorOn) {
+    if (badge) { badge.textContent = "ON"; badge.className = "insp-badge insp-badge-on" }
+    btn.textContent = "✓ Inspector Active — click to disable"
+    btn.classList.add("active")
+  } else {
+    if (badge) { badge.textContent = "OFF"; badge.className = "insp-badge insp-badge-off" }
+    btn.textContent = "Enable Inspector"
+    btn.classList.remove("active")
   }
 }
 
@@ -403,8 +389,8 @@ function setupThemes() {
 
 async function applyTheme(theme) {
   try {
-    await chrome.scripting.executeScript({ target: { tabId: currentTabId }, files: ["content.js"] }).catch(() => {})
-    await chrome.tabs.sendMessage(currentTabId, { type: "APPLY_THEME", css: theme.css })
+    await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+    await chrome.tabs.sendMessage(currentTabId, { type:"APPLY_THEME", css:theme.css })
     activeThemeId = theme.id
     chrome.storage.local.set({ activeThemeId: theme.id })
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
@@ -415,7 +401,7 @@ async function applyTheme(theme) {
 
 async function removeTheme() {
   try {
-    await chrome.tabs.sendMessage(currentTabId, { type: "REMOVE_THEME" })
+    await chrome.tabs.sendMessage(currentTabId, { type:"REMOVE_THEME" })
     activeThemeId = null
     chrome.storage.local.remove("activeThemeId")
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
@@ -424,20 +410,31 @@ async function removeTheme() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  HISTORY
+//  HISTORY — MongoDB + local fallback
 // ─────────────────────────────────────────────────────────────────────────────
 function setupHistory() {
   document.getElementById("clear-history-btn").addEventListener("click", async () => {
     if (!confirm("Clear all scan history?")) return
-    await chrome.runtime.sendMessage({ type: "CLEAR_HISTORY" })
+    await chrome.runtime.sendMessage({ type:"CLEAR_HISTORY" })
     renderHistory()
   })
 }
 
 async function renderHistory() {
-  const { history } = await chrome.runtime.sendMessage({ type: "GET_HISTORY" })
-  const list = document.getElementById("history-list")
-  document.getElementById("history-count").textContent = `${history.length} scan${history.length !== 1 ? "s" : ""}`
+  const list      = document.getElementById("history-list")
+  const countEl   = document.getElementById("history-count")
+  const sourceEl  = document.getElementById("history-source")
+
+  list.innerHTML = '<div class="hist-loading"><div class="ring-sm"></div> Loading…</div>'
+
+  const res = await chrome.runtime.sendMessage({ type:"GET_HISTORY" })
+  const history = res.history || []
+  const source  = res.source  || "local"
+
+  countEl.textContent  = `${history.length} scan${history.length!==1?"s":""}`
+  sourceEl.textContent = source === "mongodb" ? "☁️ MongoDB" : "💾 Local"
+  sourceEl.className   = `hist-source ${source === "mongodb" ? "src-mongo" : "src-local"}`
+
   list.innerHTML = ""
 
   if (!history.length) {
@@ -448,10 +445,10 @@ async function renderHistory() {
   history.forEach(entry => {
     const row = document.createElement("div")
     row.className = "history-row"
-    const sc = entry.score >= 80 ? "good" : entry.score >= 50 ? "ok" : "bad"
+    const sc    = entry.score >= 80 ? "good" : entry.score >= 50 ? "ok" : "bad"
     const { grade } = calcGrade(entry.score)
-    const date = new Date(entry.savedAt).toLocaleDateString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" })
-    const shortUrl = (entry.url || "").replace(/^https?:\/\/(www\.)?/, "").slice(0, 40)
+    const date  = new Date(entry.savedAt).toLocaleDateString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" })
+    const shortUrl = (entry.url||"").replace(/^https?:\/\/(www\.)?/,"").slice(0,40)
 
     row.innerHTML = `
       <div class="hist-score-wrap">
@@ -461,7 +458,7 @@ async function renderHistory() {
       <div class="hist-meta">
         <div class="hist-url" title="${esc(entry.url)}">${esc(shortUrl)}</div>
         <div class="hist-info">
-          <span>${entry.violations} violation${entry.violations !== 1 ? "s" : ""}</span>
+          <span>${entry.violations} violation${entry.violations!==1?"s":""}</span>
           <span class="dot">·</span><span>${date}</span>
         </div>
       </div>
@@ -478,66 +475,53 @@ async function renderHistory() {
       startScan()
     })
     row.querySelector(".hbtn-del").addEventListener("click", async e => {
-      await chrome.runtime.sendMessage({ type: "DELETE_HISTORY_ITEM", id: e.currentTarget.dataset.id })
+      await chrome.runtime.sendMessage({ type:"DELETE_HISTORY_ITEM", id:e.currentTarget.dataset.id })
       renderHistory()
     })
     list.appendChild(row)
   })
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  CONFETTI
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Confetti ─────────────────────────────────────────────────────────────────
 function launchConfetti() {
   const canvas = document.getElementById("confetti-canvas")
   const ctx    = canvas.getContext("2d")
-  canvas.width  = 400
-  canvas.height = 600
-  canvas.style.display = "block"
-
-  const particles = Array.from({ length: 80 }, () => ({
-    x: Math.random() * 400,
-    y: Math.random() * -200,
-    r: Math.random() * 5 + 3,
-    d: Math.random() * 80 + 20,
+  canvas.width = 400; canvas.height = 600; canvas.style.display = "block"
+  const particles = Array.from({ length:80 }, () => ({
+    x: Math.random()*400, y: Math.random()*-200,
+    r: Math.random()*5+3, d: Math.random()*80+20,
     color: ["#a78bfa","#34d399","#f59e0b","#60a5fa","#f472b6"][Math.floor(Math.random()*5)],
-    tilt: Math.random() * 10 - 5,
-    tiltAngle: 0,
-    tiltSpeed: Math.random() * 0.07 + 0.05,
+    tilt:0, tiltAngle:0, tiltSpeed:Math.random()*0.07+0.05,
   }))
-
   let frame = 0
   const angle = 0.01
   function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0,0,400,600)
     particles.forEach(p => {
       p.tiltAngle += p.tiltSpeed
-      p.y += (Math.cos(angle + p.d) + 2.5 + p.r / 4)
-      p.x += Math.sin(angle) * 1.5
-      p.tilt = Math.sin(p.tiltAngle) * 10
-      ctx.beginPath()
-      ctx.lineWidth = p.r
-      ctx.strokeStyle = p.color
-      ctx.moveTo(p.x + p.tilt + p.r / 3, p.y)
-      ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 5)
+      p.y += (Math.cos(angle+p.d)+2.5+p.r/4)
+      p.x += Math.sin(angle)*1.5
+      p.tilt = Math.sin(p.tiltAngle)*10
+      ctx.beginPath(); ctx.lineWidth = p.r; ctx.strokeStyle = p.color
+      ctx.moveTo(p.x+p.tilt+p.r/3, p.y); ctx.lineTo(p.x+p.tilt, p.y+p.tilt+p.r/5)
       ctx.stroke()
     })
     frame++
     if (frame < 140) requestAnimationFrame(draw)
-    else { ctx.clearRect(0, 0, canvas.width, canvas.height); canvas.style.display = "none" }
+    else { ctx.clearRect(0,0,400,600); canvas.style.display="none" }
   }
   draw()
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function esc(str) {
-  return String(str ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+  return String(str??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")
 }
 
-function showToast(msg, type = "info") {
+function showToast(msg, type="info") {
   const el = document.getElementById("__toast")
   el.className = `toast toast-${type} show`
   el.textContent = msg
   clearTimeout(el._t)
-  el._t = setTimeout(() => el.classList.remove("show"), 3000)
+  el._t = setTimeout(() => el.classList.remove("show"), 3200)
 }

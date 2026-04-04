@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AccessiScan</title>
+  <title>Chai Ke Sath AI</title>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
-  <!-- confetti layer -->
   <canvas id="confetti-canvas"></canvas>
 
   <!-- ══ TOP BAR ══ -->
@@ -16,26 +15,23 @@
     <div class="brand">
       <span class="brand-icon">♿</span>
       <span class="brand-name">Chai Ke Sath AI</span>
-      <span class="version-chip">v2</span>
+      <span class="version-chip">v2.1</span>
     </div>
     <div class="tab-row">
       <button class="tab active" data-tab="scan">Scan</button>
-      <button class="tab" data-tab="themes">Themes</button>
-      <button class="tab" data-tab="history">History</button>
+      <button class="tab"        data-tab="inspector">📐 Layout</button>
+      <button class="tab"        data-tab="themes">Themes</button>
+      <button class="tab"        data-tab="history">History</button>
     </div>
   </div>
 
   <!-- ══ SCAN TAB ══ -->
   <div id="tab-scan" class="tab-panel active">
-
     <div class="scan-panel">
       <div id="current-url" class="url-pill">Loading URL…</div>
-      <button id="scan-btn" class="btn-primary">
-        <span>🔍</span> Scan This Page
-      </button>
+      <button id="scan-btn" class="btn-primary"><span>🔍</span> Scan This Page</button>
     </div>
 
-    <!-- Loading -->
     <div id="loading" class="loading-area hidden">
       <div class="loader-wrap">
         <svg class="loader-svg" viewBox="0 0 50 50">
@@ -52,10 +48,7 @@
       </div>
     </div>
 
-    <!-- Results -->
     <div id="results" class="hidden">
-
-      <!-- Score Card -->
       <div class="score-card">
         <div class="score-ring-wrap">
           <svg class="score-svg" viewBox="0 0 80 80">
@@ -79,7 +72,6 @@
         <button id="rescan-btn" class="btn-rescan" title="Rescan">↺</button>
       </div>
 
-      <!-- Fix Progress -->
       <div id="fix-progress-wrap" class="fix-progress-wrap hidden">
         <div class="fp-top">
           <span class="fp-label">Auto-fixes applied</span>
@@ -88,17 +80,63 @@
         <div class="fp-track"><div id="fp-bar" class="fp-bar" style="width:0%"></div></div>
       </div>
 
-      <!-- Action Bar -->
       <div class="action-bar">
-        <button id="fix-all-btn"      class="btn-act btn-act-fix">⚡ Fix All</button>
-        <button id="save-btn"         class="btn-act">💾 Save</button>
-        <button id="copy-report-btn"  class="btn-act">📋 Report</button>
-        <button id="expand-all-btn"   class="btn-act">↕ Expand</button>
+        <button id="fix-all-btn"     class="btn-act btn-act-fix">⚡ Fix All</button>
+        <button id="save-btn"        class="btn-act">💾 Save</button>
+        <button id="copy-report-btn" class="btn-act">📋 Report</button>
+        <button id="expand-all-btn"  class="btn-act">↕ Expand</button>
+      </div>
+      <div id="suggestions-wrap" class="suggestions-wrap"></div>
+    </div>
+  </div>
+
+  <!-- ══ LAYOUT INSPECTOR TAB ══ -->
+  <div id="tab-inspector" class="tab-panel hidden">
+
+    <!-- Big toggle button -->
+    <div class="insp-main">
+      <div class="insp-top">
+        <div class="insp-title-row">
+          <span class="insp-title">📐 Layout Inspector</span>
+          <span id="insp-status-badge" class="insp-badge insp-badge-off">OFF</span>
+        </div>
+        <p class="insp-desc">Click any element on the page to open a live editor — adjust font, spacing, size and colors with sliders in real time.</p>
+        <button id="inspector-toggle-btn" class="btn-insp-toggle">Enable Inspector</button>
       </div>
 
-      <!-- Violation Cards -->
-      <div id="suggestions-wrap" class="suggestions-wrap"></div>
+      <!-- What you can edit -->
+      <div class="insp-features">
+        <div class="insp-feat">
+          <span class="insp-feat-icon">Tt</span>
+          <div>
+            <div class="insp-feat-name">Typography</div>
+            <div class="insp-feat-sub">Font size, weight, line height, letter spacing</div>
+          </div>
+        </div>
+        <div class="insp-feat">
+          <span class="insp-feat-icon">⬜</span>
+          <div>
+            <div class="insp-feat-name">Spacing</div>
+            <div class="insp-feat-sub">Padding & margin — all 4 sides individually</div>
+          </div>
+        </div>
+        <div class="insp-feat">
+          <span class="insp-feat-icon">⤡</span>
+          <div>
+            <div class="insp-feat-name">Size & Shape</div>
+            <div class="insp-feat-sub">Width, height, border radius</div>
+          </div>
+        </div>
+        <div class="insp-feat">
+          <span class="insp-feat-icon">🎨</span>
+          <div>
+            <div class="insp-feat-name">Colors</div>
+            <div class="insp-feat-sub">Text color, background + live contrast ratio</div>
+          </div>
+        </div>
+      </div>
 
+      <div class="insp-hint">Press <kbd>Esc</kbd> to exit inspector</div>
     </div>
   </div>
 
@@ -114,15 +152,16 @@
   <!-- ══ HISTORY TAB ══ -->
   <div id="tab-history" class="tab-panel hidden">
     <div class="history-header">
-      <span id="history-count" class="hist-count">0 scans</span>
+      <div class="history-header-left">
+        <span id="history-count" class="hist-count">0 scans</span>
+        <span id="history-source" class="hist-source"></span>
+      </div>
       <button id="clear-history-btn" class="btn-ghost btn-sm btn-danger">🗑 Clear All</button>
     </div>
     <div id="history-list" class="history-list"></div>
   </div>
 
-  <!-- Toast -->
   <div id="__toast" class="toast"></div>
-
   <script src="popup.js"></script>
 </body>
 </html>
