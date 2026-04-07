@@ -1,1 +1,1 @@
-everything is good but i want one more things but not for extension this for my website , i want layout option also in my result/page.jsx in right side that also have same features but it work from right side no need to popup in web when i click element . i am providing you a page,jsx code . first results/page.jsx  if need any other file provide me.
+npm install -g terser
