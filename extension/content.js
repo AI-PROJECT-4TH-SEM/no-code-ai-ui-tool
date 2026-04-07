@@ -1,4 +1,3 @@
-// ─── Chai Ke Sath AI — Content Script v2.1 ───────────────────────────────────
 const THEME_ID   = "__cksa_theme"
 const OVERLAY_ID = "__cksa_overlay"
 const PANEL_ID   = "__cksa_panel"
@@ -8,7 +7,7 @@ let inspectorActive = false
 let selectedEl      = null
 let originalStyles  = {}
 
-// ─── Messages ─────────────────────────────────────────────────────────────────
+//  Messages
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   switch (msg.type) {
     case "PING":       sendResponse({ alive: true }); return true
@@ -27,7 +26,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 })
 
-// ─── Theme ────────────────────────────────────────────────────────────────────
+// Theme 
 function injectCSS(css) {
   let el = document.getElementById(THEME_ID)
   if (!el) { el = document.createElement("style"); el.id = THEME_ID; document.head.appendChild(el) }
@@ -35,9 +34,9 @@ function injectCSS(css) {
 }
 function removeCSS() { document.getElementById(THEME_ID)?.remove() }
 
-// ═════════════════════════════════════════════════════════════════════════════
+
 //  LAYOUT INSPECTOR — click to edit
-// ═════════════════════════════════════════════════════════════════════════════
+
 
 function enableInspector() {
   if (inspectorActive) return
@@ -138,7 +137,7 @@ function onInspectorClick(e) {
   buildEditorPanel(selectedEl)
 }
 
-// ─── Snapshot original computed styles ───────────────────────────────────────
+// Snapshot original computed styles 
 function snapshotStyles(el) {
   const cs = window.getComputedStyle(el)
   originalStyles = {
