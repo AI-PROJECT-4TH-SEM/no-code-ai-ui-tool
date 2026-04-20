@@ -14,7 +14,7 @@
 
 // ── Extension ID — update this after publishing or sideloading ──────────────
 // Find it at chrome://extensions after loading the extension
-const EXTENSION_ID = "agkigmoblgmnknebhjihfkonjgghjdbm"
+const EXTENSION_ID = "YOUR_EXTENSION_ID_HERE"
 
 // ── Check if extension is installed ─────────────────────────────────────────
 export async function checkExtensionInstalled() {
@@ -77,7 +77,7 @@ export function AccessiScanButton() {
 
     return (
       <a
-        href="https://chrome.google.com/webstore/detail/agkigmoblgmnknebhjihfkonjgghjdbm"
+        href="https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID"
         target="_blank"
         rel="noopener noreferrer"
         style={{
@@ -131,7 +131,7 @@ export function injectInstallButton(targetSelector = "#install-btn-container") {
 
 /*
  ┌─────────────────────────────────────────────────────────────────┐
- │  HOW TO GET THE EXTENSION ID FOR SIDELOADING (Dev Mode)         │
+ │  HOW TO GET THE EXTENSION ID FOR SIDELOADING (Dev Mode)        │
  │                                                                 │
  │  1. Go to chrome://extensions                                   │
  │  2. Enable Developer Mode (top right toggle)                    │

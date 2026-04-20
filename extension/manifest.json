@@ -1,14 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Chai Ke Sath AI",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Accessibility scanner, live fixes, themes, layout inspector.",
   "permissions": [
     "activeTab",
     "storage",
     "scripting",
     "tabs",
-    "contextMenus"
+    "contextMenus",
+    "downloads",
+    "sidePanel"
   ],
   "host_permissions": [
     "http://localhost:3000/*",
@@ -16,9 +18,11 @@
     "https://*/*",
     "<all_urls>"
   ],
+  "side_panel": {
+    "default_path": "popup.html"
+  },
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "Chai Ke Sath AI"
+    "default_title": "Chai Ke Sath AI — Click to open"
   },
   "background": {
     "service_worker": "background.js"
@@ -37,10 +41,7 @@
     }
   ],
   "externally_connectable": {
-    "matches": [
-      "http://localhost:3000/*",
-      "http://localhost:*/*"
-    ]
+    "matches": ["http://localhost:3000/*", "http://localhost:*/*"]
   },
   "icons": {
     "16":  "icon/icon16.png",

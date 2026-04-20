@@ -7,11 +7,6 @@ import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
 import AddChromeExtension from '@/components/AddChromeExtension'
 
-
-
-
-
-
 export default function Home() {
   const [html, setHtml] = useState("")
   const [mode, setMode] = useState("html")

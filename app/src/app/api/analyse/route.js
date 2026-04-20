@@ -4,6 +4,7 @@ import { CohereClient } from "cohere-ai"
 import { mapAxeToFix } from "@/lib/fixEngine/rules"
 import { buildContrastFixesBatch } from "@/lib/fixEngine/contrast"
 
+
 const cohere = new CohereClient({ token: process.env.COHERE_KEY })
 
 // ─── Scoring Engine ───────────────────────────────────────────────────────────
