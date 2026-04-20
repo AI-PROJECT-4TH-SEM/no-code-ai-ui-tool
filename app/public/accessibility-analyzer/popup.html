@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chai Ke Sath AI</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- ══ TOP BAR ══ -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-icon">♿</span>
+      <span class="brand-name">Chai Ke Sath AI</span>
+      <span class="version-chip">v2.1</span>
+    </div>
+    <div class="tab-row">
+      <button class="tab active" data-tab="scan">Scan</button>
+      <button class="tab"        data-tab="inspector">📐 Layout</button>
+      <button class="tab"        data-tab="themes">Themes</button>
+      <button class="tab"        data-tab="history">History</button>
+    </div>
+  </div>
+
+  <!-- ══ GLOBAL ACTION BAR (undo/redo + download) — always visible after scan ══ -->
+  <div id="global-actions" class="global-actions hidden">
+    <!-- Undo / Redo -->
+    <div class="ga-group">
+      <button id="undo-btn" class="ga-btn" disabled title="Undo last fix">
+        <span class="ga-icon">↩</span>
+        <span class="ga-label">Undo</span>
+      </button>
+      <button id="redo-btn" class="ga-btn" disabled title="Redo last fix">
+        <span class="ga-icon">↪</span>
+        <span class="ga-label">Redo</span>
+      </button>
+    </div>
+
+    <div class="ga-divider"></div>
+
+    <!-- Download All Changes -->
+    <button id="download-all-btn" class="ga-btn ga-dl" disabled title="Download full page with all fixes, theme and layout changes">
+      <span class="ga-icon">⬇</span>
+      <span class="ga-label">Download All</span>
+      <span id="dl-badge" class="dl-badge hidden">0</span>
+    </button>
+  </div>
+
+  <!-- ══ SCAN TAB ══ -->
+  <div id="tab-scan" class="tab-panel active">
+    <div class="scan-panel">
+      <div id="current-url" class="url-pill">Loading URL…</div>
+      <button id="scan-btn" class="btn-primary"><span>🔍</span> Scan This Page</button>
+    </div>
+
+    <div id="loading" class="loading-area hidden">
+      <div class="loader-wrap">
+        <svg class="loader-svg" viewBox="0 0 50 50">
+          <circle class="l-track" cx="25" cy="25" r="20"/>
+          <circle class="l-spin"  cx="25" cy="25" r="20"/>
+        </svg>
+        <span class="loader-inner">♿</span>
+      </div>
+      <p class="loading-label">Analysing accessibility…</p>
+      <div class="loading-steps">
+        <div class="lstep" id="lstep-1">🌐 Fetching page</div>
+        <div class="lstep" id="lstep-2">🔍 Running axe-core</div>
+        <div class="lstep" id="lstep-3">🤖 AI generating fixes</div>
+      </div>
+    </div>
+
+    <div id="results" class="hidden">
+      <div class="score-card">
+        <div class="score-ring-wrap">
+          <svg class="score-svg" viewBox="0 0 80 80">
+            <circle class="s-track" cx="40" cy="40" r="32"/>
+            <circle id="score-arc" class="s-arc" cx="40" cy="40" r="32"/>
+          </svg>
+          <div class="score-inner">
+            <span id="score-val" class="score-num">--</span>
+            <span class="score-sub-num">/100</span>
+          </div>
+        </div>
+        <div class="score-meta">
+          <div class="grade-row">
+            <span id="score-grade" class="grade-badge">--</span>
+            <span id="score-label-text" class="grade-label"></span>
+          </div>
+          <div id="violations-label" class="viol-sub"></div>
+          <div id="impact-bar"    class="impact-bar hidden"></div>
+          <div id="impact-legend" class="impact-legend hidden"></div>
+        </div>
+        <button id="rescan-btn" class="btn-rescan" title="Rescan">↺</button>
+      </div>
+
+      <div id="fix-progress-wrap" class="fix-progress-wrap hidden">
+        <div class="fp-top">
+          <span class="fp-label">Auto-fixes applied</span>
+          <span id="fix-counter" class="fp-count">0 / 0</span>
+        </div>
+        <div class="fp-track"><div id="fp-bar" class="fp-bar" style="width:0%"></div></div>
+      </div>
+
+      <div class="action-bar">
+        <button id="fix-all-btn"     class="btn-act btn-act-fix">⚡ Fix All</button>
+        <button id="save-btn"        class="btn-act">💾 Save</button>
+        <button id="copy-report-btn" class="btn-act">📋 Report</button>
+        <button id="expand-all-btn"  class="btn-act">↕ Expand</button>
+      </div>
+
+      <div id="suggestions-wrap" class="suggestions-wrap"></div>
+    </div>
+  </div>
+
+  <!-- ══ LAYOUT INSPECTOR TAB ══ -->
+  <div id="tab-inspector" class="tab-panel hidden">
+
+    <!-- Toggle row -->
+    <div class="li-toggle-row">
+      <div class="li-toggle-left">
+        <span id="li-dot" class="li-dot li-dot-off"></span>
+        <span id="li-status" class="li-status-txt">Inspector OFF</span>
+      </div>
+      <button id="inspector-toggle-btn" class="li-toggle-btn">Enable</button>
+    </div>
+
+    <!-- Idle hint (shown when OFF or no element selected) -->
+    <div id="li-idle" class="li-idle">
+      <div class="li-idle-icon">📐</div>
+      <p class="li-idle-title">Click any element on the page</p>
+      <p class="li-idle-sub">Enable inspector, then click a button, heading, div or any element. Controls appear here — no popups.</p>
+    </div>
+
+    <!-- EDITOR (shown after element clicked) -->
+    <div id="li-editor" class="li-editor hidden">
+
+      <!-- Selected element chip -->
+      <div class="li-el-header">
+        <span id="li-el-tag" class="li-el-tag"></span>
+        <span id="li-el-cls" class="li-el-cls"></span>
+        <button id="li-reset-btn" class="li-reset-btn" title="Reset all styles">↩ Reset</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="li-tabs">
+        <button class="li-tab li-tab-on" data-litab="typography">Aa</button>
+        <button class="li-tab" data-litab="spacing">⬜</button>
+        <button class="li-tab" data-litab="size">⤡</button>
+        <button class="li-tab" data-litab="colors">🎨</button>
+      </div>
+
+      <!-- Typography -->
+      <div id="litab-typography" class="li-pane">
+        <div class="li-row">
+          <label class="li-lbl">Font Size</label>
+          <div class="li-ctrl"><input type="range" id="li-fontsize-r" min="8" max="72" step="1"><input type="number" id="li-fontsize-n" min="8" max="72" step="1"><span class="li-unit">px</span></div>
+        </div>
+        <div class="li-row">
+          <label class="li-lbl">Line Height</label>
+          <div class="li-ctrl"><input type="range" id="li-lineheight-r" min="10" max="80" step="1"><input type="number" id="li-lineheight-n" min="10" max="80" step="1"><span class="li-unit">px</span></div>
+        </div>
+        <div class="li-row">
+          <label class="li-lbl">Letter Spacing</label>
+          <div class="li-ctrl"><input type="range" id="li-letterspacing-r" min="-2" max="10" step="0.1"><input type="number" id="li-letterspacing-n" min="-2" max="10" step="0.1"><span class="li-unit">px</span></div>
+        </div>
+        <div class="li-row">
+          <label class="li-lbl">Font Weight</label>
+          <select id="li-fontweight-s" class="li-select">
+            <option value="100">Thin 100</option><option value="300">Light 300</option>
+            <option value="400">Normal 400</option><option value="500">Medium 500</option>
+            <option value="600">Semi Bold 600</option><option value="700">Bold 700</option>
+            <option value="800">Extra Bold 800</option><option value="900">Black 900</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Spacing -->
+      <div id="litab-spacing" class="li-pane hidden">
+        <div class="li-section-lbl">PADDING</div>
+        <div class="li-four-grid">
+          <div class="li-side"><span class="li-side-lbl">Top</span><div class="li-ctrl-sm"><input type="range" id="li-pt-r" min="0" max="80" step="1"><input type="number" id="li-pt-n" min="0" max="200"></div></div>
+          <div class="li-side"><span class="li-side-lbl">Right</span><div class="li-ctrl-sm"><input type="range" id="li-pr-r" min="0" max="80" step="1"><input type="number" id="li-pr-n" min="0" max="200"></div></div>
+          <div class="li-side"><span class="li-side-lbl">Bottom</span><div class="li-ctrl-sm"><input type="range" id="li-pb-r" min="0" max="80" step="1"><input type="number" id="li-pb-n" min="0" max="200"></div></div>
+          <div class="li-side"><span class="li-side-lbl">Left</span><div class="li-ctrl-sm"><input type="range" id="li-pl-r" min="0" max="80" step="1"><input type="number" id="li-pl-n" min="0" max="200"></div></div>
+        </div>
+        <div class="li-section-lbl">MARGIN</div>
+        <div class="li-four-grid">
+          <div class="li-side"><span class="li-side-lbl">Top</span><div class="li-ctrl-sm"><input type="range" id="li-mt-r" min="0" max="80" step="1"><input type="number" id="li-mt-n" min="0" max="200"></div></div>
+          <div class="li-side"><span class="li-side-lbl">Right</span><div class="li-ctrl-sm"><input type="range" id="li-mr-r" min="0" max="80" step="1"><input type="number" id="li-mr-n" min="0" max="200"></div></div>
+          <div class="li-side"><span class="li-side-lbl">Bottom</span><div class="li-ctrl-sm"><input type="range" id="li-mb-r" min="0" max="80" step="1"><input type="number" id="li-mb-n" min="0" max="200"></div></div>
+          <div class="li-side"><span class="li-side-lbl">Left</span><div class="li-ctrl-sm"><input type="range" id="li-ml-r" min="0" max="80" step="1"><input type="number" id="li-ml-n" min="0" max="200"></div></div>
+        </div>
+      </div>
+
+      <!-- Size -->
+      <div id="litab-size" class="li-pane hidden">
+        <div class="li-row">
+          <label class="li-lbl">Width</label>
+          <div class="li-ctrl"><input type="range" id="li-width-r" min="0" max="1200" step="1"><input type="number" id="li-width-n" min="0" max="2000"><span class="li-unit">px</span></div>
+        </div>
+        <div class="li-row">
+          <label class="li-lbl">Height</label>
+          <div class="li-ctrl"><input type="range" id="li-height-r" min="0" max="800" step="1"><input type="number" id="li-height-n" min="0" max="2000"><span class="li-unit">px</span></div>
+        </div>
+        <div class="li-row">
+          <label class="li-lbl">Border Radius</label>
+          <div class="li-ctrl"><input type="range" id="li-radius-r" min="0" max="100" step="1"><input type="number" id="li-radius-n" min="0" max="500"><span class="li-unit">px</span></div>
+        </div>
+        <div class="li-quick-btns">
+          <button id="li-fit-btn" class="li-quick-btn">Fit Content</button>
+          <button id="li-full-btn" class="li-quick-btn">Full Width</button>
+        </div>
+      </div>
+
+      <!-- Colors -->
+      <div id="litab-colors" class="li-pane hidden">
+        <div class="li-color-row">
+          <span class="li-lbl">Text Color</span>
+          <div class="li-color-right">
+            <span id="li-color-hex" class="li-color-hex">#000000</span>
+            <input type="color" id="li-color-pick" value="#000000">
+          </div>
+        </div>
+        <div class="li-color-row">
+          <span class="li-lbl">Background</span>
+          <div class="li-color-right">
+            <span id="li-bg-hex" class="li-color-hex">#ffffff</span>
+            <input type="color" id="li-bg-pick" value="#ffffff">
+          </div>
+        </div>
+        <div id="li-contrast-box" class="li-contrast-box">
+          <span id="li-contrast-ratio" class="li-contrast-num">--</span>
+          <span id="li-contrast-label" class="li-contrast-sub">WCAG Contrast</span>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="li-footer">
+        <button id="li-copy-css-btn" class="li-foot-btn li-foot-copy">📋 Copy CSS</button>
+        <button id="li-apply-btn" class="li-foot-btn li-foot-apply">✓ Apply to HTML</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ THEMES TAB ══ -->
+  <div id="tab-themes" class="tab-panel hidden">
+    <div class="themes-header">
+      <p class="themes-desc">Inject a live CSS theme. Resets on page reload.</p>
+      <button id="remove-theme-btn" class="btn-ghost btn-sm">✕ Remove</button>
+    </div>
+    <div id="themes-grid" class="themes-grid"></div>
+  </div>
+
+  <!-- ══ HISTORY TAB ══ -->
+  <div id="tab-history" class="tab-panel hidden">
+    <div class="history-header">
+      <div class="history-header-left">
+        <span id="history-count" class="hist-count">0 scans</span>
+        <span id="history-source" class="hist-source"></span>
+      </div>
+      <button id="clear-history-btn" class="btn-ghost btn-sm btn-danger">🗑 Clear All</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
+  </div>
+
+  <div id="__toast" class="toast"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
