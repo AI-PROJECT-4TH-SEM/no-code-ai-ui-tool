@@ -1,5 +1,6 @@
 import connectDB from "@/lib/db"
 import Theme from "@/lib/models/Theme"
+import { themes } from "@/lib/themes"
 import jwt from "jsonwebtoken"
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET
@@ -18,10 +19,13 @@ export async function GET(req) {
   try {
     const payload = jwt.verify(token, ACCESS_SECRET)
 
-    const theme = await Theme.findOne({ userId: payload.userId })
+    const themeDoc = await Theme.findOne({ userId: payload.userId })
+
+    // ✅ fallback default
+    const selectedTheme = themeDoc?.selectedTheme || "theme-ai"
 
     return new Response(
-      JSON.stringify({ theme: theme?.selectedTheme || null }),
+      JSON.stringify({ theme: selectedTheme }),
       { status: 200 }
     )
   } catch {
@@ -53,15 +57,25 @@ export async function PATCH(req) {
     return new Response(JSON.stringify({ error: "Theme required" }), { status: 400 })
   }
 
+  // ✅ VALIDATION (VERY IMPORTANT 🔥)
+  const validThemes = themes.map(t => t.class)
+
+  if (!validThemes.includes(themeName)) {
+    return new Response(JSON.stringify({ error: "Invalid theme" }), { status: 400 })
+  }
+
   try {
-    await Theme.findOneAndUpdate(
+    const updated = await Theme.findOneAndUpdate(
       { userId: payload.userId },
       { selectedTheme: themeName },
-      { upsert: true }
+      { upsert: true, new: true }
     )
 
     return new Response(
-      JSON.stringify({ success: true, selectedTheme: themeName }),
+      JSON.stringify({
+        success: true,
+        selectedTheme: updated.selectedTheme
+      }),
       { status: 200 }
     )
   } catch (err) {

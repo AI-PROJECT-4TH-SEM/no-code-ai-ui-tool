@@ -10,17 +10,24 @@ const themeSchema = new mongoose.Schema(
     },
 
     selectedTheme: {
-      type: String,
-      required: true,
-      default: "theme-ai",
-      enum: [
-        "theme-cyberpunk",
-        "theme-ai",
-        "theme-glass",
-        "theme-electric",
-        "theme-matrix",
-      ],
-    },
+  type: String,
+  required: true,
+  default: "theme-ai",
+  enum: [
+    "theme-cyberpunk",
+    "theme-ai",
+    "theme-glass",
+    "theme-electric",
+    "theme-matrix",
+    "theme-fiery",
+    "theme-midnight",
+    "theme-sunny",
+    "theme-candy",
+    "theme-colorful",
+    "theme-ocean",
+    "theme-nature"
+  ],
+},
 
     customSettings: {
       fontScale: { type: Number, default: 1 },

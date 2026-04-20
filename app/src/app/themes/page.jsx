@@ -10,15 +10,43 @@ export default function Themes() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("sessionId")
 
-  // ✅ Apply saved theme
+  // ✅ LOAD THEME (MongoDB → local fallback)
   useEffect(() => {
-    const saved = localStorage.getItem("themeClass")
-    if (saved) {
-      document.documentElement.className = saved
+    async function loadTheme() {
+      const token = localStorage.getItem("token")
+
+      // 🔥 Try MongoDB first
+      if (token) {
+        try {
+          const res = await fetch("/api/theme", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          const data = await res.json()
+
+          if (data?.theme) {
+            document.documentElement.className = data.theme
+            localStorage.setItem("themeClass", data.theme)
+            return
+          }
+        } catch (err) {
+          console.error("MongoDB load failed:", err)
+        }
+      }
+
+      // ⚡ fallback
+      const saved = localStorage.getItem("themeClass")
+      if (saved) {
+        document.documentElement.className = saved
+      }
     }
+
+    loadTheme()
   }, [])
 
-  // ✅ 3D TILT EFFECT (NEW 🔥)
+  // ✅ 3D EFFECT
   function handleMouseMove(e) {
     const card = e.currentTarget
     const rect = card.getBoundingClientRect()
@@ -33,27 +61,46 @@ export default function Themes() {
   }
 
   function handleMouseLeave(e) {
-    e.currentTarget.style.transform = "perspective(800px) rotateX(0) rotateY(0) scale(1)"
+    e.currentTarget.style.transform =
+      "perspective(800px) rotateX(0) rotateY(0) scale(1)"
   }
 
-  // ✅ Apply + Save theme
+  // ✅ APPLY + SAVE THEME (MongoDB + local)
   async function handleSelect(theme) {
+    console.log("CLICKED:", theme)
+
+    // 🔥 apply instantly
     document.documentElement.className = theme.class
     localStorage.setItem("themeClass", theme.class)
 
     const token = localStorage.getItem("token")
+    console.log("TOKEN:", token)
+
+    // 🔥 save to MongoDB
     if (token) {
-      await fetch("/api/theme", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ themeName: theme.class }),
-      })
+      try {
+        const res = await fetch("/api/theme", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ themeName: theme.class }),
+        })
+
+        const data = await res.json()
+        console.log("API RESPONSE:", data)
+      } catch (err) {
+        console.error("MongoDB save failed:", err)
+      }
+    } else {
+      console.warn("No token → only localStorage used")
     }
 
-    router.push(`/results?sessionId=${sessionId}&theme=${encodeURIComponent(theme.name)}`)
+    // 🔥 navigate
+    router.push(
+      `/results?sessionId=${sessionId}&theme=${encodeURIComponent(theme.name)}`
+    )
   }
 
   return (
@@ -61,9 +108,7 @@ export default function Themes() {
 
       <Navbar />
 
-      
-
-      {/* ✅ GRID */}
+      {/* GRID */}
       <div className="flex-1 p-6">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {themes.map((theme) => (
@@ -80,14 +125,16 @@ export default function Themes() {
 
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">{theme.name}</span>
-                <span className="text-xs text-[var(--primary)]">Apply →</span>
+                <span className="text-xs text-[var(--primary)]">
+                  Apply →
+                </span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ✅ UPGRADED THEME ENGINE */}
+      {/* THEME ENGINE */}
       <style jsx global>{`
         :root {
           --bg: #0f172a;
@@ -96,12 +143,10 @@ export default function Themes() {
           --card: rgba(255,255,255,0.05);
           --border: rgba(255,255,255,0.1);
           --radius: 16px;
-          --scale: 1;
           --font-weight: 400;
           --font-style: normal;
         }
 
-        /* CYBERPUNK */
         .theme-cyberpunk {
           --bg: radial-gradient(circle at top, #0a0015, #000);
           --text: #00f0ff;
@@ -112,24 +157,20 @@ export default function Themes() {
           --font-style: italic;
         }
 
-        /* GLASS */
         .theme-glass .card {
           backdrop-filter: blur(20px);
           box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
 
-        /* ELECTRIC */
         .theme-electric .card {
           box-shadow: 0 0 20px #facc15;
         }
 
-        /* MATRIX */
         .theme-matrix {
           text-shadow: 0 0 5px #00ff00;
           font-style: italic;
         }
 
-        /* GLOBAL */
         body {
           background: var(--bg);
           color: var(--text);
@@ -138,7 +179,6 @@ export default function Themes() {
           transition: all 0.4s ease;
         }
 
-        /* CARD BASE */
         .card {
           background: var(--card);
           border: 1px solid var(--border);
@@ -146,6 +186,7 @@ export default function Themes() {
           padding: 16px;
           transition: all 0.3s ease;
           transform-style: preserve-3d;
+          pointer-events: auto;
         }
 
         .card:hover {
