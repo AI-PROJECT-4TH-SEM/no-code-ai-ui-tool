@@ -64,10 +64,8 @@ function nudgeFallback(selector, fg, bg) {
   }
 }
 
-// NEW — batch all elements in one Cohere call
 export async function buildContrastFixesBatch(elements, cohereClient) {
-  // elements = [{ selector, fgStr, bgStr }, ...]
-  // first filter out ones that already pass
+  
   const failing = elements
     .map(({ selector, fgStr, bgStr }) => {
       const fg = parseRgb(fgStr)
@@ -134,7 +132,6 @@ No markdown, no explanation, ONLY the JSON array.
       const original = failing.find(f => f.selector === item.selector)
       if (!original) continue
 
-      // verify it passes — fallback to nudge if AI got it wrong
       if (contrastRatio(picked, original.bg) >= 4.5) {
         fixes[item.selector] = {
           type: "setStyleImportant",
@@ -143,12 +140,11 @@ No markdown, no explanation, ONLY the JSON array.
           styleValue: `rgb(${picked[0]}, ${picked[1]}, ${picked[2]})`,
         }
       } else {
-        // AI failed for this element — nudge fallback
+        
         fixes[item.selector] = nudgeFallback(item.selector, original.fg, original.bg)
       }
     }
 
-    // for any element AI missed entirely — nudge fallback
     for (const el of failing) {
       if (!fixes[el.selector]) {
         fixes[el.selector] = nudgeFallback(el.selector, el.fg, el.bg)
@@ -159,7 +155,7 @@ No markdown, no explanation, ONLY the JSON array.
 
   } catch (err) {
     console.warn("Batch AI color pick failed, falling back to nudge for all:", err.message)
-    // full fallback — nudge everything
+   
     const fixes = {}
     for (const el of failing) {
       fixes[el.selector] = nudgeFallback(el.selector, el.fg, el.bg)

@@ -11,7 +11,7 @@ export async function POST(req) {
   const user = await User.findOne({ email })
 
  if (!user) {
-  // pretend success (security)
+ 
   return Response.json({ success: true })
 }
 

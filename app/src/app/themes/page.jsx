@@ -10,12 +10,10 @@ export default function Themes() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("sessionId")
 
-  // ✅ LOAD THEME (MongoDB → local fallback)
   useEffect(() => {
     async function loadTheme() {
       const token = localStorage.getItem("token")
 
-      // 🔥 Try MongoDB first
       if (token) {
         try {
           const res = await fetch("/api/theme", {
@@ -36,7 +34,6 @@ export default function Themes() {
         }
       }
 
-      // ⚡ fallback
       const saved = localStorage.getItem("themeClass")
       if (saved) {
         document.documentElement.className = saved
@@ -46,7 +43,6 @@ export default function Themes() {
     loadTheme()
   }, [])
 
-  // ✅ 3D EFFECT
   function handleMouseMove(e) {
     const card = e.currentTarget
     const rect = card.getBoundingClientRect()
@@ -65,18 +61,15 @@ export default function Themes() {
       "perspective(800px) rotateX(0) rotateY(0) scale(1)"
   }
 
-  // ✅ APPLY + SAVE THEME (MongoDB + local)
   async function handleSelect(theme) {
     console.log("CLICKED:", theme)
 
-    // 🔥 apply instantly
     document.documentElement.className = theme.class
     localStorage.setItem("themeClass", theme.class)
 
     const token = localStorage.getItem("token")
     console.log("TOKEN:", token)
 
-    // 🔥 save to MongoDB
     if (token) {
       try {
         const res = await fetch("/api/theme", {
@@ -97,7 +90,6 @@ export default function Themes() {
       console.warn("No token → only localStorage used")
     }
 
-    // 🔥 navigate
     router.push(
       `/results?sessionId=${sessionId}&theme=${encodeURIComponent(theme.name)}`
     )
@@ -108,7 +100,6 @@ export default function Themes() {
 
       <Navbar />
 
-      {/* GRID */}
       <div className="flex-1 p-6">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {themes.map((theme) => (
@@ -134,7 +125,6 @@ export default function Themes() {
         </div>
       </div>
 
-      {/* THEME ENGINE */}
       <style jsx global>{`
         :root {
           --bg: #0f172a;

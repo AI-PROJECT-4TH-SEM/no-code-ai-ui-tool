@@ -26,13 +26,12 @@ export function wrapMain(container) {
   body.appendChild(main)
 }
 
-// AI-driven version — wraps a specific element AI identified as the content root
 export function wrapWithMain(container, selector) {
   if (container.querySelector("main")) return
-  if (!selector) return wrapMain(container) // fallback to heuristic
+  if (!selector) return wrapMain(container) 
 
   const el = container.querySelector(selector)
-  if (!el) return wrapMain(container) // fallback if selector not found
+  if (!el) return wrapMain(container)
 
   const main = document.createElement("main")
   el.replaceWith(main)

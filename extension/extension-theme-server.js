@@ -1,17 +1,3 @@
-/**
- * Chai Ke Sath AI — Extension Theme Server
- * ──────────────────────────────────────────
- * Standalone Express server that stores Chrome extension theme preferences
- * in MongoDB. Run this SEPARATELY from your Next.js app.
- *
- * SETUP:
- *   1. npm install express mongoose cors
- *   2. node extension-theme-server.js
- *   Runs on http://localhost:3001
- *
- * The Chrome extension calls this server (not your Next.js app) for theme storage.
- */
-
 const express  = require("express")
 const mongoose = require("mongoose")
 const cors     = require("cors")
@@ -19,14 +5,12 @@ const cors     = require("cors")
 const app  = express()
 const PORT = 3001
 
-// ─── MongoDB connection ───────────────────────────────────────────────────────
 const MONGO_URI = "mongodb+srv://riteshjha1:9818756275Alex@cluster1.biefhez.mongodb.net/chai-ke-sath-extension"
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected — Extension Theme Server"))
-  .catch(err => console.error("❌ MongoDB error:", err.message))
+  .then(() => console.log(" MongoDB connected — Extension Theme Server"))
+  .catch(err => console.error(" MongoDB error:", err.message))
 
-// ─── Theme Schema ─────────────────────────────────────────────────────────────
 const themeSchema = new mongoose.Schema({
   deviceId: {
     type:    String,
@@ -56,11 +40,9 @@ const themeSchema = new mongoose.Schema({
 const ExtensionTheme = mongoose.models.ExtensionTheme
   || mongoose.model("ExtensionTheme", themeSchema)
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors({ origin: "*" }))
 app.use(express.json())
 
-// Simple API key check
 const EXTENSION_KEY = "chai-ke-sath-extension-2025"
 
 function checkKey(req, res, next) {
@@ -71,9 +53,6 @@ function checkKey(req, res, next) {
   next()
 }
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-
-// GET /theme — get current theme for a device
 app.get("/theme", checkKey, async (req, res) => {
   try {
     const deviceId = req.headers["x-device-id"] || "default"
@@ -88,7 +67,6 @@ app.get("/theme", checkKey, async (req, res) => {
   }
 })
 
-// POST /theme — save/update current theme
 app.post("/theme", checkKey, async (req, res) => {
   try {
     const deviceId = req.headers["x-device-id"] || "default"
@@ -100,7 +78,7 @@ app.post("/theme", checkKey, async (req, res) => {
         themeId,
         themeName: themeName || themeId,
         appliedAt: new Date(),
-        // Push to history (keep last 10)
+       
         $push: {
           history: {
             $each:     [{ themeId, themeName: themeName || themeId }],
@@ -117,7 +95,6 @@ app.post("/theme", checkKey, async (req, res) => {
   }
 })
 
-// DELETE /theme — remove theme (reset)
 app.delete("/theme", checkKey, async (req, res) => {
   try {
     const deviceId = req.headers["x-device-id"] || "default"
@@ -132,7 +109,6 @@ app.delete("/theme", checkKey, async (req, res) => {
   }
 })
 
-// GET /theme/history — get last 10 applied themes
 app.get("/theme/history", checkKey, async (req, res) => {
   try {
     const deviceId = req.headers["x-device-id"] || "default"
@@ -143,14 +119,13 @@ app.get("/theme/history", checkKey, async (req, res) => {
   }
 })
 
-// Health check
 app.get("/", (req, res) => {
   res.json({ status: "ok", server: "Chai Ke Sath AI Extension Theme Server" })
 })
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+
 app.listen(PORT, () => {
-  console.log(`🚀 Extension Theme Server running at http://localhost:${PORT}`)
+  console.log(` Extension Theme Server running at http://localhost:${PORT}`)
   console.log(`   Endpoints:`)
   console.log(`   GET    /theme           — get saved theme`)
   console.log(`   POST   /theme           — save theme`)

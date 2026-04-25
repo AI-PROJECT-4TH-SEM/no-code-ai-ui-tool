@@ -22,7 +22,7 @@ export async function POST(req) {
     await connectDB()
 
     const user = await User.findByIdAndUpdate(
-      decoded.id, // ✅ USE ID (NOT EMAIL)
+      decoded.id, 
       { firstName, lastName },
       { new: true }
     )

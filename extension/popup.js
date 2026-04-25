@@ -1,9 +1,5 @@
-// ─── Themes ───────────────────────────────────────────────────────────────────
-// 10 high-level themes — each completely redesigns any website's UI/UX
-// covering typography, color, contrast, buttons, inputs, cards, nav, links, focus
 const THEMES = [
 
-  // ── 1. MIDNIGHT LUXURY ──────────────────────────────────────────────────────
   {
     id: "midnight-luxury",
     name: "🌙 Midnight Luxury",
@@ -37,7 +33,7 @@ const THEMES = [
     `
   },
 
-  // ── 2. AURORA NORD ──────────────────────────────────────────────────────────
+ 
   {
     id: "aurora-nord",
     name: "🌌 Aurora Nord",

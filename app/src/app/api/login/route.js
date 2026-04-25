@@ -17,15 +17,13 @@ export async function POST(req) {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401 });
 
-  // Create tokens
   const accessToken = jwt.sign({ userId: user._id }, ACCESS_SECRET, { expiresIn: "15m" });
   const refreshToken = jwt.sign({ userId: user._id }, REFRESH_SECRET, { expiresIn: "7d" });
 
-  // Store refresh token in DB
+  
   user.refreshToken = refreshToken;
   await user.save();
 
-  // Set refresh token as httpOnly cookie
   const cookieSerialized = serialize("refreshToken", refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
