@@ -183,7 +183,6 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* LOGOUT */}
                 <button
                   onClick={() => {
                     logout()
@@ -198,7 +197,6 @@ export default function Settings() {
                 </button>
               </div>
 
-              {/* RIGHT — Sessions */}
               <div className="flex flex-col gap-6">
                 <div className="bg-black/30 backdrop-blur-sm border border-white/10 rounded-2xl p-6 flex-1">
 
@@ -258,7 +256,6 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* POPUP */}
       {showPopup && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
           <div className="bg-[#1a1a1a] border border-yellow-400/40 rounded-2xl p-6 w-[320px] text-center">

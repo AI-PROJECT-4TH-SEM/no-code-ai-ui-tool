@@ -15,26 +15,7 @@ export default function Home() {
   const [fetchMethod, setFetchMethod] = useState("")
   const router = useRouter()
   const { accessToken } = useAuth()
-const [label, setLabel] = useState("")
-
-  // Load saved HTML on mount
-  // useEffect(() => {
-  //   if (!accessToken) return
-  //   async function loadHtml() {
-  //     try {
-  //       const res = await fetch("/api/html", {
-  //         headers: { Authorization: `Bearer ${accessToken}` },
-  //       })
-  //       const data = await res.json()
-  //       if (data.html) setHtml(data.html)
-  //     } catch {
-  //       console.log("Failed to load HTML")
-  //     }
-  //   }
-  //   loadHtml()
-  // }, [accessToken])
-
- 
+  const [label, setLabel] = useState("")
 
   async function saveHtml(content) {
     if (!accessToken) return
@@ -52,84 +33,78 @@ const [label, setLabel] = useState("")
     }
   }
 
+  async function handleAnalyse() {
+    if (!html) { alert("Please paste some HTML first!"); return }
+    if (!accessToken) { alert("Please login first!"); router.push("/login"); return }
 
-
-
-
-// update handleAnalyse
-async function handleAnalyse() {
-  if (!html) { alert("Please paste some HTML first!"); return }
-  if (!accessToken) { alert("Please login first!"); router.push("/login"); return }
-
-  try {
-    // save HTML first
-    await fetch("/api/html", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ content: html }),
-    })
-
-    const sessionLabel = url
-      ? new URL(url.startsWith("http") ? url : "https://" + url).hostname.replace("www.", "")
-      : `Paste ${new Date().toLocaleTimeString()}`
-
-    const res = await fetch("/api/session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ label: sessionLabel, html }),
-    })
-
-    const data = await res.json()
-    if (!res.ok) { alert("Failed to create session"); return }
-
-    router.push(`/results?sessionId=${data.sessionId}`)
-  } catch (err) {
-    console.error(err)
-    alert("Something went wrong!")
-  }
-}
- async function fetchUrl() {
-  if (!url) { alert("Enter a URL"); return }
-  if (loading) return
-  setLoading(true)
-  try {
-    const res = await fetch("/api/fetch-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    })
-
-    // read body ONCE
-    const text = await res.text()
-    
-    let data
     try {
-      data = JSON.parse(text)
-    } catch {
-      console.error("NOT JSON RESPONSE:", text)
-      alert("Fetch failed — invalid response")
-      return
-    }
 
-    if (data.method === "failed") { alert("This site blocks scraping or failed to load"); return }
-    if (!data.html) { alert("No HTML returned"); return }
-    
-    setHtml(data.html)
-    setFetchMethod(data.method)
-    await saveHtml(data.html)
-  } catch (err) {
-    console.error(err)
-    alert("Fetch failed")
-  } finally {
-    setLoading(false)
+      await fetch("/api/html", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ content: html }),
+      })
+
+      const sessionLabel = url
+        ? new URL(url.startsWith("http") ? url : "https://" + url).hostname.replace("www.", "")
+        : `Paste ${new Date().toLocaleTimeString()}`
+
+      const res = await fetch("/api/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ label: sessionLabel, html }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) { alert("Failed to create session"); return }
+
+      router.push(`/results?sessionId=${data.sessionId}`)
+    } catch (err) {
+      console.error(err)
+      alert("Something went wrong!")
+    }
   }
-}
+  async function fetchUrl() {
+    if (!url) { alert("Enter a URL"); return }
+    if (loading) return
+    setLoading(true)
+    try {
+      const res = await fetch("/api/fetch-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      })
+
+      const text = await res.text()
+
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        console.error("NOT JSON RESPONSE:", text)
+        alert("Fetch failed — invalid response")
+        return
+      }
+
+      if (data.method === "failed") { alert("This site blocks scraping or failed to load"); return }
+      if (!data.html) { alert("No HTML returned"); return }
+
+      setHtml(data.html)
+      setFetchMethod(data.method)
+      await saveHtml(data.html)
+    } catch (err) {
+      console.error(err)
+      alert("Fetch failed")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div
@@ -146,7 +121,6 @@ async function handleAnalyse() {
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar />
 
-        {/* HERO */}
         <div className="flex flex-col items-center justify-center text-center px-6 md:px-8 py-12 md:py-16 border-b border-gray-800 relative overflow-hidden">
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-gray-400 mb-6">
@@ -166,25 +140,20 @@ async function handleAnalyse() {
           </div>
         </div>
 
-<div className="relative z-10">
-  ...
-  <AddChromeExtension />
-</div>
+        <div className="relative z-10">
+          ...
+          <AddChromeExtension />
+        </div>
 
-
-
-
-        {/* MAIN GRID */}
         <div className="flex flex-col md:grid md:grid-cols-2 flex-1 md:overflow-hidden">
 
-          {/* LEFT */}
           <div className="flex flex-col gap-4 p-6 md:p-8 md:border-r border-b md:border-b-0 border-gray-800 bg-black/30">
             <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
               <button
                 onClick={() => setMode("html")}
                 className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${mode === "html" ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}
               >
-                Paste HTML
+                Paste your Code
               </button>
               <button
                 onClick={() => setMode("url")}
@@ -197,11 +166,10 @@ async function handleAnalyse() {
             {mode === "html" && (
               <textarea
                 className="flex-1 min-h-[280px] md:min-h-[400px] bg-white/5 border border-gray-700 rounded-xl text-white p-4 text-sm resize-none outline-none focus:border-pink-400 transition placeholder-gray-600"
-                placeholder="Paste your HTML here..."
+                placeholder="Paste your Code here..."
                 value={html}
                 onChange={async (e) => {
                   setHtml(e.target.value)
-                  // await saveHtml(e.target.value)
                 }}
               />
             )}
@@ -242,7 +210,6 @@ async function handleAnalyse() {
             </button>
           </div>
 
-          {/* RIGHT */}
           <div className="flex flex-col gap-4 p-6 md:p-8 md:overflow-y-auto bg-black/20">
             <div className="flex items-center justify-between">
               <div>

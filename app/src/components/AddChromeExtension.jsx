@@ -8,10 +8,8 @@ export default function AddChromeExtension() {
   const [showInstructions, setShowInstructions] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
 
-  // Your extension ID - you'll get this after first install
-  const EXTENSION_ID = 'agkigmoblgmnknebhjihfkonjgghjdbm' // Replace with actual ID
+  const EXTENSION_ID = 'agkigmoblgmnknebhjihfkonjgghjdbm'
 
-  // Check if extension is already installed
   useEffect(() => {
     checkExtensionInstalled()
   }, [])
@@ -33,15 +31,14 @@ export default function AddChromeExtension() {
   }
 
   const handleAddToChrome = () => {
-    // Trigger download
+    
     const link = document.createElement('a')
-    link.href = '/accessibility-analyzer.zip' // Path to your hosted extension
+    link.href = '/accessibility-analyzer.zip' 
     link.download = 'accessibility-analyzer.zip'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
 
-    // Show installation instructions
     setShowInstructions(true)
     setCurrentStep(1)
   }
@@ -91,7 +88,7 @@ export default function AddChromeExtension() {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
-      {/* Main Button */}
+     
       {!isInstalled && !showInstructions && (
         <div className="text-center">
           <button
@@ -109,7 +106,6 @@ export default function AddChromeExtension() {
         </div>
       )}
 
-      {/* Already Installed */}
       {isInstalled && (
         <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6 text-center">
           <div className="text-5xl mb-4">✅</div>
@@ -128,10 +124,9 @@ export default function AddChromeExtension() {
         </div>
       )}
 
-      {/* Installation Instructions */}
       {showInstructions && !isInstalled && (
         <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
-          {/* Progress Bar */}
+        
           <div className="bg-gray-100 p-4">
             <div className="flex justify-between items-center mb-2">
               {steps.map((step, index) => (
@@ -164,7 +159,6 @@ export default function AddChromeExtension() {
             </div>
           </div>
 
-          {/* Current Step */}
           <div className="p-8">
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">
@@ -178,7 +172,6 @@ export default function AddChromeExtension() {
               </p>
             </div>
 
-            {/* Special content for specific steps */}
             {currentStep === 2 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <p className="text-sm font-mono text-blue-900">
@@ -199,7 +192,6 @@ export default function AddChromeExtension() {
               </div>
             )}
 
-            {/* Action Buttons */}
             <div className="flex gap-4 justify-center mt-8">
               {currentStep > 0 && (
                 <button
@@ -219,7 +211,7 @@ export default function AddChromeExtension() {
                   if (currentStep < steps.length - 1) {
                     setCurrentStep(currentStep + 1)
                   } else {
-                    // Final step - check if installed
+                   
                     setTimeout(() => {
                       checkExtensionInstalled()
                       if (!isInstalled) {
@@ -238,7 +230,7 @@ export default function AddChromeExtension() {
               </button>
             </div>
 
-            {/* Video Tutorial Link (Optional) */}
+           
             {currentStep === 0 && (
               <div className="text-center mt-6">
                 <button className="text-blue-600 hover:underline text-sm">
@@ -248,7 +240,7 @@ export default function AddChromeExtension() {
             )}
           </div>
 
-          {/* Close Instructions */}
+          
           <div className="bg-gray-50 p-4 text-center border-t">
             <button
               onClick={() => setShowInstructions(false)}

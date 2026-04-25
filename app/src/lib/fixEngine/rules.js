@@ -18,16 +18,16 @@ export function mapAxeToFix(issue) {
       return { type: "ensureH1" }
 
     case "color-contrast":
-      // handled upstream in route.js via buildContrastFix — not here
+     
       return null
 
     case "image-alt":
       if (!selector) return null
       return {
         type: "setAttribute",
-        selector,           // exact failing element, not all imgs
+        selector,          
         attribute: "alt",
-        value: ""           // empty string = decorative. route.js/AI should fill meaningful value
+        value: ""           
       }
 
     case "link-name":
@@ -36,7 +36,7 @@ export function mapAxeToFix(issue) {
         type: "setAttribute",
         selector,
         attribute: "aria-label",
-        value: "link"       // AI in route.js will override with something meaningful
+        value: "link"       
       }
 
     case "button-name":

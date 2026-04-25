@@ -38,7 +38,6 @@ export default function Navbar() {
   const authPages = ["/login", "/signup"]
   if (authPages.includes(pathname)) return null
 
-  // Don't flash login/signup while checking auth
   if (loading) return (
     <nav className="flex items-center justify-between px-6 md:px-10 py-5 md:py-7 border-b border-gray-800 bg-gradient-to-l from-cyan-900 to-black relative z-50">
       <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
@@ -58,7 +57,6 @@ export default function Navbar() {
         </span>
       </div>
 
-      {/* DESKTOP RIGHT */}
       <div className="hidden md:flex items-center gap-4">
         {pathname !== "/" && (
           <button onClick={() => navigate("/")} className="px-6 py-3 rounded-xl text-base text-gray-300 hover:text-white hover:bg-white/5 transition">
@@ -85,7 +83,6 @@ export default function Navbar() {
         )}
       </div>
 
-      {/* MOBILE RIGHT */}
       <div className="flex md:hidden items-center gap-2" ref={menuRef}>
         {!isLoggedIn && (
           <>

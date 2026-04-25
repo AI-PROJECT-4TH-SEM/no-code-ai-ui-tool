@@ -1,22 +1,5 @@
-/**
- * install-button.js
- * ─────────────────
- * Drop this script into your Next.js site (pages/_app.js or any component).
- * It renders a smart "Add to Chrome" button that:
- *   - Shows "Installed ✓" if the extension is already active
- *   - Shows a download/install button if not installed
- *   - Can trigger a scan from your website via postMessage
- *
- * Usage in Next.js:
- *   import { AccessiScanButton } from './install-button'
- *   <AccessiScanButton />
- */
-
-// ── Extension ID — update this after publishing or sideloading ──────────────
-// Find it at chrome://extensions after loading the extension
 const EXTENSION_ID = "YOUR_EXTENSION_ID_HERE"
 
-// ── Check if extension is installed ─────────────────────────────────────────
 export async function checkExtensionInstalled() {
   return new Promise((resolve) => {
     if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
@@ -31,12 +14,11 @@ export async function checkExtensionInstalled() {
     } catch {
       resolve(false)
     }
-    // Timeout fallback
+   
     setTimeout(() => resolve(false), 1000)
   })
 }
 
-// ── Trigger a scan from your website ────────────────────────────────────────
 export function triggerScanFromWebsite() {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return
   chrome.runtime.sendMessage(EXTENSION_ID, { type: "TRIGGER_SCAN" }, (response) => {
@@ -44,11 +26,8 @@ export function triggerScanFromWebsite() {
   })
 }
 
-// ── React Component ──────────────────────────────────────────────────────────
-// Paste this into your Next.js component (requires React)
 export function AccessiScanButton() {
-  // NOTE: Copy-paste this into a React component file in your Next.js project
-  // This is plain JS for portability — convert to JSX as needed
+ 
   return `
     // In your component:
     const [installed, setInstalled] = React.useState(null)
@@ -70,7 +49,7 @@ export function AccessiScanButton() {
             display: 'flex', alignItems: 'center', gap: '8px',
           }}
         >
-          ♿ Scan This Page
+           Scan This Page
         </button>
       )
     }
@@ -93,8 +72,6 @@ export function AccessiScanButton() {
   `
 }
 
-// ── Vanilla JS version (no React needed) ────────────────────────────────────
-// Call this function anywhere on your website to inject the button
 export function injectInstallButton(targetSelector = "#install-btn-container") {
   const container = document.querySelector(targetSelector)
   if (!container) return
@@ -128,17 +105,3 @@ export function injectInstallButton(targetSelector = "#install-btn-container") {
     }
   })
 }
-
-/*
- ┌─────────────────────────────────────────────────────────────────┐
- │  HOW TO GET THE EXTENSION ID FOR SIDELOADING (Dev Mode)        │
- │                                                                 │
- │  1. Go to chrome://extensions                                   │
- │  2. Enable Developer Mode (top right toggle)                    │
- │  3. Click "Load unpacked" → select your extension folder        │
- │  4. Copy the ID shown under the extension name                  │
- │  5. Paste it as EXTENSION_ID at the top of this file            │
- │                                                                 │
- │  For production: publish to Chrome Web Store, then update ID    │
- └─────────────────────────────────────────────────────────────────┘
-*/

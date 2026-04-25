@@ -1,6 +1,4 @@
-
 const THEMES = [
-
 
   {
     id: "midnight-luxury",
@@ -35,7 +33,7 @@ const THEMES = [
     `
   },
 
-  // ── 2. AURORA NORD ──────────────────────────────────────────────────────────
+ 
   {
     id: "aurora-nord",
     name: "🌌 Aurora Nord",

@@ -34,7 +34,6 @@ export default function Signup() {
   return (
     <div className="min-h-screen flex bg-[#080810] text-white">
 
-      {/* LEFT - image side (md+ only) */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -68,11 +67,9 @@ export default function Signup() {
         </div>
       </div>
 
-      {/* RIGHT - form side */}
       <div className="w-full md:w-1/2 flex items-center justify-center px-6 md:px-16 bg-[#0d0d18]">
         <div className="w-full max-w-md">
 
-          {/* Back button - mobile only */}
           <button
             onClick={() => router.push("/")}
             className="mb-6 text-gray-500 hover:text-white transition text-sm flex items-center gap-1 md:hidden"

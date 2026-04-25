@@ -43,12 +43,11 @@ export async function POST(request) {
 
     const simpleHtml = await simpleRes.text()
 
-    // 🔥 JS heavy → puppeteer
     if (isJsHeavySite(simpleHtml)) {
       console.log("JS heavy site detected, using Puppeteer...")
 
       const html = await fetchWithPuppeteer(url)
-      const safeHtml = ensureFullHTML(html, url) // ✅ FIXED
+      const safeHtml = ensureFullHTML(html, url) 
 
       await connectDB()
       await History.create({
@@ -62,7 +61,7 @@ export async function POST(request) {
       })
     }
 
-    const safeHtml = ensureFullHTML(simpleHtml, url) // ✅ FIXED
+    const safeHtml = ensureFullHTML(simpleHtml, url) 
 
     await connectDB()
     await History.create({
@@ -80,7 +79,7 @@ export async function POST(request) {
 
     try {
       const html = await fetchWithPuppeteer(url)
-      const safeHtml = ensureFullHTML(html, url) // ✅ FIXED
+      const safeHtml = ensureFullHTML(html, url) 
 
       await connectDB()
       await History.create({
@@ -105,7 +104,6 @@ export async function POST(request) {
   }
 }
 
-// 🔥 Puppeteer (IMPROVED)
 async function fetchWithPuppeteer(url) {
   const browser = await puppeteer.launch({
     headless: true,
@@ -135,10 +133,9 @@ async function fetchWithPuppeteer(url) {
       console.log("Goto failed, continuing anyway...")
     }
 
-    // wait for JS rendering
+    
     await new Promise(r => setTimeout(r, 4000))
 
-    // trigger lazy loading
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
     await new Promise(r => setTimeout(r, 2000))
 

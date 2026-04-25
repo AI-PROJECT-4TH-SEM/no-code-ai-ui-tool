@@ -1,7 +1,6 @@
 const BASE_URL       = "http://localhost:3000"
 const EXTENSION_KEY  = "chai-ke-sath-extension-2025"
 
-// ─── Install ──────────────────────────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") })
@@ -11,7 +10,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     title: "♿ Scan this page with Chai Ke Sath AI",
     contexts: ["page", "link"]
   })
-  // Set side panel to open on action click — stays open until user closes it
+ 
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
 })
 
@@ -19,11 +18,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "accessi-scan") {
     try {
       await chrome.sidePanel.open({ tabId: tab.id })
-    } catch { /* ignore */ }
+    } catch { }
   }
 })
 
-// External messages from website
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   if (msg.type === "EXTENSION_PING") {
     sendResponse({ installed: true, version: chrome.runtime.getManifest().version })
@@ -31,7 +29,6 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   }
 })
 
-// ─── Internal Message Router ──────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   switch (msg.type) {
     case "ANALYSE":
@@ -61,7 +58,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 })
 
-// ─── Analyse by URL ───────────────────────────────────────────────────────────
 async function handleAnalyse(url) {
   try {
     const res = await fetch(`${BASE_URL}/api/analyse`, {
@@ -79,7 +75,6 @@ async function handleAnalyse(url) {
   }
 }
 
-// ─── Analyse fixed HTML (post-fix rescore) ────────────────────────────────────
 async function handleAnalyseHtml(html) {
   try {
     const res = await fetch(`${BASE_URL}/api/analyse`, {
@@ -97,10 +92,8 @@ async function handleAnalyseHtml(html) {
   }
 }
 
-// ─── History ──────────────────────────────────────────────────────────────────
 async function getHistory() {
-  // Always use local storage as source of truth.
-  // MongoDB fetch was causing stale data to reappear after clear/delete.
+ 
   return new Promise((resolve) => {
     chrome.storage.local.get(["scanHistory"], (d) => {
       const history = d.scanHistory || []
@@ -111,7 +104,7 @@ async function getHistory() {
 
 async function saveHistory(entry) {
   const newEntry = { ...entry, id: Date.now().toString(), savedAt: new Date().toISOString(), source: "extension" }
-  // Always save to local storage (source of truth)
+  
   await new Promise(resolve => {
     chrome.storage.local.get(["scanHistory"], (data) => {
       const history = data.scanHistory || []
@@ -119,7 +112,7 @@ async function saveHistory(entry) {
       chrome.storage.local.set({ scanHistory: updated }, resolve)
     })
   })
-  // Best-effort save to backend
+ 
   try {
     const res = await fetch(`${BASE_URL}/api/save-history`, {
       method: "POST",
@@ -127,27 +120,27 @@ async function saveHistory(entry) {
       body: JSON.stringify(newEntry),
     })
     if (res.ok) return { success: true, entry: newEntry, source: "mongodb" }
-  } catch { /* fall through */ }
+  } catch { }
   return { success: true, entry: newEntry, source: "local" }
 }
 
 async function deleteHistoryItem(id) {
-  // Delete from local first — authoritative
+  
   await new Promise(resolve => {
     chrome.storage.local.get(["scanHistory"], (data) => {
       const history = (data.scanHistory || []).filter((h) => h.id !== id)
       chrome.storage.local.set({ scanHistory: history }, resolve)
     })
   })
-  // Best-effort delete from backend
+ 
   try { await fetch(`${BASE_URL}/api/history/${id}`, { method: "DELETE" }) } catch { /* ignore */ }
   return { success: true }
 }
 
 async function clearHistory() {
-  // Clear local storage first — this is the authoritative source
+ 
   await new Promise(resolve => chrome.storage.local.set({ scanHistory: [] }, resolve))
-  // Best-effort clear on backend
+ 
   try { await fetch(`${BASE_URL}/api/history/clear`, { method: "DELETE" }) } catch { /* ignore */ }
   return { success: true }
 }
@@ -167,9 +160,6 @@ function _removeFromLocalCache(id) {
   })
 }
 
-// ─── Theme Storage — Extension Theme Server (port 3001) ──────────────────────
-// Uses standalone extension-theme-server.js (run: npm install && npm start)
-// Falls back to chrome.storage.local if server not running
 
 const THEME_SERVER  = "http://localhost:3001"
 const DEVICE_ID_KEY = "extensionDeviceId"
@@ -185,8 +175,7 @@ async function getDeviceId() {
 }
 
 async function saveThemeMongo(themeId) {
-  // Store theme in MongoDB ONLY via extension theme server
-  // No local storage — MongoDB is the single source of truth for theme
+  
   try {
     const deviceId = await getDeviceId()
     const res = await fetch(`${THEME_SERVER}/theme`, {
@@ -199,13 +188,13 @@ async function saveThemeMongo(themeId) {
       body: JSON.stringify({ themeId, themeName: themeId }),
     })
     if (res.ok) return { success: true, source: "mongodb" }
-  } catch { /* server may not be running */ }
+  } catch {  }
 
   return { success: false, source: "none", error: "Theme server not reachable" }
 }
 
 async function loadThemeMongo() {
-  // Load theme from MongoDB only
+ 
   try {
     const deviceId = await getDeviceId()
     const res = await fetch(`${THEME_SERVER}/theme`, {
@@ -219,7 +208,7 @@ async function loadThemeMongo() {
       const themeId = data.themeId || null
       return { themeId, source: "mongodb" }
     }
-  } catch { /* server not running */ }
+  } catch {  }
 
   return { themeId: null, source: "none" }
 }

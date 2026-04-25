@@ -49,7 +49,7 @@ export function applyFix(container, fix) {
         break
 
       case "wrapWithMain": {
-        // AI-driven — wraps a specific selector instead of guessing
+       
         wrapWithMain(container, fix.selector)
         break
       }
