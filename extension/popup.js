@@ -297,7 +297,7 @@ const THEMES = [
     `
   },
 
-  // ── 10. ROYAL VELVET ────────────────────────────────────────────────────────
+ 
   {
     id: "royal-velvet",
     name: "👑 Royal Velvet",
@@ -560,7 +560,7 @@ function animateLoadingSteps() {
 }
 function stopLoadingSteps() { clearInterval(stepTimer) }
 
-// ─── Render Results ───────────────────────────────────────────────────────────
+
 function renderResults({ score, violations, suggestions }) {
   const arc = document.getElementById("score-arc")
   const C   = 2 * Math.PI * 32
