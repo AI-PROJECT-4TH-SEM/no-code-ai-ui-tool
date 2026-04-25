@@ -1,4 +1,4 @@
-// ─── Chai Ke Sath AI — Content Script v2.1 ───────────────────────────────────
+
 const THEME_ID   = "__cksa_theme"
 const OVERLAY_ID = "__cksa_overlay"
 const PANEL_ID   = "__cksa_panel"
@@ -8,12 +8,10 @@ let inspectorActive = false
 let selectedEl      = null
 let originalStyles  = {}
 
-// ─── Undo / Redo stacks ───────────────────────────────────────────────────────
 const MAX_STACK  = 20
-let undoStack    = []   // each entry: { label, bodyHTML }
+let undoStack    = []   
 let redoStack    = []
 
-// Snapshot captures body HTML + active theme CSS (covers fixes + layout + theme)
 function snapshotPage() {
   const themeEl = document.getElementById("__cksa_theme")
   return {
@@ -25,7 +23,7 @@ function snapshotPage() {
 function restorePage(snapshot) {
   if (!snapshot) return
   if (document.body) document.body.innerHTML = snapshot.bodyHTML
-  // Restore or remove theme
+ 
   const themeEl = document.getElementById("__cksa_theme")
   if (snapshot.themeCSS !== null) {
     if (themeEl) { themeEl.textContent = snapshot.themeCSS }
@@ -55,18 +53,17 @@ function stackState() {
   }
 }
 
-// ─── Messages ─────────────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   switch (msg.type) {
     case "PING":       sendResponse({ alive: true }); return true
     case "APPLY_FIX": {
       const label = fixLabel(msg.domFix)
-      pushUndo(label)                      // snapshot BEFORE the fix
+      pushUndo(label)                      
       try {
         const result = applyFix(msg.domFix)
         sendResponse({ success: true, result, ...stackState() })
       } catch (e) {
-        undoStack.pop()                    // fix failed — remove snapshot
+        undoStack.pop()                    
         sendResponse({ success: false, error: e.message, ...stackState() })
       }
       return true
@@ -87,7 +84,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true
 
     case "APPLY_LAYOUT": {
-      // Layout inspector "Apply to HTML" — bakes inline styles
+      
       try {
         pushUndo("Layout: " + (msg.label || "element edited"))
         const el = document.querySelector(msg.selector)
@@ -129,9 +126,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true
     }
 
-    // Return full page HTML plus metadata about all changes for download
     case "GET_HTML": {
-      // Collect layout-changed elements with their current inline styles
+     
       const layoutChanges = []
       document.querySelectorAll("[data-cksa-layout]").forEach(el => {
         const selector = el.id ? "#" + el.id
@@ -146,7 +142,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         })
       })
 
-      // Collect current theme CSS if injected
       const themeEl  = document.getElementById("__cksa_theme")
       const themeCss = themeEl ? themeEl.textContent : null
 
@@ -159,14 +154,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true
     }
 
-    // Live preview: apply a single CSS property to selected element
-    // When pushUndo:true (on slider release), push one undo entry per property
     case "APPLY_LIVE_STYLE": {
       try {
         const el = document.querySelector(msg.selector)
         if (el && msg.prop && msg.value !== undefined) {
           if (msg.pushUndo) {
-            // Push undo BEFORE applying — one entry per property change
+           
             pushUndo("Layout " + msg.prop + ": " + msg.value)
           }
           el.style[msg.prop] = msg.value
@@ -176,7 +169,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true
     }
 
-    // Bake layout changes permanently (with undo)
     case "BAKE_LAYOUT": {
       try {
         pushUndo("Layout: " + (msg.label || "element"))
@@ -185,11 +177,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           Object.entries(msg.styles).forEach(([prop, val]) => {
             if (val !== null && val !== undefined && val !== "") el.style[prop] = val
           })
-          // Tag for download changelog
+        
           const id = el.id ? "#" + el.id : (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/)[0] : el.tagName.toLowerCase())
           el.setAttribute("data-cksa-layout", id + " — styles edited")
         }
-        // Notify popup that layout was applied (to update undo buttons)
+      
         chrome.runtime.sendMessage({ type: "LAYOUT_APPLIED", ...stackState() }).catch(() => {})
         sendResponse({ success: true, ...stackState() })
       } catch(e) { undoStack.pop(); sendResponse({ success: false, error: e.message }) }
@@ -198,7 +190,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 })
 
-// ─── Theme ────────────────────────────────────────────────────────────────────
 function injectCSS(css) {
   let el = document.getElementById(THEME_ID)
   if (!el) { el = document.createElement("style"); el.id = THEME_ID; document.head.appendChild(el) }
@@ -206,12 +197,8 @@ function injectCSS(css) {
 }
 function removeCSS() { document.getElementById(THEME_ID)?.remove() }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// ═════════════════════════════════════════════════════════════════════════════
-//  LAYOUT INSPECTOR — hover highlight only; all editing done inside the panel
-// ═════════════════════════════════════════════════════════════════════════════
 
-let currentInspEl = null   // currently selected element
+let currentInspEl = null  
 
 function enableInspector() {
   if (inspectorActive) return
@@ -242,7 +229,6 @@ function onEscKey(e) {
   }
 }
 
-// ── Hover highlight ────────────────────────────────────────────────────────────
 function onHover(e) {
   if (isInspEl(e.target)) return
   clearOverlay()
@@ -262,7 +248,6 @@ function onHover(e) {
     borderRadius: "2px",
     boxSizing: "border-box",
   })
-  // Tag badge
   const badge = document.createElement("div")
   badge.id = BADGE_ID
   badge.textContent = e.target.tagName.toLowerCase()
@@ -290,9 +275,7 @@ function clearOverlay() {
   document.getElementById(BADGE_ID)?.remove()
 }
 
-function isInspEl(el) { return false }  // nothing is "inspector UI" on page now
-
-// ── Click — collect computed styles and send to extension panel ───────────────
+function isInspEl(el) { return false }  
 function onInspectorClick(e) {
   e.preventDefault()
   e.stopPropagation()
@@ -305,7 +288,6 @@ function onInspectorClick(e) {
   const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter(Boolean).slice(0,2).map(c=>"."+c).join(" ") : ""
   const id  = el.id ? "#" + el.id : ""
 
-  // Outline selected element
   glow(el)
 
   function parseRgbToHex(str) {
@@ -323,7 +305,6 @@ function onInspectorClick(e) {
     return "#ffffff"
   }
 
-  // Send all computed styles to the popup panel via chrome.runtime
   chrome.runtime.sendMessage({
     type: "ELEMENT_PICKED",
     tag,
@@ -351,7 +332,6 @@ function onInspectorClick(e) {
   })
 }
 
-// Build a reliable CSS selector for the element
 function buildSelector(el) {
   if (el.id) return "#" + el.id
   const tag = el.tagName.toLowerCase()
@@ -363,11 +343,6 @@ function buildSelector(el) {
   return buildSelector(parent) + " > " + tag + ":nth-of-type(" + idx + ")"
 }
 
-// ── Apply live style to the selected element (called from popup via message) ──
-// This is used for live preview as user drags sliders in the panel
-
-
-// ─── Fix label helper ─────────────────────────────────────────────────────────
 function fixLabel(fix) {
   if (!fix) return "Fix"
   const map = {
@@ -387,7 +362,6 @@ function fixLabel(fix) {
   return map[fix.type] || fix.type
 }
 
-// ─── Undo toast on page ───────────────────────────────────────────────────────
 function showUndoToast(msg) {
   const existing = document.getElementById("__cksa_undo_toast")
   if (existing) existing.remove()
@@ -407,8 +381,6 @@ function showUndoToast(msg) {
   setTimeout(() => el.remove(), 2200)
 }
 
-//  FIX ENGINE  (mirrors applyFix.js + heuristics.js)
-// ═════════════════════════════════════════════════════════════════════════════
 function applyFix(fix) {
   if (!fix?.type) return "no-op"
   switch (fix.type) {

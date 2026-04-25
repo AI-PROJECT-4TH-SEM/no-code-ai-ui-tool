@@ -34,7 +34,7 @@ const THEMES = [
     `
   },
 
-  // ── 2. AURORA NORD ──────────────────────────────────────────────────────────
+ 
   {
     id: "aurora-nord",
     name: "🌌 Aurora Nord",

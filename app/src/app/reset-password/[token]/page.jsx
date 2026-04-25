@@ -38,16 +38,16 @@ export default function ResetPassword() {
       const data = await res.json()
 
       if (res.ok) {
-        setMessage("Password updated successfully ✅")
+        setMessage("Password updated successfully ")
         setTimeout(() => {
           router.push("/login")
         }, 2000)
       } else {
-        setMessage(data.error || "Something went wrong ❌")
+        setMessage(data.error || "Something went wrong ")
       }
 
     } catch (err) {
-      setMessage("Server error ❌")
+      setMessage("Server error ")
     }
 
     setLoading(false)

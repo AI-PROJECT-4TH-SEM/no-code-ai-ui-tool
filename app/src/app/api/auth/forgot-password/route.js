@@ -12,10 +12,8 @@ export async function POST(req) {
     return Response.json({ error: "User not found" }, { status: 404 })
   }
 
-  // 🔐 generate token
   const resetToken = crypto.randomBytes(32).toString("hex")
 
-  // hash token (store hashed, not raw)
   const hashedToken = crypto
     .createHash("sha256")
     .update(resetToken)
@@ -26,12 +24,10 @@ export async function POST(req) {
 
   await user.save()
 
-  // 🔗 reset link (frontend page later)
   const resetURL = `http://localhost:3000/reset-password/${resetToken}`
 
-  console.log("RESET LINK:", resetURL) // 👈 for now
+  console.log("RESET LINK:", resetURL)
 
-  // 📧 send reset email
   await sendEmail(
     user.email,
     "Password Reset",

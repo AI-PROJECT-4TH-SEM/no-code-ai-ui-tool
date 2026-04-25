@@ -46,7 +46,6 @@ const themeSchema = new mongoose.Schema(
   }
 );
 
-// ⚡ index for performance
 themeSchema.index({ userId: 1 });
 
 const Theme =

@@ -5,7 +5,6 @@ import jwt from "jsonwebtoken"
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET
 
-// ✅ GET theme
 export async function GET(req) {
   await connectDB()
 
@@ -21,7 +20,7 @@ export async function GET(req) {
 
     const themeDoc = await Theme.findOne({ userId: payload.userId })
 
-    // ✅ fallback default
+   
     const selectedTheme = themeDoc?.selectedTheme || "theme-ai"
 
     return new Response(
@@ -33,7 +32,7 @@ export async function GET(req) {
   }
 }
 
-// ✅ PATCH theme
+
 export async function PATCH(req) {
   await connectDB()
 
@@ -57,7 +56,7 @@ export async function PATCH(req) {
     return new Response(JSON.stringify({ error: "Theme required" }), { status: 400 })
   }
 
-  // ✅ VALIDATION (VERY IMPORTANT 🔥)
+  
   const validThemes = themes.map(t => t.class)
 
   if (!validThemes.includes(themeName)) {

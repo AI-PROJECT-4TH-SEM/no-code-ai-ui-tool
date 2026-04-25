@@ -5,14 +5,11 @@ import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
 import { themes } from "@/lib/themes.js"
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const STRUCTURAL_IDS = new Set([
   "region", "landmark-one-main", "heading-order", "page-has-heading-one",
 ])
 const LANDMARK_GROUP = new Set(["region", "landmark-one-main"])
 
-// ─── Inspector script injected into iframe srcDoc ─────────────────────────────
-// Runs inside the iframe context; uses postMessage to communicate with parent
 const INSPECTOR_SCRIPT = `
 <script>
 (function() {
@@ -147,7 +144,6 @@ const INSPECTOR_SCRIPT = `
 })();
 <\/script>`
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildNewSuppressed(fixedSuggestions, existing) {
   const updated = new Set(existing)
   for (const s of fixedSuggestions) {
@@ -209,7 +205,6 @@ function applyDomFix(doc, fix) {
   }
 }
 
-// ─── Small UI components ──────────────────────────────────────────────────────
 function SliderRow({ label, id, value, min, max, step = 1, unit = "px", onChange }) {
   return (
     <div className="mb-3">
@@ -280,9 +275,8 @@ function ColorRow({ label, propKey, value, onChange }) {
   )
 }
 
-// ─── Main Page Component ──────────────────────────────────────────────────────
 export default function Results() {
-  // ── Existing state ──────────────────────────────────────────────────────────
+ 
   const [html, setHtml]                     = useState("")
   const [session, setSession]               = useState(null)
   const [suggestions, setSuggestions]       = useState([])
@@ -301,14 +295,12 @@ export default function Results() {
   const [suppressedIds, setSuppressedIds]   = useState(new Set())
   const [activeTheme, setActiveTheme]       = useState(null)
 
-  // ── Layout Inspector state ──────────────────────────────────────────────────
   const [layoutMode, setLayoutMode]         = useState(false)
-  const [selectedEl, setSelectedEl]         = useState(null)   // { selector, tag, text, styles }
+  const [selectedEl, setSelectedEl]         = useState(null)   
   const [pendingStyles, setPendingStyles]   = useState({})
   const [layoutTab, setLayoutTab]           = useState("typography")
   const [layoutApplied, setLayoutApplied]   = useState(false)
 
-  // ── Refs ────────────────────────────────────────────────────────────────────
   const suppressedIdsRef = useRef(new Set())
   const htmlRef          = useRef("")
   const sessionRef       = useRef(null)
@@ -321,7 +313,6 @@ export default function Results() {
   const themeParam   = searchParams.get("theme")
   const { accessToken } = useAuth()
 
-  // ── Sync refs ───────────────────────────────────────────────────────────────
   useEffect(() => { suppressedIdsRef.current = suppressedIds }, [suppressedIds])
   useEffect(() => { htmlRef.current = html },           [html])
   useEffect(() => { sessionRef.current = session },     [session])
@@ -335,7 +326,6 @@ export default function Results() {
     }
   }, [themeParam])
 
-  // ── Listen for postMessages from the iframe (inspector clicks) ───────────────
   useEffect(() => {
     function onMsg(e) {
       if (e.data?.type === "ELEMENT_SELECTED") {
@@ -349,15 +339,13 @@ export default function Results() {
     return () => window.removeEventListener("message", onMsg)
   }, [])
 
-  // ── Toggle inspector inside the iframe ──────────────────────────────────────
   useEffect(() => {
     const iframe = iframeRef.current
     if (!iframe?.contentWindow) return
     iframe.contentWindow.postMessage({ type: layoutMode ? "INSPECTOR_ON" : "INSPECTOR_OFF" }, "*")
     if (!layoutMode) setSelectedEl(null)
-  }, [layoutMode, iframeKey]) // also re-send after iframe reload
+  }, [layoutMode, iframeKey]) 
 
-  // ── Session load ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!accessToken || !sessionId) return
     async function loadSession() {
@@ -380,7 +368,6 @@ export default function Results() {
     loadSession()
   }, [accessToken, sessionId])
 
-  // ── Analysis ────────────────────────────────────────────────────────────────
   const runAnalysis = useCallback(async () => {
     const currentHtml = htmlRef.current || sessionRef.current?.originalHtml
     const currentUrl  = sessionRef.current?.url
@@ -409,7 +396,6 @@ export default function Results() {
     if (isFreshSession && sessionRef.current?.originalHtml && !analysed && !analysing) runAnalysis()
   }, [isFreshSession, analysed, analysing, runAnalysis])
 
-  // ── Save ────────────────────────────────────────────────────────────────────
   async function saveToBackend(htmlToSave, themeName = "Saved", newSuppressedIds = suppressedIds) {
     setSaving(true)
     try {
@@ -422,7 +408,6 @@ export default function Results() {
     finally { setSaving(false) }
   }
 
-  // ── Fix All ─────────────────────────────────────────────────────────────────
   function fixAll() {
     const fixable = suggestions.filter(s => s.domFix && !s.fixed)
     if (!fixable.length) return
@@ -441,7 +426,6 @@ export default function Results() {
     setChanges(p => [{ _id: Date.now().toString(), themeName: "Fix All", html: newHtml, appliedAt: new Date() }, ...p])
   }
 
-  // ── Apply individual fix ─────────────────────────────────────────────────────
   function applyFix(suggestion) {
     if (!suggestion.domFix) return
     const noSel = ["wrapMain","wrapWithMain","ensureH1","multifix"]
@@ -461,7 +445,6 @@ export default function Results() {
     setChanges(p => [{ _id: Date.now().toString(), themeName: `Fix: ${suggestion.title}`, html: newHtml, appliedAt: new Date() }, ...p])
   }
 
-  // ── Undo / Redo ─────────────────────────────────────────────────────────────
   function undo() {
     if (!undoStack.length) return
     const prev = undoStack[undoStack.length - 1]
@@ -475,7 +458,6 @@ export default function Results() {
     setHtml(next); htmlRef.current = next
   }
 
-  // ── Download ────────────────────────────────────────────────────────────────
   function injectTheme(html, theme) {
     if (!theme) return html
     return `<div class="theme-wrapper"><style>${theme.css}
@@ -493,8 +475,7 @@ export default function Results() {
     a.download = "fixed-page.html"; a.click()
   }
 
-  // ─── Layout Inspector helpers ─────────────────────────────────────────────
-  /** Send a style update to the iframe without touching HTML state */
+ 
   function liveUpdate(cssProp, rawValue, unit = "px") {
     const val = typeof rawValue === "number" ? rawValue + unit : rawValue
     iframeRef.current?.contentWindow?.postMessage({
@@ -524,7 +505,6 @@ export default function Results() {
     }, "*")
   }
 
-  /** Bake current pending styles into the HTML string so they persist */
   function bakeLayoutStyles() {
     if (!selectedEl) return
     const doc = new DOMParser().parseFromString(htmlRef.current, "text/html")
@@ -575,21 +555,18 @@ export default function Results() {
     setLayoutApplied(false)
   }
 
-  // ── Build srcDoc with optional inspector + theme ──────────────────────────
   const iframeSrcDoc = (() => {
     if (!html) return ""
     const themeStyle = activeTheme ? `<style>${activeTheme.css}</style>` : ""
     return html + themeStyle + (layoutMode ? INSPECTOR_SCRIPT : "")
   })()
 
-  // ── Derived ─────────────────────────────────────────────────────────────────
   const safeScore  = score ?? 0
   const scoreColor = safeScore >= 80 ? "text-green-400" : safeScore >= 50 ? "text-yellow-400" : "text-red-400"
   const impactColor = { critical:"text-red-400", serious:"text-orange-400", moderate:"text-yellow-400", minor:"text-blue-400" }
 
   const LAYOUT_TABS = ["typography","spacing","size","colors"]
 
-  // ════════════════════════════════════════════════════════════════════════════
   return (
     <div className="flex flex-col min-h-screen text-white relative"
       style={{ backgroundImage:"url('/hero-bg.jpg')", backgroundSize:"cover", backgroundPosition:"center", backgroundAttachment:"fixed" }}>
@@ -600,7 +577,7 @@ export default function Results() {
 
         <div className="flex-1 flex flex-col md:grid md:grid-cols-[1fr_2fr_1fr] md:h-[calc(100vh-64px)] overflow-hidden">
 
-          {/* ── LEFT PANEL — AI Suggestions ─────────────────────────────────── */}
+          
           <div className="order-2 md:order-1 flex flex-col p-4 border-t md:border-t-0 md:border-r border-white/10 overflow-y-auto bg-black/20 backdrop-blur-md">
             <h2 className="text-lg font-semibold mb-4">AI Suggestions</h2>
 
@@ -702,7 +679,6 @@ export default function Results() {
             )}
           </div>
 
-          {/* ── CENTER PANEL — Preview iframe ───────────────────────────────── */}
           <div className="order-1 md:order-2 flex flex-col h-[60vh] md:h-full md:border-x border-white/10 relative">
             <div className="flex items-center gap-2 px-3 py-2 bg-black/30 border-b border-white/10 shrink-0">
               <button onClick={undo} disabled={!undoStack.length}
@@ -737,7 +713,7 @@ export default function Results() {
                   className="w-full h-full border-none"
                   sandbox="allow-scripts allow-same-origin"
                   onLoad={() => {
-                    // Re-send inspector state after iframe reloads
+                   
                     if (layoutMode) {
                       setTimeout(() => {
                         iframeRef.current?.contentWindow?.postMessage({ type: "INSPECTOR_ON" }, "*")
@@ -763,10 +739,9 @@ export default function Results() {
             </div>
           </div>
 
-          {/* ── RIGHT PANEL — Theme + Layout Inspector + Changes ─────────────── */}
           <div className="order-3 flex flex-col p-4 border-t md:border-t-0 md:border-l border-white/10 overflow-y-auto bg-black/20 backdrop-blur-md">
 
-            {/* THEME */}
+            
             <h2 className="text-lg font-semibold mb-3">Theme</h2>
             {activeTheme ? (
               <div className="mb-5 p-3 bg-white/5 border border-white/10 rounded-lg">
@@ -782,15 +757,15 @@ export default function Results() {
             ) : (
               <button onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
                 className="mb-5 w-full py-2 text-sm border border-white/10 rounded hover:bg-white/10 transition-colors">
-                🎨 Pick a Theme
+                Pick a Theme
               </button>
             )}
 
-            {/* ── LAYOUT INSPECTOR ─────────────────────────────────────────── */}
+           
             <div className="mb-5">
-              {/* Section header with toggle */}
+              
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold">📐 Layout</h2>
+                <h2 className="text-lg font-semibold"> Layout</h2>
                 <button
                   onClick={() => setLayoutMode(m => !m)}
                   className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
@@ -804,7 +779,6 @@ export default function Results() {
                 </button>
               </div>
 
-              {/* Idle state */}
               {!layoutMode && (
                 <div className="p-3 bg-white/3 border border-white/8 rounded-lg text-center">
                   <div className="text-2xl mb-1">📐</div>
@@ -818,7 +792,7 @@ export default function Results() {
                 </div>
               )}
 
-              {/* Active, no element selected */}
+             
               {layoutMode && !selectedEl && (
                 <div className="p-3 bg-purple-900/10 border border-purple-500/20 rounded-lg text-center">
                   <div className="text-xl mb-1">🖱</div>
@@ -828,11 +802,11 @@ export default function Results() {
                 </div>
               )}
 
-              {/* Element selected — editor panel */}
+            
               {layoutMode && selectedEl && (
                 <div className="bg-white/4 border border-white/10 rounded-xl overflow-hidden">
 
-                  {/* Element header */}
+                  
                   <div className="flex items-center gap-2 px-3 py-2.5 bg-white/5 border-b border-white/10">
                     <span className="text-xs font-mono font-bold text-purple-400 bg-purple-900/30 border border-purple-500/30 px-1.5 py-0.5 rounded">
                       &lt;{selectedEl.tag}&gt;
@@ -843,7 +817,7 @@ export default function Results() {
                     <button onClick={resetLayoutStyles} title="Reset styles" className="text-white/20 hover:text-red-400 text-xs transition-colors">↩</button>
                   </div>
 
-                  {/* Tabs */}
+                  
                   <div className="flex border-b border-white/10">
                     {LAYOUT_TABS.map(tab => (
                       <button key={tab} onClick={() => setLayoutTab(tab)}
@@ -857,10 +831,9 @@ export default function Results() {
                     ))}
                   </div>
 
-                  {/* Tab content */}
                   <div className="p-3">
 
-                    {/* TYPOGRAPHY */}
+                    
                     {layoutTab === "typography" && (
                       <>
                         <SliderRow label="Font Size"    value={pendingStyles.fontSize     ?? 16} min={8}  max={72}  step={1}   unit="px"
@@ -881,7 +854,7 @@ export default function Results() {
                       </>
                     )}
 
-                    {/* SPACING */}
+                   
                     {layoutTab === "spacing" && (
                       <>
                         <FourSides
@@ -900,7 +873,6 @@ export default function Results() {
                       </>
                     )}
 
-                    {/* SIZE */}
                     {layoutTab === "size" && (
                       <>
                         <SliderRow label="Width"         value={pendingStyles.width        ?? 0} min={0}  max={1200} step={1} unit="px"
@@ -922,12 +894,11 @@ export default function Results() {
                       </>
                     )}
 
-                    {/* COLORS */}
                     {layoutTab === "colors" && (
                       <>
                         <ColorRow label="Text Color"  propKey="color"           value={pendingStyles.color           || "#000000"} onChange={handleColor} />
                         <ColorRow label="Background"  propKey="backgroundColor" value={pendingStyles.backgroundColor || "#ffffff"} onChange={handleColor} />
-                        {/* Live contrast ratio */}
+                        
                         {(() => {
                           const fg = pendingStyles.color?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [0,0,0]
                           const bg = pendingStyles.backgroundColor?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [255,255,255]
@@ -947,7 +918,6 @@ export default function Results() {
                     )}
                   </div>
 
-                  {/* Footer actions */}
                   <div className="flex gap-2 px-3 pb-3">
                     <button onClick={resetLayoutStyles}
                       className="flex-1 py-2 text-xs font-semibold text-red-400/70 border border-red-500/20 rounded-lg hover:bg-red-900/20 transition-colors">
@@ -967,7 +937,6 @@ export default function Results() {
               )}
             </div>
 
-            {/* CHANGES */}
             <h2 className="text-lg font-semibold mb-4">Changes</h2>
             {changes.length === 0 ? (
               <p className="text-gray-500 text-sm">No changes yet</p>

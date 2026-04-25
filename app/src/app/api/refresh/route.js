@@ -13,7 +13,6 @@ export async function GET(req) {
   const refreshToken = cookies.refreshToken;
   if (!refreshToken) return new Response(JSON.stringify({ error: "No refresh token" }), { status: 401 });
 
-  // Verify refresh token
   try {
     const payload = jwt.verify(refreshToken, REFRESH_SECRET);
     const user = await User.findById(payload.userId);
@@ -21,7 +20,6 @@ export async function GET(req) {
       return new Response(JSON.stringify({ error: "Invalid token" }), { status: 403 });
     }
 
-    // Issue new access token
     const accessToken = jwt.sign({ userId: user._id }, ACCESS_SECRET, { expiresIn: "15m" });
 
     return new Response(JSON.stringify({ accessToken }), { status: 200 });

@@ -23,10 +23,8 @@ export async function POST(req) {
     return Response.json({ error: "Invalid or expired OTP" }, { status: 400 })
   }
 
-  // update password
   user.password = await bcrypt.hash(password, 10)
 
-  // clear otp
   user.otp = undefined
   user.otpExpire = undefined
 

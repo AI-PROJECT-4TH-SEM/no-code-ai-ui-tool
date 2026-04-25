@@ -7,7 +7,6 @@ import { buildContrastFixesBatch } from "@/lib/fixEngine/contrast"
 
 const cohere = new CohereClient({ token: process.env.COHERE_KEY })
 
-// ─── Scoring Engine ───────────────────────────────────────────────────────────
 
 const IMPACT_BASE_PENALTY = {
   critical: 15,
@@ -40,7 +39,6 @@ function calcDeduction(violation) {
   return Math.min(raw, cap)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 function resolveHeadingFixes(violations) {
   const headingViolation = violations.find(v => v.id === "heading-order")
@@ -93,16 +91,15 @@ export async function POST(req) {
         }
       })
       await page.setContent(html, { waitUntil: "domcontentloaded" })
-      // Give the DOM a moment to fully settle before axe runs
+      
       await new Promise(r => setTimeout(r, 500))
     } else {
       const finalUrl = url.startsWith("http") ? url : "https://" + url
       await page.goto(finalUrl, { waitUntil: "networkidle2", timeout: 60000 })
-      // SPAs may still be hydrating after networkidle2
+     
       await new Promise(r => setTimeout(r, 1000))
     }
 
-    // Axe with one retry in case the frame is still transitioning
     let axeResults
     try {
       axeResults = await new AxePuppeteer(page).analyze()
@@ -112,7 +109,6 @@ export async function POST(req) {
       axeResults = await new AxePuppeteer(page).analyze()
     }
 
-    // collect ALL failing contrast elements first
     const contrastElements = []
     for (const v of axeResults.violations.filter(v => v.id === "color-contrast")) {
       for (const node of v.nodes.slice(0, 10)) {
@@ -149,7 +145,6 @@ export async function POST(req) {
       }
     }
 
-    // ONE batch call for all contrast elements
     const contrastFixes = await buildContrastFixesBatch(contrastElements, cohere)
     console.log("CONTRAST FIXES BUILT:", JSON.stringify(contrastFixes, null, 2))
     console.log("VIOLATIONS FOUND:", axeResults.violations.length)
@@ -167,10 +162,9 @@ export async function POST(req) {
       })),
     }))
 
-    // ─── Improved Score Calculation ───────────────────────────────────────────
     const totalDeductions = violations.reduce((sum, v) => sum + calcDeduction(v), 0)
     const score = Math.round(Math.max(0, 100 - totalDeductions))
-    // ─────────────────────────────────────────────────────────────────────────
+
 
     const response = await cohere.chat({
       model: "command-a-03-2025",
@@ -276,14 +270,12 @@ Rules:
       }
     }
 
-    // replace any AI-generated heading-order entries with deterministic fixes
     const headingFixes = resolveHeadingFixes(violations)
     const parsedWithHeadings = [
       ...parsed.filter(s => s.id !== "heading-order"),
       ...headingFixes,
     ]
 
-    // inject computed contrast fixes
     const withContrastFixes = parsedWithHeadings.map(s => {
       if (s.id === "color-contrast") {
         const violation = violations.find(v => v.id === "color-contrast")
@@ -313,7 +305,6 @@ Rules:
       return s
     })
 
-    // deduplicate — also collapse duplicate wrapWithMain
     const seen = new Set()
     const dedupedSuggestions = withContrastFixes
       .filter(s => {

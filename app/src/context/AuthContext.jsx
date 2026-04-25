@@ -7,14 +7,13 @@ export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // On app load, try to get a new accessToken using the httpOnly refresh cookie
  useEffect(() => {
   async function tryRefresh() {
     try {
       const res = await fetch("/api/refresh", { 
         method: "GET", 
         credentials: "include",
-        // add cache hint
+        
         headers: { "Cache-Control": "no-cache" }
       })
       const data = await res.json()
@@ -35,7 +34,7 @@ export function AuthProvider({ children }) {
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include", // important — lets the httpOnly cookie be set
+      credentials: "include",
       body: JSON.stringify({ email, password }),
     })
     const data = await res.json()

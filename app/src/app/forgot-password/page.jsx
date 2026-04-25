@@ -108,7 +108,6 @@ export default function ForgotPassword() {
           Forgot Password
         </h1>
 
-        {/* STEP 1 */}
         {step === 1 && (
           <>
             <input
@@ -129,7 +128,6 @@ export default function ForgotPassword() {
           </>
         )}
 
-        {/* STEP 2 */}
         {step === 2 && (
           <>
             <input
