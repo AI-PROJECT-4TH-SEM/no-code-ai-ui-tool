@@ -167,34 +167,59 @@ function _removeFromLocalCache(id) {
   })
 }
 
-// ─── Theme MongoDB ────────────────────────────────────────────────────────────
+// ─── Theme Storage — Extension Theme Server (port 3001) ──────────────────────
+// Uses standalone extension-theme-server.js (run: npm install && npm start)
+// Falls back to chrome.storage.local if server not running
+
+const THEME_SERVER  = "http://localhost:3001"
+const DEVICE_ID_KEY = "extensionDeviceId"
+
+async function getDeviceId() {
+  return new Promise(resolve => {
+    chrome.storage.local.get([DEVICE_ID_KEY], d => {
+      if (d[DEVICE_ID_KEY]) { resolve(d[DEVICE_ID_KEY]); return }
+      const id = "ext-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)
+      chrome.storage.local.set({ [DEVICE_ID_KEY]: id }, () => resolve(id))
+    })
+  })
+}
+
 async function saveThemeMongo(themeId) {
-  await chrome.storage.local.set({ activeThemeId: themeId })
+  // Store theme in MongoDB ONLY via extension theme server
+  // No local storage — MongoDB is the single source of truth for theme
   try {
-    const res = await fetch(`${BASE_URL}/api/theme`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-extension-key": EXTENSION_KEY },
-      body: JSON.stringify({ themeName: themeId }),
+    const deviceId = await getDeviceId()
+    const res = await fetch(`${THEME_SERVER}/theme`, {
+      method: "POST",
+      headers: {
+        "Content-Type":    "application/json",
+        "x-extension-key": EXTENSION_KEY,
+        "x-device-id":     deviceId,
+      },
+      body: JSON.stringify({ themeId, themeName: themeId }),
     })
     if (res.ok) return { success: true, source: "mongodb" }
-  } catch { /* fall through */ }
-  return { success: true, source: "local" }
+  } catch { /* server may not be running */ }
+
+  return { success: false, source: "none", error: "Theme server not reachable" }
 }
 
 async function loadThemeMongo() {
+  // Load theme from MongoDB only
   try {
-    const res = await fetch(`${BASE_URL}/api/theme`, {
-      headers: { "x-extension-key": EXTENSION_KEY },
+    const deviceId = await getDeviceId()
+    const res = await fetch(`${THEME_SERVER}/theme`, {
+      headers: {
+        "x-extension-key": EXTENSION_KEY,
+        "x-device-id":     deviceId,
+      },
     })
     if (res.ok) {
-      const data = await res.json()
-      const themeId = data.theme || data.selectedTheme || null
-      if (themeId) { await chrome.storage.local.set({ activeThemeId: themeId }); return { themeId, source: "mongodb" } }
+      const data    = await res.json()
+      const themeId = data.themeId || null
+      return { themeId, source: "mongodb" }
     }
-  } catch { /* fall through */ }
-  return new Promise((resolve) => {
-    chrome.storage.local.get(["activeThemeId"], (d) => {
-      resolve({ themeId: d.activeThemeId || null, source: "local" })
-    })
-  })
+  } catch { /* server not running */ }
+
+  return { themeId: null, source: "none" }
 }

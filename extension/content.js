@@ -129,10 +129,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true
     }
 
-    // Return full page HTML (head + body) for rescore and download
-    case "GET_HTML":
-      sendResponse({ html: document.documentElement.outerHTML, ...stackState() })
+    // Return full page HTML plus metadata about all changes for download
+    case "GET_HTML": {
+      // Collect layout-changed elements with their current inline styles
+      const layoutChanges = []
+      document.querySelectorAll("[data-cksa-layout]").forEach(el => {
+        const selector = el.id ? "#" + el.id
+          : el.className && typeof el.className === "string"
+            ? "." + el.className.trim().split(/\s+/)[0]
+            : el.tagName.toLowerCase()
+        layoutChanges.push({
+          tag:      el.tagName.toLowerCase(),
+          selector: selector,
+          label:    el.getAttribute("data-cksa-layout") || "",
+          style:    el.getAttribute("style") || "",
+        })
+      })
+
+      // Collect current theme CSS if injected
+      const themeEl  = document.getElementById("__cksa_theme")
+      const themeCss = themeEl ? themeEl.textContent : null
+
+      sendResponse({
+        html:          document.documentElement.outerHTML,
+        layoutChanges,
+        themeCss,
+        ...stackState()
+      })
       return true
+    }
 
     // Live preview: apply a single CSS property to selected element
     // When pushUndo:true (on slider release), push one undo entry per property

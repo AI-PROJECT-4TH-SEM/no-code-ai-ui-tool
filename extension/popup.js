@@ -1,72 +1,9 @@
 // ─── Themes ───────────────────────────────────────────────────────────────────
+// 10 high-level themes — each completely redesigns any website's UI/UX
+// covering typography, color, contrast, buttons, inputs, cards, nav, links, focus
 const THEMES = [
-  {
-    id: "canva-gradient-pro",
-    name: "🎨 Canva Color-Grade",
-    preview: ["#6366f1", "#a855f7", "#ec4899"],
-    css: `
-      /* Global Layout Overhaul */
-      :root { --c-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%); }
-      
-      body { background: #0f172a !important; color: #f1f5f9 !important; font-family: 'Inter', sans-serif !important; }
-      
-      /* Header, Navbar & Footer - High Contrast */
-      header, nav, footer, [class*="nav"], [class*="footer"], [class*="header"] { 
-        background: rgba(15, 23, 42, 0.95) !important; 
-        border-bottom: 2px solid #a855f7 !important;
-        backdrop-filter: blur(10px) !important;
-      }
 
-      /* Hero Sections & Large Divs */
-      [class*="hero"], [class*="banner"], section:first-of-type {
-        background: var(--c-grad) !important;
-        color: #ffffff !important;
-        padding: 60px 20px !important;
-        border-radius: 0 0 50px 50px !important;
-      }
-
-      /* Disappearing Text Fix */
-      p, span, li, h1, h2, h3, h4, td, th { color: #f1f5f9 !important; text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important; }
-      a { color: #38bdf8 !important; font-weight: bold !important; text-decoration: underline !important; }
-      
-      /* Buttons & Interactivity */
-      button, [role="button"], .btn { 
-        background: var(--c-grad) !important; 
-        border: none !important; 
-        border-radius: 50px !important; 
-        color: #fff !important; 
-        font-weight: 800 !important;
-        box-shadow: 0 10px 20px rgba(168, 85, 247, 0.3) !important;
-      }
-    `
-  },
-  { id:"cyberpunk",  name:"🚀 Neon Cyberpunk",   preview:["#0a0015","#ff00ff","#00f0ff"],
-    css:`body{background:radial-gradient(circle at top,#0a0015,#000)!important;color:#00f0ff!important;font-family:Orbitron,sans-serif!important;letter-spacing:1px!important}h1,h2,h3{color:#ff00ff!important;text-shadow:0 0 10px #ff00ff!important}button{background:#ff00ff!important;color:white!important;border-radius:12px!important;box-shadow:0 0 20px #ff00ff!important}a{color:#00f0ff!important}*{transition:all 0.3s ease!important}` },
-  { id:"ai-minimal", name:"🧠 AI Minimal",        preview:["#0b0f19","#6366f1","#e5e7eb"],
-    css:`body{background:#0b0f19!important;color:#e5e7eb!important;font-family:Inter,sans-serif!important}h1,h2,h3{color:#6366f1!important;font-weight:600!important}button{background:#6366f1!important;color:white!important;border-radius:10px!important}*{transition:all 0.2s ease!important}` },
-  { id:"glass",      name:"🌌 Glass Futuristic",  preview:["#0f172a","#38bdf8","#ffffff"],
-    css:`body{background:linear-gradient(135deg,#0f172a,#1e293b)!important;color:#fff!important;font-family:Poppins,sans-serif!important}div,section,article{background:rgba(255,255,255,0.07)!important;backdrop-filter:blur(15px)!important;border-radius:16px!important}h1,h2,h3{color:#38bdf8!important}button{background:rgba(255,255,255,0.15)!important;border:1px solid rgba(255,255,255,0.2)!important;border-radius:12px!important;color:white!important}` },
-  { id:"electric",   name:"⚡ Electric Bold",     preview:["#000000","#f97316","#facc15"],
-    css:`body{background:#000!important;color:#facc15!important;font-family:Rajdhani,sans-serif!important;font-weight:bold!important;text-transform:uppercase!important}h1,h2,h3{color:#f97316!important}button{background:#f97316!important;color:white!important;transform:scale(1.05)!important}*{transition:all 0.3s ease!important}` },
-  { id:"colorful",   name:"🌈 Colorful",          preview:["#fff7ed","#f97316","#fb923c"],
-    css:`body{background:#fff7ed!important;color:#333!important}h1,h2,h3{color:#f97316!important}button{background:#f97316!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#f97316!important}` },
-  { id:"ocean",      name:"🌊 Ocean",             preview:["#0c1e3c","#0ea5e9","#e0f0ff"],
-    css:`body{background:#0c1e3c!important;color:#e0f0ff!important}h1,h2,h3{color:#38bdf8!important}button{background:#0ea5e9!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#38bdf8!important}` },
-  { id:"nature",     name:"🌿 Nature",            preview:["#f0fdf4","#22c55e","#166534"],
-    css:`body{background:#f0fdf4!important;color:#166534!important}h1,h2,h3{color:#16a34a!important}button{background:#22c55e!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#16a34a!important}` },
-  { id:"matrix",     name:"🧬 Matrix Terminal",   preview:["#000000","#00ff00","#003300"],
-    css:`body{background:#000!important;color:#00ff00!important;font-family:monospace!important;font-style:italic!important}h1,h2,h3{color:#00ff00!important;text-shadow:0 0 5px #00ff00!important}button{background:transparent!important;border:1px solid #00ff00!important;color:#00ff00!important}a{color:#00ff00!important}` },
-  { id:"fiery",      name:"🔥 Fiery",             preview:["#1c0a00","#f97316","#fed7aa"],
-    css:`body{background:#1c0a00!important;color:#fed7aa!important}h1,h2,h3{color:#f97316!important}button{background:#ea580c!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#f97316!important}` },
-  { id:"midnight",   name:"🌙 Midnight",          preview:["#0f0f1a","#a78bfa","#c4b5fd"],
-    css:`body{background:#0f0f1a!important;color:#c4b5fd!important}h1,h2,h3{color:#a78bfa!important}button{background:#7c3aed!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#a78bfa!important}` },
-  { id:"sunny",      name:"☀️ Sunny",             preview:["#fefce8","#ca8a04","#713f12"],
-    css:`body{background:#fefce8!important;color:#713f12!important}h1,h2,h3{color:#ca8a04!important}button{background:#eab308!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#ca8a04!important}` },
-  { id:"candy",      name:"🍬 Candy",             preview:["#fdf2f8","#db2777","#831843"],
-    css:`body{background:#fdf2f8!important;color:#831843!important}h1,h2,h3{color:#db2777!important}button{background:#ec4899!important;color:white!important;border:none!important;border-radius:8px!important}a{color:#db2777!important}` },
-
-
-// ── 1. MIDNIGHT LUXURY ──────────────────────────────────────────────────────
+  // ── 1. MIDNIGHT LUXURY ──────────────────────────────────────────────────────
   {
     id: "midnight-luxury",
     name: "🌙 Midnight Luxury",
@@ -395,1697 +332,14 @@ const THEMES = [
       *:focus-visible{outline:3px solid #9b59b6!important;outline-offset:3px!important;border-radius:4px!important}
     `
   },
-
-
-
-
-  {
-
-    id: "canva-gradient-pro",
-
-    name: "🎨 Canva Color-Grade",
-
-    preview: ["#6366f1", "#a855f7", "#ec4899"],
-
-    css: `
-
-      /* Global Layout Overhaul */
-
-      :root { --c-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%); }
-
-      
-
-      body { background: #0f172a !important; color: #f1f5f9 !important; font-family: 'Inter', sans-serif !important; }
-
-      
-
-      /* Header, Navbar & Footer - High Contrast */
-
-      header, nav, footer, [class*="nav"], [class*="footer"], [class*="header"] { 
-
-        background: rgba(15, 23, 42, 0.95) !important; 
-
-        border-bottom: 2px solid #a855f7 !important;
-
-        backdrop-filter: blur(10px) !important;
-
-      }
-
-
-
-      /* Hero Sections & Large Divs */
-
-      [class*="hero"], [class*="banner"], section:first-of-type {
-
-        background: var(--c-grad) !important;
-
-        color: #ffffff !important;
-
-        padding: 60px 20px !important;
-
-        border-radius: 0 0 50px 50px !important;
-
-      }
-
-
-
-      /* Disappearing Text Fix */
-
-      p, span, li, h1, h2, h3, h4, td, th { color: #f1f5f9 !important; text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important; }
-
-      a { color: #38bdf8 !important; font-weight: bold !important; text-decoration: underline !important; }
-
-      
-
-      /* Buttons & Interactivity */
-
-      button, [role="button"], .btn { 
-
-        background: var(--c-grad) !important; 
-
-        border: none !important; 
-
-        border-radius: 50px !important; 
-
-        color: #fff !important; 
-
-        font-weight: 800 !important;
-
-        box-shadow: 0 10px 20px rgba(168, 85, 247, 0.3) !important;
-
-      }
-
-    `
-
-  }, 
-{
-    id: "cyberpunk-volt",
-    name: "⚡ Cyberpunk Volt",
-    preview: ["#000000", "#fde047", "#06b6d4"],
-    css: `
-      :root { --neon-yellow: #fde047; --neon-cyan: #06b6d4; }
-      body { background: #050505 !important; color: #ffffff !important; }
-      
-      header, nav, footer, [class*="nav"], [class*="footer"] { 
-        background: #000 !important; 
-        border-bottom: 3px solid var(--neon-yellow) !important;
-        box-shadow: 0 0 15px rgba(253, 224, 71, 0.3) !important;
-      }
-
-      [class*="hero"], [class*="banner"], section:first-of-type {
-        background: #000 !important;
-        border: 2px solid var(--neon-cyan) !important;
-        clip-path: polygon(0 0, 100% 0, 100% 85%, 95% 100%, 0 100%) !important;
-        padding: 80px 20px !important;
-      }
-
-      p, span, li, h1, h2, h3 { color: #fff !important; text-transform: uppercase !important; letter-spacing: 1px; }
-      a { color: var(--neon-cyan) !important; text-shadow: 0 0 5px var(--neon-cyan); }
-      
-      button, .btn { 
-        background: var(--neon-yellow) !important; 
-        color: #000 !important; 
-        border-radius: 0px !important; 
-        font-weight: 900 !important;
-        border-left: 5px solid var(--neon-cyan) !important;
-      }
-    `
-  },
-
-  {
-    id: "midnight-emerald",
-    name: "🌲 Midnight Emerald",
-    preview: ["#064e3b", "#059669", "#fbbf24"],
-    css: `
-      :root { --emerald-grad: linear-gradient(135deg, #064e3b 0%, #065f46 100%); }
-      body { background: #022c22 !important; color: #ecfdf5 !important; }
-      
-      header, nav, footer { 
-        background: rgba(2, 44, 34, 0.9) !important; 
-        border-bottom: 1px solid #fbbf24 !important;
-        backdrop-filter: blur(8px) !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: var(--emerald-grad) !important;
-        border-radius: 40px !important;
-        margin: 20px !important;
-        border: 1px solid rgba(251, 191, 36, 0.3) !important;
-      }
-
-      p, span, h1, h2 { color: #f0fdf4 !important; font-family: 'Georgia', serif !important; }
-      a { color: #fbbf24 !important; text-decoration: none !important; border-bottom: 1px solid; }
-      
-      button, .btn { 
-        background: #fbbf24 !important; 
-        color: #064e3b !important; 
-        border-radius: 8px !important; 
-        box-shadow: 0 4px 0 #b45309 !important;
-      }
-    `
-  },
-
-  {
-    id: "solarized-crimson",
-    name: "🍎 Solarized Crimson",
-    preview: ["#450a0a", "#dc2626", "#f87171"],
-    css: `
-      body { background: #450a0a !important; color: #fef2f2 !important; }
-      
-      header, nav, [class*="nav"] { 
-        background: #7f1d1d !important; 
-        border-bottom: 4px solid #f87171 !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #dc2626 !important;
-        border-radius: 0 100px 0 100px !important;
-        box-shadow: inset 0 0 50px rgba(0,0,0,0.3) !important;
-      }
-
-      p, span, li, h1, h2 { color: #fff !important; }
-      a { color: #fca5a5 !important; font-style: italic !important; }
-      
-      button, .btn { 
-        background: #fff !important; 
-        color: #7f1d1d !important; 
-        border-radius: 15px !important; 
-        font-weight: bold !important;
-      }
-    `
-  },
-
-  {
-    id: "deep-sea",
-    name: "🌊 Deep Sea Drifter",
-    preview: ["#0c4a6e", "#0284c7", "#38bdf8"],
-    css: `
-      :root { --sea-grad: linear-gradient(180deg, #0c4a6e 0%, #075985 100%); }
-      body { background: #082f49 !important; color: #f0f9ff !important; }
-      
-      header, nav { 
-        background: rgba(12, 74, 110, 0.8) !important; 
-        border-bottom: 2px solid #38bdf8 !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: var(--sea-grad) !important;
-        border-bottom-left-radius: 100% 20px !important;
-        border-bottom-right-radius: 100% 20px !important;
-      }
-
-      p, span, h1, h2 { color: #e0f2fe !important; }
-      a { color: #7dd3fc !important; font-weight: 500 !important; }
-      
-      button, .btn { 
-        background: #0ea5e9 !important; 
-        border: 2px solid #bae6fd !important;
-        border-radius: 30px !important;
-        color: #fff !important;
-      }
-    `
-  },
-
-  {
-    id: "mono-steel",
-    name: "💿 Mono-Steel",
-    preview: ["#18181b", "#52525b", "#d4d4d8"],
-    css: `
-      body { background: #09090b !important; color: #fafafa !important; }
-      
-      header, nav { 
-        background: #18181b !important; 
-        border-bottom: 1px solid #3f3f46 !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #27272a !important;
-        border: 1px solid #52525b !important;
-        border-radius: 12px !important;
-        margin: 10px !important;
-      }
-
-      p, span, h1, h2 { color: #d4d4d8 !important; }
-      a { color: #fff !important; text-decoration: underline !important; }
-      
-      button, .btn { 
-        background: #fafafa !important; 
-        color: #000 !important; 
-        border-radius: 4px !important; 
-        font-family: monospace !important;
-        box-shadow: 4px 4px 0px #52525b !important;
-      }
-    `
-  },
-
-  {
-    id: "mono-steel",
-    name: "💿 Mono-Steel",
-    preview: ["#18181b", "#52525b", "#d4d4d8"],
-    css: `
-      body { background: #09090b !important; color: #fafafa !important; }
-      
-      header, nav { 
-        background: #18181b !important; 
-        border-bottom: 1px solid #3f3f46 !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #27272a !important;
-        border: 1px solid #52525b !important;
-        border-radius: 12px !important;
-        margin: 10px !important;
-      }
-
-      p, span, h1, h2 { color: #d4d4d8 !important; }
-      a { color: #fff !important; text-decoration: underline !important; }
-      
-      button, .btn { 
-        background: #fafafa !important; 
-        color: #000 !important; 
-        border-radius: 4px !important; 
-        font-family: monospace !important;
-        box-shadow: 4px 4px 0px #52525b !important;
-      }
-    `
-  },
-
-  {
-    id: "arctic-aurora",
-    name: "❄️ Arctic Aurora",
-    preview: ["#0f172a", "#2dd4bf", "#818cf8"],
-    css: `
-      body { background: #020617 !important; color: #f1f5f9 !important; }
-      
-      header, nav { 
-        background: rgba(15, 23, 42, 0.8) !important; 
-        border-bottom: 1px solid rgba(45, 212, 191, 0.5) !important;
-        backdrop-filter: blur(12px) !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%) !important;
-        border-radius: 60% 40% 100% 0% / 0% 100% 0% 100% !important; /* Unique organic shape */
-        border: 2px solid #2dd4bf !important;
-        margin: 20px !important;
-      }
-
-      p, span, li, h1 { color: #f8fafc !important; }
-      a { color: #2dd4bf !important; text-decoration-style: dotted !important; }
-      
-      button, .btn { 
-        background: transparent !important;
-        border: 2px solid #818cf8 !important;
-        color: #818cf8 !important;
-        border-radius: 30px 0px 30px 0px !important;
-        box-shadow: inset 0 0 10px rgba(129, 140, 248, 0.2) !important;
-      }
-    `
-  },
-  {
-    id: "volcanic-ember",
-    name: "🌋 Volcanic Ember",
-    preview: ["#1c1917", "#ea580c", "#78350f"],
-    css: `
-      body { background: #0c0a09 !important; color: #fafaf9 !important; }
-      
-      header, nav { 
-        background: #1c1917 !important; 
-        border-bottom: 2px solid #ea580c !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #1c1917 !important;
-        border-left: 10px solid #ea580c !important;
-        background-image: radial-gradient(circle at 100% 100%, #451a03 0%, transparent 50%) !important;
-        border-radius: 0 !important;
-      }
-
-      p, span, h1, h2 { color: #f5f5f4 !important; }
-      a { color: #fdba74 !important; font-weight: 900 !important; }
-      
-      button, .btn { 
-        background: #ea580c !important; 
-        clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%) !important;
-        border-radius: 0 !important;
-        padding: 10px 30px !important;
-      }
-    `
-  },
-
-  {
-    id: "galactic-nebula",
-    name: "🌌 Galactic Nebula",
-    preview: ["#020617", "#6366f1", "#d8b4fe"],
-    css: `
-      body { background: #020617 !important; color: #f8fafc !important; }
-      
-      header, nav { 
-        background: transparent !important;
-        padding: 30px 0 !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: rgba(99, 102, 241, 0.05) !important;
-        border: 1px solid rgba(216, 180, 254, 0.2) !important;
-        border-radius: 100px !important; /* Oval inner design */
-        margin: 40px !important;
-        box-shadow: 0 0 80px rgba(99, 102, 241, 0.1) !important;
-      }
-
-      p, span, h1 { color: #cbd5e1 !important; line-height: 1.8 !important; }
-      a { color: #d8b4fe !important; text-underline-offset: 8px !important; }
-      
-      button, .btn { 
-        background: linear-gradient(90deg, #6366f1, #d8b4fe) !important;
-        border-radius: 100px !important;
-        padding: 15px 40px !important;
-        transition: filter 0.3s !important;
-      }
-      button:hover { filter: brightness(1.2) !important; }
-    `
-  },
-
-  {
-    id: "sandstone-dark",
-    name: "🏜️ Sandstone Dark",
-    preview: ["#1c1917", "#d6d3d1", "#a8a29e"],
-    css: `
-      body { background: #1c1917 !important; color: #e7e5e4 !important; }
-      
-      header, nav { 
-        background: #292524 !important; 
-        border-bottom: 1px solid #44403c !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #44403c !important;
-        border-radius: 4px !important;
-        outline: 1px solid #78716c !important;
-        outline-offset: 10px !important; /* Double border effect */
-        margin: 40px !important;
-      }
-
-      p, span, h1, h2 { color: #e7e5e4 !important; font-family: 'Courier New', monospace !important; }
-      a { color: #d6d3d1 !important; border-bottom: 2px solid #a8a29e !important; }
-      
-      button, .btn { 
-        background: #d6d3d1 !important; 
-        color: #1c1917 !important; 
-        border-radius: 2px !important;
-        font-weight: 400 !important;
-        border: 1px solid #1c1917 !important;
-      }
-    `
-  },
-
-  {
-    id: "neumorphic-night",
-    name: "🌑 Neumorphic Night",
-    preview: ["#1e293b", "#334155", "#64748b"],
-    css: `
-      :root { --neu-base: #1e293b; --neu-light: #2a3952; --neu-dark: #121924; }
-      body { background: var(--neu-base) !important; color: #cbd5e1 !important; }
-      
-      header, nav { 
-        background: var(--neu-base) !important; 
-        box-shadow: 0 4px 20px var(--neu-dark) !important;
-        border-bottom: none !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: var(--neu-base) !important;
-        border-radius: 50px !important;
-        box-shadow: 20px 20px 60px var(--neu-dark), -20px -20px 60px var(--neu-light) !important;
-        margin: 40px !important;
-        border: none !important;
-      }
-
-      button, .btn { 
-        background: var(--neu-base) !important; 
-        color: #38bdf8 !important;
-        border-radius: 15px !important; 
-        box-shadow: 6px 6px 12px var(--neu-dark), -6px -6px 12px var(--neu-light) !important;
-        transition: all 0.2s ease !important;
-      }
-      button:active { box-shadow: inset 4px 4px 8px var(--neu-dark), inset -4px -4px 8px var(--neu-light) !important; }
-    `
-  },
-
-  {
-    id: "holo-frost",
-    name: "💿 Holographic Frost",
-    preview: ["#000000", "#ff0080", "#7928ca"],
-    css: `
-      :root { --holo: linear-gradient(90deg, #00f2ff, #ff0080, #7928ca, #00f2ff); }
-      body { background: #000 !important; color: #fff !important; }
-      
-      header, nav { 
-        background: rgba(0,0,0,0.8) !important;
-        border-bottom: 2px solid transparent !important;
-        border-image: var(--holo) 1 !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: rgba(255,255,255,0.05) !important;
-        backdrop-filter: blur(20px) !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-        border-radius: 0 !important;
-        position: relative;
-      }
-      [class*="hero"]::after {
-        content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 3px; background: var(--holo); background-size: 300% 100%;
-      }
-
-      a { color: #00f2ff !important; text-shadow: 0 0 10px #00f2ff; }
-      
-      button, .btn { 
-        background: #fff !important; color: #000 !important; border-radius: 0 !important; font-weight: 800 !important;
-        box-shadow: 4px 4px 0px #ff0080, 8px 8px 0px #7928ca !important;
-      }
-    `
-  },
-
-  {
-    id: "brutalist-lab",
-    name: "🚧 Brutalist Lab",
-    preview: ["#facc15", "#000000", "#ffffff"],
-    css: `
-      body { background: #fff !important; color: #000 !important; font-family: 'Space Mono', monospace !important; }
-      
-      header, nav { 
-        background: #facc15 !important; 
-        border-bottom: 5px solid #000 !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #fff !important;
-        border: 5px solid #000 !important;
-        box-shadow: 15px 15px 0px #000 !important;
-        margin: 30px !important;
-        border-radius: 0 !important;
-      }
-
-      p, h1, h2 { color: #000 !important; font-weight: 900 !important; }
-      
-      button, .btn { 
-        background: #000 !important; 
-        color: #fff !important; 
-        border-radius: 0 !important; 
-        padding: 15px 30px !important;
-        border: 3px solid #000 !important;
-      }
-      button:hover { background: #fff !important; color: #000 !important; }
-    `
-  },
-
-  {
-    id: "liquid-mercury",
-    name: "🔘 Liquid Mercury",
-    preview: ["#0f172a", "#94a3b8", "#f1f5f9"],
-    css: `
-      body { background: #020617 !important; color: #94a3b8 !important; }
-      
-      header, nav { 
-        background: rgba(15, 23, 42, 0.9) !important;
-        border-radius: 0 0 40px 40px !important;
-        margin: 0 20px !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: linear-gradient(145deg, #1e293b, #0f172a) !important;
-        border-radius: 500px !important; /* Liquid oval design */
-        border: 1px solid #475569 !important;
-        box-shadow: inset 0 0 30px rgba(255,255,255,0.05) !important;
-        padding: 100px 60px !important;
-      }
-
-      p, h1 { text-align: center !important; color: #f1f5f9 !important; }
-      
-      button, .btn { 
-        background: linear-gradient(to bottom, #f1f5f9, #94a3b8) !important;
-        color: #0f172a !important;
-        border-radius: 500px !important;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.4) !important;
-        border: none !important;
-      }
-    `
-  },
-  {
-    id: "matrix-bio",
-    name: "☣️ Matrix Biohazard",
-    preview: ["#052e16", "#22c55e", "#14532d"],
-    css: `
-      body { 
-        background-color: #020617 !important;
-        background-image: linear-gradient(rgba(34, 197, 94, 0.05) 1px, transparent 1px) !important;
-        background-size: 100% 3px !important; /* Scanline effect */
-        color: #22c55e !important;
-      }
-      
-      header, nav { 
-        background: #052e16 !important; 
-        border-bottom: 1px solid #22c55e !important;
-        text-transform: lowercase !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: rgba(20, 83, 45, 0.2) !important;
-        border: 1px solid #22c55e !important;
-        border-radius: 4px !important;
-        position: relative;
-        overflow: hidden;
-      }
-
-      p, span, h1 { color: #4ade80 !important; font-family: monospace !important; }
-      
-      button, .btn { 
-        background: transparent !important; 
-        color: #22c55e !important; 
-        border: 1px solid #22c55e !important; 
-        border-radius: 0px !important;
-        box-shadow: 0 0 10px rgba(34, 197, 94, 0.3) !important;
-      }
-      button:hover { background: #22c55e !important; color: #000 !important; }
-    `
-  },
-
-  {
-    id: "floating-deck",
-    name: "🃏 Floating Deck",
-    preview: ["#111827", "#6366f1", "#ffffff"],
-    css: `
-      body { background: #f3f4f6 !important; color: #1f2937 !important; padding: 20px !important; }
-      
-      /* Detached Floating Header */
-      header, nav, [class*="nav"] { 
-        background: #ffffff !important; 
-        border-radius: 20px !important;
-        margin: 10px auto 30px auto !important;
-        width: 95% !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
-        border: 1px solid rgba(0,0,0,0.05) !important;
-      }
-
-      /* Isometric Hero Section */
-      [class*="hero"], [class*="banner"], section:first-of-type {
-        background: #6366f1 !important;
-        transform: perspective(1000px) rotateX(2deg) !important;
-        border-radius: 30px !important;
-        box-shadow: 0 20px 50px rgba(99, 102, 241, 0.4) !important;
-        color: #fff !important;
-      }
-
-      /* Floating Footer */
-      footer, [class*="footer"] {
-        background: #111827 !important;
-        border-radius: 25px !important;
-        margin: 40px auto 10px auto !important;
-        width: 90% !important;
-        color: #fff !important;
-        padding: 40px !important;
-      }
-
-      button, .btn { border-radius: 12px !important; background: #000 !important; color: #fff !important; }
-    `
-  },
-
-  {
-    id: "paper-stack",
-    name: "📑 Paper-Cut Stack",
-    preview: ["#ffffff", "#ef4444", "#1e293b"],
-    css: `
-      body { background: #e2e8f0 !important; }
-      
-      /* Overlapping Header */
-      header, nav { 
-        background: #ffffff !important; 
-        z-index: 1 !important;
-        position: relative !important;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.05) !important;
-      }
-
-      /* Indented Hero Section */
-      [class*="hero"], [class*="banner"] {
-        background: #ef4444 !important;
-        margin-top: -20px !important; /* Pulls hero under header */
-        padding: 100px 40px !important;
-        clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%) !important;
-        z-index: 2 !important;
-      }
-
-      /* Slashed Footer */
-      footer, [class*="footer"] {
-        background: #1e293b !important;
-        clip-path: polygon(0 15%, 100% 0, 100% 100%, 0 100%) !important;
-        padding-top: 80px !important;
-        margin-top: -50px !important;
-      }
-
-      button, .btn { background: #1e293b !important; border: 2px solid #fff !important; border-radius: 4px !important; }
-    `
-  },
-
-  {
-    id: "glass-pulse",
-    name: "🔮 Glass-Morphic Pulse",
-    preview: ["#4338ca", "#db2777", "#ffffff"],
-    css: `
-      @keyframes gradientBG { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} }
-      
-      body { 
-        background: linear-gradient(-45deg, #4338ca, #7c3aed, #db2777, #2563eb) !important;
-        background-size: 400% 400% !important;
-        animation: gradientBG 15s ease infinite !important;
-      }
-      
-      header, nav { 
-        background: rgba(255, 255, 255, 0.1) !important; 
-        backdrop-filter: blur(20px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        border-radius: 0 0 30px 30px !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: rgba(255, 255, 255, 0.05) !important;
-        border: 2px solid rgba(255, 255, 255, 0.1) !important;
-        backdrop-filter: blur(10px) !important;
-        margin: 40px !important;
-        border-radius: 50px !important;
-      }
-
-      footer, [class*="footer"] {
-        background: rgba(0, 0, 0, 0.3) !important;
-        backdrop-filter: blur(20px) !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
-        padding: 60px 0 !important;
-      }
-
-      p, h1, h2 { color: #fff !important; text-shadow: 0 4px 10px rgba(0,0,0,0.3) !important; }
-    `
-  },
-
-  {
-    id: "stealth-ops",
-    name: "🕵️‍♂️ Stealth Ops",
-    preview: ["#000000", "#16a34a", "#262626"],
-    css: `
-      body { background: #000000 !important; color: #a3a3a3 !important; }
-      
-      /* Ultra-thin Minimal Header */
-      header, nav { 
-        background: #000 !important; 
-        height: 50px !important;
-        display: flex !important; align-items: center !important;
-        border-bottom: 1px solid #262626 !important;
-      }
-
-      /* Full-Bleed Hero */
-      [class*="hero"], [class*="banner"] {
-        background: #171717 !important;
-        width: 100vw !important;
-        position: relative !important;
-        left: 50% !important;
-        right: 50% !important;
-        margin-left: -50vw !important;
-        margin-right: -50vw !important;
-        border-radius: 0 !important;
-        border-top: 1px solid #16a34a !important;
-        border-bottom: 1px solid #16a34a !important;
-      }
-
-      footer { 
-        background: #000 !important; 
-        border-top: 1px solid #262626 !important;
-        letter-spacing: 4px !important;
-        text-transform: uppercase !important;
-      }
-
-      button, .btn { 
-        background: #16a34a !important; 
-        color: #000 !important; 
-        border-radius: 2px !important;
-        font-weight: 900 !important;
-      }
-    `
-  },
-
-  {
-    id: "origami-solar",
-    name: "📐 Origami Solar",
-    preview: ["#f97316", "#000000", "#fff7ed"],
-    css: `
-      body { background: #fff7ed !important; overflow-x: hidden !important; }
-      
-      /* Slanted Header */
-      header, nav { 
-        background: #000 !important; 
-        clip-path: polygon(0 0, 100% 0, 100% 80%, 0 100%) !important;
-        padding-bottom: 40px !important;
-      }
-
-      /* Slanted Hero */
-      [class*="hero"], [class*="banner"] {
-        background: #f97316 !important;
-        clip-path: polygon(0 15%, 100% 0, 100% 85%, 0 100%) !important;
-        margin: -20px 0 !important;
-        color: #fff !important;
-      }
-
-      /* Slanted Footer */
-      footer {
-        background: #000 !important;
-        clip-path: polygon(0 20%, 100% 0, 100% 100%, 0 100%) !important;
-        padding-top: 80px !important;
-        color: #fb923c !important;
-      }
-
-      p, h1, h2 { color: #431407 !important; }
-      header h1, [class*="hero"] h1 { color: #fff !important; }
-      
-      button, .btn { 
-        background: #000 !important; 
-        color: #f97316 !important; 
-        border: 2px solid #f97316 !important;
-        border-radius: 0 !important;
-      }
-    `
-  },
-  {
-    id: "figma-editor-dark",
-    name: "🎨 Figma Editor",
-    preview: ["#1e1e1e", "#007be5", "#2c2c2c"],
-    css: `
-      body { background: #121212 !important; color: #ffffff !important; font-family: 'Inter', sans-serif !important; }
-      
-      header, nav { 
-        background: #1e1e1e !important; 
-        border-bottom: 1px solid #2c2c2c !important;
-        height: 48px !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #1e1e1e !important;
-        border: 1px solid #007be5 !important; /* Figma selection blue */
-        margin: 40px !important;
-        border-radius: 8px !important;
-        box-shadow: 0 0 0 4px rgba(0, 123, 229, 0.2) !important;
-      }
-
-      footer { background: #1e1e1e !important; border-top: 1px solid #2c2c2c !important; }
-
-      button, .btn { 
-        background: #007be5 !important; 
-        border-radius: 6px !important; 
-        font-weight: 500 !important;
-        font-size: 12px !important;
-      }
-    `
-  },
-  {
-    id: "figma-mirror-glass",
-    name: "📱 Prototype Mirror",
-    preview: ["#000000", "#ffffff", "#38bdf8"],
-    css: `
-      body { background: #000 !important; background-image: radial-gradient(#1a1a1a 1px, transparent 1px) !important; background-size: 20px 20px !important; }
-      
-      header, nav { 
-        background: rgba(255,255,255,0.05) !important;
-        backdrop-filter: blur(25px) !important;
-        margin: 20px !important;
-        border-radius: 100px !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%) !important;
-        border-radius: 40px !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-      }
-
-      footer { background: transparent !important; text-align: center !important; }
-      button, .btn { background: #fff !important; color: #000 !important; border-radius: 50px !important; }
-    `
-  },
-  {
-    id: "linear-pro-dark",
-    name: "🌈 Linear Shimmer",
-    preview: ["#08090a", "#5e6ad2", "#ffffff"],
-    css: `
-      body { background: #08090a !important; color: #b1b3b8 !important; }
-      
-      header { 
-        background: rgba(8, 9, 10, 0.8) !important; 
-        border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-        position: relative !important;
-      }
-      header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, #5e6ad2, #f43f5e, transparent) !important; }
-
-      [class*="hero"], [class*="banner"] {
-        background: radial-gradient(circle at top, rgba(94, 106, 210, 0.15), transparent) !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(255,255,255,0.05) !important;
-      }
-
-      button, .btn { background: #5e6ad2 !important; box-shadow: 0 4px 14px rgba(94, 106, 210, 0.4) !important; border-radius: 8px !important; }
-    `
-  },
-
-  {
-    id: "spatial-vision",
-    name: "👓 Spatial Vision",
-    preview: ["#1a1a1a", "#ffffff", "#71717a"],
-    css: `
-      body { background: #000 !important; }
-      
-      header, nav, [class*="hero"], [class*="banner"], footer {
-        background: rgba(40, 40, 40, 0.4) !important;
-        backdrop-filter: blur(30px) saturate(150%) !important;
-        border-top: 1px solid rgba(255,255,255,0.2) !important;
-        border-left: 1px solid rgba(255,255,255,0.1) !important;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.4) !important;
-      }
-
-      [class*="hero"] { border-radius: 40px !important; margin: 40px !important; }
-      header { border-radius: 0 0 24px 24px !important; }
-      footer { margin-top: 50px !important; border-radius: 24px 24px 0 0 !important; }
-
-      button, .btn { background: rgba(255,255,255,0.9) !important; color: #000 !important; border-radius: 12px !important; }
-    `
-  },
-
-  {
-    id: "arc-frame",
-    name: "🌐 Arc Sidebar",
-    preview: ["#334155", "#ffffff", "#94a3b8"],
-    css: `
-      body { background: #1e293b !important; padding: 12px !important; }
-      
-      header, [class*="hero"], section, footer { 
-        background: #ffffff !important; 
-        color: #000 !important;
-        border-radius: 12px !important;
-        margin-bottom: 12px !important;
-      }
-
-      header { height: 60px !important; border: 1px solid #e2e8f0 !important; }
-      [class*="hero"] { padding: 80px !important; background: #f8fafc !important; }
-      footer { background: #f1f5f9 !important; }
-
-      button, .btn { background: #000 !important; border-radius: 10px !important; }
-    `
-  },
-
-  {
-    id: "clay-soft",
-    name: "☁️ Clay Soft-UI",
-    preview: ["#6366f1", "#ffffff", "#4338ca"],
-    css: `
-      body { background: #e0e7ff !important; color: #3730a3 !important; }
-      
-      header, nav, [class*="hero"], footer {
-        background: #ffffff !important;
-        border-radius: 35px !important;
-        box-shadow: 10px 10px 20px rgba(0,0,0,0.05), inset -8px -8px 15px rgba(0,0,0,0.05), inset 8px 8px 15px rgba(255,255,255,0.8) !important;
-        margin: 20px !important;
-        border: none !important;
-      }
-
-      button, .btn { 
-        background: #6366f1 !important; 
-        color: #fff !important;
-        box-shadow: inset -4px -4px 10px rgba(0,0,0,0.2), inset 4px 4px 10px rgba(255,255,255,0.3) !important;
-        border-radius: 20px !important;
-      }
-    `
-  },
-
-  {
-    id: "ink-spec",
-    name: "🖋️ Ink Spec",
-    preview: ["#ffffff", "#000000", "#e5e5e5"],
-    css: `
-      body { 
-        background-color: #ffffff !important; 
-        background-image: linear-gradient(#f0f0f0 1px, transparent 1px), linear-gradient(90deg, #f0f0f0 1px, transparent 1px) !important;
-        background-size: 20px 20px !important;
-        color: #000 !important;
-      }
-      
-      header, footer { 
-        background: #000 !important; 
-        color: #fff !important;
-        padding: 10px !important;
-      }
-
-      [class*="hero"] {
-        background: #fff !important;
-        border: 2px solid #000 !important;
-        border-radius: 0 !important;
-        position: relative !important;
-      }
-      [class*="hero"]::before { content: 'COMPONENT_HERO_V1'; position: absolute; top: -10px; left: 10px; background: #000; color: #fff; font-size: 10px; padding: 2px 5px; }
-
-      button, .btn { background: #000 !important; color: #fff !important; border-radius: 0 !important; text-transform: uppercase !important; }
-    `
-  },
-
-  {
-    id: "aurora-mesh",
-    name: "🌌 Aurora Mesh",
-    preview: ["#000000", "#4ade80", "#3b82f6"],
-    css: `
-      body { background: #000 !important; }
-      
-      [class*="hero"], header, footer {
-        background: rgba(255, 255, 255, 0.03) !important;
-        backdrop-filter: blur(40px) !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-        position: relative !important;
-        overflow: hidden !important;
-      }
-      
-      [class*="hero"]::before {
-        content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-        background: radial-gradient(circle at center, #4ade80 0%, #3b82f6 30%, #a855f7 60%, transparent 100%) !important;
-        opacity: 0.15 !important;
-        filter: blur(60px) !important;
-      }
-
-      header { border-radius: 0 0 40px 40px !important; }
-      footer { border-radius: 40px 40px 0 0 !important; padding: 60px !important; }
-
-      button, .btn { background: linear-gradient(90deg, #4ade80, #3b82f6) !important; border-radius: 12px !important; border: none !important; }
-    `
-  },
-  {
-    id: "terminal-2049",
-    name: "📟 Terminal 2049",
-    preview: ["#0a0a0a", "#22c55e", "#052e16"],
-    css: `
-      body { background: #050505 !important; color: #22c55e !important; font-family: 'Courier New', monospace !important; }
-      
-      header, nav { 
-        background: #22c55e !important; 
-        color: #000 !important; 
-        font-weight: 900 !important;
-        clip-path: polygon(0 0, 98% 0, 100% 100%, 0% 100%) !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: rgba(34, 197, 94, 0.05) !important;
-        border: 1px solid #22c55e !important;
-        box-shadow: inset 0 0 20px rgba(34, 197, 94, 0.2) !important;
-        border-radius: 0 !important;
-        position: relative !important;
-      }
-      [class*="hero"]::before { content: "SYS_STATUS: ACTIVE"; position: absolute; top: 5px; right: 10px; font-size: 10px; }
-
-      footer { 
-        background: #000 !important; 
-        border-top: 1px dashed #22c55e !important;
-        padding: 20px !important;
-        font-size: 12px !important;
-      }
-
-      button, .btn { 
-        background: transparent !important; 
-        border: 1px solid #22c55e !important; 
-        color: #22c55e !important; 
-        text-transform: uppercase !important;
-        box-shadow: 4px 4px 0px #052e16 !important;
-      }
-    `
-  },
-  {
-    id: "bauhaus-swiss",
-    name: "📐 Bauhaus Swiss",
-    preview: ["#ffffff", "#ef4444", "#000000"],
-    css: `
-      body { background: #f3f3f3 !important; color: #000 !important; font-family: 'Helvetica', sans-serif !important; }
-      
-      header { 
-        background: #000 !important; 
-        color: #fff !important;
-        height: 120px !important;
-        display: flex !important; align-items: flex-end !important;
-        padding: 20px !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #ef4444 !important; /* Bold Red */
-        margin-left: 10% !important;
-        border-radius: 0 !important;
-        padding: 100px 40px !important;
-        border-left: 20px solid #fbce07 !important; /* Bold Yellow */
-      }
-
-      footer {
-        background: #1d4ed8 !important; /* Bold Blue */
-        color: #fff !important;
-        margin-top: 50px !important;
-        padding: 60px !important;
-        clip-path: circle(150% at 0% 100%) !important;
-      }
-
-      button, .btn { background: #000 !important; color: #fff !important; border-radius: 0 !important; font-weight: 800 !important; }
-    `
-  },
-  {
-    id: "classic-mac",
-    name: "🖥️ System 7 Retro",
-    preview: ["#c0c0c0", "#000080", "#ffffff"],
-    css: `
-      body { background: #55aaaa !important; /* Classic teal background */ }
-      
-      header, nav { 
-        background: #c0c0c0 !important; 
-        border-bottom: 2px solid #000 !important;
-        box-shadow: inset 1px 1px #fff !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: #fff !important;
-        border: 2px solid #000 !important;
-        box-shadow: 4px 4px 0px #000 !important;
-        margin: 40px !important;
-        padding: 0 !important; /* Header bar inside div */
-      }
-      [class*="hero"]::after {
-        content: "■ Main_Layout.exe"; display: block; background: #000080; color: #fff; padding: 5px 10px; order: -1;
-      }
-
-      footer { background: #c0c0c0 !important; border-top: 2px solid #fff !important; }
-
-      button, .btn { 
-        background: #c0c0c0 !important; 
-        border: 2px solid !important;
-        border-color: #fff #808080 #808080 #fff !important;
-        color: #000 !important;
-        padding: 5px 15px !important;
-      }
-    `
-  },
-  {
-    id: "ghost-shell",
-    name: "👻 Ghost Shell",
-    preview: ["#0f172a", "#38bdf8", "#ffffff"],
-    css: `
-      body { background: #0f172a !important; color: #f1f5f9 !important; }
-      
-      header { 
-        background: transparent !important; 
-        border-bottom: 1px solid rgba(56, 189, 248, 0.3) !important;
-        backdrop-filter: blur(5px) !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: rgba(255,255,255,0.02) !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-        margin: 20px !important;
-        padding: 80px !important;
-        background-image: linear-gradient(to right, rgba(56, 189, 248, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(56, 189, 248, 0.1) 1px, transparent 1px) !important;
-        background-size: 40px 40px !important;
-      }
-
-      footer {
-        background: transparent !important;
-        border-top: 1px solid rgba(56, 189, 248, 0.3) !important;
-        opacity: 0.6 !important;
-      }
-
-      button, .btn { 
-        background: transparent !important; 
-        border: 1px solid #38bdf8 !important; 
-        color: #38bdf8 !important;
-        box-shadow: 0 0 15px rgba(56, 189, 248, 0.2) !important;
-      }
-    `
-  },
-
-  {
-    id: "liquid-obsidian",
-    name: "🖤 Liquid Obsidian",
-    preview: ["#000000", "#ffffff", "#1a1a1a"],
-    css: `
-      body { background: #000000 !important; color: #ffffff !important; }
-      
-      header, nav { 
-        background: #000 !important; 
-        border-bottom: 1px solid #333 !important;
-        border-radius: 0 0 80px 80px !important;
-      }
-
-      [class*="hero"], [class*="banner"] {
-        background: linear-gradient(145deg, #1a1a1a, #000000) !important;
-        border: 1px solid #222 !important;
-        border-radius: 120px 20px 120px 20px !important; /* S-curve corners */
-        padding: 120px 40px !important;
-        box-shadow: 0 40px 100px rgba(0,0,0,1) !important;
-      }
-
-      footer {
-        background: #0a0a0a !important;
-        border-radius: 80px 80px 0 0 !important;
-        margin-top: 100px !important;
-        padding: 100px !important;
-      }
-
-      button, .btn { 
-        background: #fff !important; 
-        color: #000 !important; 
-        border-radius: 100px !important;
-        font-weight: 900 !important;
-        padding: 20px 40px !important;
-      }
-    `
-  },
-
-  {
-  id: "neon-cyberpunk",
-  name: "⚡ Neon Cyberpunk",
-  preview: ["#0f0f1a","#00f5ff","#ff00ff"],
-  css: `
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&display=swap');
-
-    html,body{
-      background: radial-gradient(circle at 20% 20%, #0f0f1a, #050507)!important;
-      color:#00f5ff!important;
-      font-family:'Orbitron',sans-serif!important;
-    }
-
-    *{
-      transition: all 0.25s ease!important;
-      text-shadow:0 0 8px rgba(0,245,255,0.6);
-    }
-
-    h1,h2,h3{color:#ff00ff!important}
-
-    a:hover{
-      color:#ff00ff!important;
-      text-shadow:0 0 12px #ff00ff;
-    }
-
-    button{
-      background:transparent!important;
-      border:2px solid #00f5ff!important;
-      color:#00f5ff!important;
-      box-shadow:0 0 12px #00f5ff inset,0 0 20px #00f5ff;
-    }
-
-    button:hover{
-      background:#00f5ff!important;
-      color:#000!important;
-      box-shadow:0 0 30px #00f5ff;
-    }
-
-    .card{
-      background:rgba(255,255,255,0.02)!important;
-      border:1px solid rgba(0,245,255,0.3)!important;
-      backdrop-filter: blur(10px);
-    }
-  `
-},
-
-{
-  id: "glass-ai",
-  name: "🧊 Glass AI",
-  preview: ["#e0e7ff","#6366f1","#1e1b4b"],
-  css: `
-    html,body{
-      background:linear-gradient(135deg,#1e1b4b,#6366f1)!important;
-      color:#fff!important;
-    }
-
-    *{
-      backdrop-filter: blur(12px);
-    }
-
-    .card,section,div{
-      background:rgba(255,255,255,0.08)!important;
-      border:1px solid rgba(255,255,255,0.2)!important;
-      border-radius:16px!important;
-      box-shadow:0 8px 32px rgba(0,0,0,0.3);
-    }
-
-    button{
-      background:rgba(255,255,255,0.2)!important;
-      border:1px solid rgba(255,255,255,0.3)!important;
-    }
-
-    button:hover{
-      background:rgba(255,255,255,0.35)!important;
-    }
-  `
-},
-
-{
-  id: "ai-terminal",
-  name: "💻 AI Terminal",
-  preview: ["#000000","#00ff88","#003322"],
-  css: `
-    @import url('https://fonts.googleapis.com/css2?family=Fira+Code&display=swap');
-
-    html,body{
-      background:#000!important;
-      color:#00ff88!important;
-      font-family:'Fira Code',monospace!important;
-    }
-
-    *{
-      text-shadow:0 0 5px #00ff88;
-    }
-
-    a::before{
-      content:"> ";
-    }
-
-    button{
-      background:#003322!important;
-      border:1px solid #00ff88!important;
-      color:#00ff88!important;
-    }
-
-    button:hover{
-      background:#00ff88!important;
-      color:#000!important;
-    }
-
-    input{
-      background:#000!important;
-      border:1px solid #00ff88!important;
-      color:#00ff88!important;
-    }
-  `
-},
-
-{
-  id: "gaming-hud",
-  name: "🎮 Gaming HUD",
-  preview: ["#0b0f1a","#00ffcc","#1a1f2e"],
-  css: `
-    html,body{
-      background:#0b0f1a!important;
-      color:#00ffcc!important;
-    }
-
-    .card{
-      border:1px solid #00ffcc!important;
-      position:relative;
-    }
-
-    .card::after{
-      content:'';
-      position:absolute;
-      inset:0;
-      border:2px dashed rgba(0,255,204,0.3);
-      pointer-events:none;
-    }
-
-    button{
-      background:#00ffcc!important;
-      color:#000!important;
-      clip-path: polygon(10% 0,100% 0,90% 100%,0% 100%);
-    }
-  `
-},
-
-{
-  id: "zen-minimal",
-  name: "🧘 Zen Minimal",
-  preview: ["#ffffff","#111111","#e5e5e5"],
-  css: `
-    html,body{
-      background:#ffffff!important;
-      color:#111!important;
-      font-family:sans-serif!important;
-    }
-
-    *{
-      box-shadow:none!important;
-      border-radius:0!important;
-    }
-
-    a{
-      border-bottom:1px solid #111!important;
-    }
-
-    button{
-      background:#111!important;
-      color:#fff!important;
-    }
-
-    .card{
-      border-bottom:1px solid #ddd!important;
-      padding:20px!important;
-    }
-  `
-},
-{
-  id: "space-void",
-  name: "🌌 Space Void",
-  preview: ["#000814","#001d3d","#ffd60a"],
-  css: `
-    html,body{
-      background:radial-gradient(circle,#001d3d,#000814)!important;
-      color:#ffd60a!important;
-    }
-
-    body::before{
-      content:'';
-      position:fixed;
-      width:200%;
-      height:200%;
-      background:url('https://www.transparenttextures.com/patterns/stardust.png');
-      animation:move 60s linear infinite;
-      opacity:0.3;
-    }
-
-    @keyframes move{
-      from{transform:translate(0,0)}
-      to{transform:translate(-500px,-500px)}
-    }
-
-    button{
-      background:#ffd60a!important;
-      color:#000!important;
-    }
-  `
-},
-
-{
-  id: "fire-energy",
-  name: "🔥 Fire Energy",
-  preview: ["#1a0000","#ff3c00","#ffae00"],
-  css: `
-    html,body{
-      background:linear-gradient(270deg,#1a0000,#ff3c00,#ffae00)!important;
-      background-size:600% 600%!important;
-      animation:fireMove 10s ease infinite;
-      color:#fff!important;
-    }
-
-    @keyframes fireMove{
-      0%{background-position:0%}
-      50%{background-position:100%}
-      100%{background-position:0%}
-    }
-
-    button{
-      background:#ff3c00!important;
-      box-shadow:0 0 20px #ff3c00;
-    }
-  `
-},
-
-{
-  id: "nature-ai",
-  name: "🌿 Nature AI",
-  preview: ["#0b3d2e","#3a7d44","#d9fdd3"],
-  css: `
-    html,body{
-      background:#0b3d2e!important;
-      color:#d9fdd3!important;
-    }
-
-    *{
-      animation:breath 6s ease-in-out infinite;
-    }
-
-    @keyframes breath{
-      0%,100%{transform:scale(1)}
-      50%{transform:scale(1.01)}
-    }
-
-    button{
-      background:#3a7d44!important;
-      color:#fff!important;
-      border-radius:20px!important;
-    }
-
-    .card{
-      background:rgba(255,255,255,0.05)!important;
-    }
-  `
-},
-
-{
-  id: "hologram-ui",
-  name: "🧬 Hologram UI",
-  preview: ["#020617","#22d3ee","#a5f3fc"],
-  css: `
-    html,body{
-      background:#020617!important;
-      color:#22d3ee!important;
-    }
-
-    *{
-      text-shadow:0 0 6px rgba(34,211,238,0.7);
-    }
-
-    .card,div,section{
-      background:rgba(34,211,238,0.05)!important;
-      border:1px solid rgba(34,211,238,0.4)!important;
-      box-shadow:0 0 25px rgba(34,211,238,0.2) inset;
-    }
-
-    button{
-      background:transparent!important;
-      border:1px solid #22d3ee!important;
-      color:#22d3ee!important;
-    }
-
-    button:hover{
-      background:#22d3ee!important;
-      color:#020617!important;
-      box-shadow:0 0 30px #22d3ee;
-    }
-  `
-},
-
-{
-  id: "liquid-metal",
-  name: "🧿 Liquid Metal",
-  preview: ["#0f172a","#94a3b8","#e2e8f0"],
-  css: `
-    html,body{
-      background:#0f172a!important;
-      color:#e2e8f0!important;
-    }
-
-    *{
-      border-radius:20px!important;
-    }
-
-    .card{
-      background:linear-gradient(145deg,#1e293b,#0f172a)!important;
-      box-shadow: inset 5px 5px 15px #020617,
-                  inset -5px -5px 15px #334155;
-    }
-
-    button{
-      background:linear-gradient(145deg,#94a3b8,#64748b)!important;
-      color:#0f172a!important;
-      box-shadow:0 8px 20px rgba(148,163,184,0.4);
-    }
-
-    button:active{
-      transform:scale(0.96)!important;
-    }
-  `
-},
-
-{
-  id: "modular-grid",
-  name: "🧩 Modular Grid",
-  preview: ["#ffffff","#111827","#6366f1"],
-  css: `
-    html,body{
-      background:#ffffff!important;
-      color:#111827!important;
-    }
-
-    body{
-      display:grid!important;
-      grid-template-columns: repeat(auto-fit,minmax(300px,1fr));
-      gap:16px!important;
-      padding:20px!important;
-    }
-
-    .card,section,div{
-      border:2px solid #6366f1!important;
-      padding:16px!important;
-      background:#fff!important;
-    }
-
-    button{
-      background:#6366f1!important;
-      color:#fff!important;
-    }
-  `
-},
-
-{
-  id: "focus-ai",
-  name: "🧠 Focus AI",
-  preview: ["#000000","#ffffff","#444444"],
-  css: `
-    html,body{
-      background:#000!important;
-      color:#fff!important;
-    }
-
-    body *{
-      opacity:0.3!important;
-    }
-
-    body *:hover{
-      opacity:1!important;
-    }
-
-    p,article,main{
-      font-size:1.2em!important;
-      line-height:2!important;
-    }
-
-    button{
-      background:#fff!important;
-      color:#000!important;
-    }
-  `
-},
-
-{
-  id: "rgb-matrix",
-  name: "🌈 RGB Matrix",
-  preview: ["#000","#ff0000","#00ff00"],
-  css: `
-    html,body{
-      background:#000!important;
-      color:#fff!important;
-    }
-
-    body::before{
-      content:'';
-      position:fixed;
-      inset:0;
-      background:linear-gradient(45deg,red,green,blue);
-      mix-blend-mode:overlay;
-      opacity:0.2;
-      animation:rgbFlow 5s linear infinite;
-    }
-
-    @keyframes rgbFlow{
-      0%{filter:hue-rotate(0deg)}
-      100%{filter:hue-rotate(360deg)}
-    }
-
-    button{
-      background:linear-gradient(45deg,red,blue)!important;
-      color:#fff!important;
-    }
-  `
-},
-
-{
-  id: "satellite-ui",
-  name: "🛰️ Satellite UI",
-  preview: ["#020617","#38bdf8","#0ea5e9"],
-  css: `
-    html,body{
-      background:#020617!important;
-      color:#38bdf8!important;
-    }
-
-    .card{
-      border:1px solid #38bdf8!important;
-      position:relative;
-    }
-
-    .card::before{
-      content:'●';
-      position:absolute;
-      top:-10px;
-      right:-10px;
-      color:#0ea5e9;
-      font-size:12px;
-    }
-
-    button{
-      background:#38bdf8!important;
-      color:#020617!important;
-    }
-  `
-},
-
-{
-  id: "lab-glitch",
-  name: "🧪 Lab Glitch",
-  preview: ["#111","#ff00c8","#00fff7"],
-  css: `
-    html,body{
-      background:#111!important;
-      color:#00fff7!important;
-    }
-
-    *{
-      animation:glitch 1s infinite;
-    }
-
-    @keyframes glitch{
-      0%{transform:translate(0)}
-      20%{transform:translate(-2px,2px)}
-      40%{transform:translate(2px,-2px)}
-      60%{transform:translate(-1px,1px)}
-      80%{transform:translate(1px,-1px)}
-      100%{transform:translate(0)}
-    }
-
-    button{
-      background:#ff00c8!important;
-      color:#111!important;
-    }
-  `
-},
-
-{
-  id: "ultra-luxe",
-  name: "🏁 Ultra Luxe",
-  preview: ["#000","#d4af37","#f5e6c4"],
-  css: `
-    html,body{
-      background:#000!important;
-      color:#f5e6c4!important;
-    }
-
-    h1,h2,h3{
-      color:#d4af37!important;
-      letter-spacing:1px;
-    }
-
-    .card{
-      border:1px solid rgba(212,175,55,0.4)!important;
-      box-shadow:0 0 30px rgba(212,175,55,0.2);
-    }
-
-    button{
-      background:#d4af37!important;
-      color:#000!important;
-      font-weight:bold;
-    }
-
-    a{
-      color:#d4af37!important;
-    }
-  `
-},
-
-];
+]
 
 
 // ─── State ────────────────────────────────────────────────────────────────────
 // Map to store domFix objects by card index (avoids brittle HTML attribute storage)
 const domFixMap = new Map()
+// Track number of layout changes applied (incremented on BAKE_LAYOUT)
+let layoutChangeCount = 0
 
 let currentTabId    = null
 let currentUrl      = ""
@@ -2120,7 +374,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       document.querySelector(`.theme-card[data-id="${activeThemeId}"]`)?.classList.add("active-theme")
     }
   }).catch(() => {
-    chrome.storage.local.get(["activeThemeId"], d => { activeThemeId = d.activeThemeId || null })
+    // Theme loaded from MongoDB only (see LOAD_THEME above)
   })
 
   setupTabs()
@@ -2492,10 +746,16 @@ function setupGlobalActions() {
   document.getElementById("undo-btn")?.addEventListener("click", doUndo)
   document.getElementById("redo-btn")?.addEventListener("click", doRedo)
   document.getElementById("download-all-btn")?.addEventListener("click", downloadAllChanges)
+  // Always show the bar — download starts disabled until a change is made
   document.getElementById("global-actions")?.classList.remove("hidden")
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === "LAYOUT_APPLIED" || msg.type === "INSPECTOR_CLOSED") {
+    if (msg.type === "LAYOUT_APPLIED") {
+      layoutChangeCount++
+      if (msg.canUndo !== undefined) setUndoState(msg.canUndo, msg.canRedo, msg.undoLabel, msg.redoLabel)
+      updateDownloadBadge()
+    }
+    if (msg.type === "INSPECTOR_CLOSED") {
       if (msg.canUndo !== undefined) setUndoState(msg.canUndo, msg.canRedo, msg.undoLabel, msg.redoLabel)
       updateDownloadBadge()
     }
@@ -2545,17 +805,23 @@ function updateDownloadBadge() {
   const badge = document.getElementById("dl-badge")
   if (!btn) return
 
-  const fixCount = document.querySelectorAll(".btn-fix-inline.applied-inline").length
-  const hasTheme = !!activeThemeId
-  const total    = fixCount + (hasTheme ? 1 : 0)
+  const fixCount    = document.querySelectorAll(".btn-fix-inline.applied-inline").length
+  const hasTheme    = !!activeThemeId
+  const layoutCount = layoutChangeCount  // tracked separately
+  const total       = fixCount + (hasTheme ? 1 : 0) + layoutCount
 
+  // Enable as soon as ANY change exists (fix, theme, or layout)
   btn.disabled = total === 0
   if (badge) {
-    if (total > 0) { badge.textContent = total; badge.classList.remove("hidden") }
+    if (total > 0) { badge.textContent = String(total); badge.classList.remove("hidden") }
     else badge.classList.add("hidden")
   }
-  if (total > 0) btn.classList.add("ga-dl-ready")
-  else btn.classList.remove("ga-dl-ready")
+  if (total > 0) {
+    btn.classList.add("ga-dl-ready")
+    document.getElementById("global-actions")?.classList.remove("hidden")
+  } else {
+    btn.classList.remove("ga-dl-ready")
+  }
 }
 
 async function downloadAllChanges() {
@@ -2573,86 +839,201 @@ async function downloadAllChanges() {
       btn.innerHTML = origHTML; btn.disabled = false; return
     }
 
+    const now          = new Date()
+    const score        = document.getElementById("score-val")?.textContent || "--"
+    const domain       = currentUrl.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
+    const activeTheme  = THEMES.find(t => t.id === activeThemeId)
+    const layoutChanges = resp.layoutChanges || []
+    const themeCss     = resp.themeCss || (activeTheme ? activeTheme.css : null)
+
+    // ── 1. Collect fix titles for changelog ────────────────────────────────────
+    const appliedBtns  = [...document.querySelectorAll(".btn-fix-inline.applied-inline")]
+    const fixTitles    = appliedBtns.map((b, i) => {
+      const title = b.closest(".card")?.querySelector(".card-title")?.textContent?.trim() || ("Fix " + (i+1))
+      return title
+    })
+
+    // ── 2. Build the extracted CSS block (theme + layout inline styles) ─────────
+    const cssLines = []
+    cssLines.push("/* ================================================================")
+    cssLines.push("   CHAI KE SATH AI — Extracted CSS Changes")
+    cssLines.push("   Downloaded: " + now.toLocaleString())
+    cssLines.push("   Source: " + currentUrl)
+    cssLines.push("================================================================ */")
+    cssLines.push("")
+
+    if (themeCss) {
+      cssLines.push("/* ── THEME: " + (activeTheme ? activeTheme.name : "Applied Theme") + " ── */")
+      cssLines.push(themeCss.trim())
+      cssLines.push("")
+    }
+
+    if (layoutChanges.length > 0) {
+      cssLines.push("/* ── LAYOUT INSPECTOR CHANGES (" + layoutChanges.length + " element(s)) ── */")
+      layoutChanges.forEach((lc, i) => {
+        cssLines.push("")
+        cssLines.push("/* Change " + (i+1) + ": " + lc.label + " */")
+        // Convert inline style to CSS rule
+        if (lc.style) {
+          cssLines.push(lc.selector + " {")
+          lc.style.split(";").forEach(s => {
+            s = s.trim()
+            if (s) cssLines.push("  " + s + ";")
+          })
+          cssLines.push("}")
+        }
+      })
+      cssLines.push("")
+    }
+
+    if (fixTitles.length > 0) {
+      cssLines.push("/* ── ACCESSIBILITY FIXES APPLIED (" + fixTitles.length + ") ── */")
+      cssLines.push("/* The following violations were fixed in the HTML above: */")
+      fixTitles.forEach((t, i) => cssLines.push("/* " + (i+1) + ". " + t + " */"))
+      cssLines.push("")
+    }
+
+    const extractedCSS = cssLines.join("\n")
+
+    // ── 3. Build annotated HTML ──────────────────────────────────────────────────
     let finalHtml = resp.html
-    const now       = new Date()
-    const score     = document.getElementById("score-val")?.textContent || "--"
-    const domain    = currentUrl.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
 
-    // ── Collect all applied fixes for the changelog ───────────────────────────
-    const appliedFixCards = [...document.querySelectorAll(".btn-fix-inline.applied-inline")]
-    const fixCount   = appliedFixCards.length
-    const activeTheme = THEMES.find(t => t.id === activeThemeId)
+    // Inject theme CSS permanently with clear marker
+    if (themeCss) {
+      const themeStyleTag = [
+        "",
+        "  <!-- ╔══════════════════════════════════════════════════════╗ -->",
+        "  <!-- ║  CHAI KE SATH AI — THEME: " + (activeTheme ? activeTheme.name : "Applied") + "  ║ -->",
+        "  <!-- ╚══════════════════════════════════════════════════════╝ -->",
+        "  <style id=\"cksa-applied-theme\">",
+        "    /* Theme applied via Chai Ke Sath AI extension */",
+        "    " + themeCss.trim().replace(/\n/g, "\n    "),
+        "  </style>",
+        "  <!-- ── End Theme ── -->",
+        ""
+      ].join("\n")
 
-    // ── Build changelog lines ─────────────────────────────────────────────────
-    const changeLog = []
-    if (fixCount > 0) {
-      changeLog.push("  ACCESSIBILITY FIXES (" + fixCount + "):")
-      appliedFixCards.forEach((btn, i) => {
-        const title = btn.closest(".card")?.querySelector(".card-title")?.textContent || "Fix " + (i+1)
-        changeLog.push("    " + (i+1) + ". " + title.trim())
+      if (finalHtml.includes("</head>")) {
+        finalHtml = finalHtml.replace("</head>", themeStyleTag + "</head>")
+      } else {
+        finalHtml = themeStyleTag + finalHtml
+      }
+    }
+
+    // Inject extracted CSS as downloadable <link> + inline <style> for layout changes
+    if (layoutChanges.length > 0) {
+      const layoutStyleLines = ["", "  <!-- ── LAYOUT INSPECTOR CHANGES (Chai Ke Sath AI) ── -->", "  <style id=\"cksa-layout-changes\">"]
+      layoutChanges.forEach((lc, i) => {
+        layoutStyleLines.push("    /* Layout Change " + (i+1) + ": " + lc.label + " */")
+        if (lc.style) {
+          layoutStyleLines.push("    " + lc.selector + " {")
+          lc.style.split(";").forEach(s => { s = s.trim(); if (s) layoutStyleLines.push("      " + s + ";") })
+          layoutStyleLines.push("    }")
+        }
       })
-    }
-    if (activeTheme) {
-      changeLog.push("  THEME APPLIED:")
-      changeLog.push("    " + activeTheme.name)
-      changeLog.push("    CSS injected as <style id='cksa-theme'> inside <head>")
-    }
-
-    // Check for layout inspector changes (elements with style attributes added by inspector)
-    const styledEls = [...document.querySelectorAll("[data-cksa-layout]")]
-    if (styledEls.length > 0) {
-      changeLog.push("  LAYOUT CHANGES (" + styledEls.length + " element(s)):")
-      styledEls.forEach((el, i) => {
-        changeLog.push("    " + (i+1) + ". <" + el.tagName.toLowerCase() + "> — " + el.getAttribute("data-cksa-layout"))
-      })
+      layoutStyleLines.push("  </style>", "  <!-- ── End Layout Changes ── -->", "")
+      const layoutBlock = layoutStyleLines.join("\n")
+      if (finalHtml.includes("</head>")) {
+        finalHtml = finalHtml.replace("</head>", layoutBlock + "</head>")
+      }
     }
 
-    // ── Inject theme CSS permanently ──────────────────────────────────────────
-    if (activeTheme) {
-      const styleTag = "<style id='cksa-theme'>/* ========== Chai Ke Sath AI Theme: " + activeTheme.name + " ========== */" + activeTheme.css + "/* ========== End Theme ========== */</style>" 
-      finalHtml = finalHtml.includes("</head>")
-     ? finalHtml.replace("</head>", styleTag + "</head>"): styleTag + "" + finalHtml}
+    // ── 4. Annotate fixed elements with underline + comment in HTML ─────────────
+    // Add visible marker on each element that had accessibility fix
+    // We inject a small CSS snippet that underlines elements with data-cksa-fixed
+    if (fixTitles.length > 0) {
+      const fixMarkerCSS = [
+        "",
+        "  <!-- ── ACCESSIBILITY FIX MARKERS (Chai Ke Sath AI) ── -->",
+        "  <style id=\"cksa-fix-markers\">",
+        "    /* Elements that had accessibility violations fixed are underlined */",
+        "    [data-cksa-fixed] {",
+        "      outline: 2px dashed #22c55e !important;",
+        "      outline-offset: 2px !important;",
+        "      position: relative !important;",
+        "    }",
+        "    [data-cksa-fixed]::after {",
+        "      content: attr(data-cksa-fixed) !important;",
+        "      position: absolute !important;",
+        "      top: -20px !important; left: 0 !important;",
+        "      background: #22c55e !important; color: #000 !important;",
+        "      font-size: 10px !important; padding: 1px 5px !important;",
+        "      border-radius: 3px !important; white-space: nowrap !important;",
+        "      z-index: 9999 !important; pointer-events: none !important;",
+        "    }",
+        "  </style>",
+        "  <!-- ── End Fix Markers ── -->",
+        ""
+      ].join("\n")
+      if (finalHtml.includes("</head>")) {
+        finalHtml = finalHtml.replace("</head>", fixMarkerCSS + "</head>")
+      }
+    }
 
-    // ── Comment header with full changelog ────────────────────────────────────
-    const separator = "  " + "=".repeat(55)
-    const header = [
+    // ── 5. Build top-level change report comment ─────────────────────────────────
+    const sep = "  " + "=".repeat(58)
+    const headerLines = [
       "<!--",
-      separator,
-      "  CHAI KE SATH AI — FINAL MODIFIED PAGE",
-      separator,
-      "  Source URL : " + currentUrl,
-      "  Downloaded : " + now.toLocaleString(),
-      "  Score      : " + score + "/100",
-      "  Total Changes: " + (fixCount + (activeTheme ? 1 : 0)),
-      separator,
-      "  WHAT WAS CHANGED:",
-      ...(changeLog.length ? changeLog : ["  (no changes recorded)"]),
-      separator,
-      "-->",
-      ""
-    ].join("")
+      sep,
+      "  CHAI KE SATH AI — COMPLETE MODIFIED PAGE",
+      sep,
+      "  Source URL    : " + currentUrl,
+      "  Downloaded    : " + now.toLocaleString(),
+      "  Score         : " + score + "/100",
+      sep,
+      "  CHANGES APPLIED:",
+    ]
+    if (fixTitles.length > 0) {
+      headerLines.push("  [ACCESSIBILITY FIXES - " + fixTitles.length + " violations fixed]")
+      fixTitles.forEach((t, i) => headerLines.push("    " + (i+1) + ". " + t))
+    }
+    if (activeTheme) {
+      headerLines.push("  [THEME - " + activeTheme.name + "]")
+      headerLines.push("    See <style id=\"cksa-applied-theme\"> in <head>")
+    }
+    if (layoutChanges.length > 0) {
+      headerLines.push("  [LAYOUT INSPECTOR - " + layoutChanges.length + " element(s) edited]")
+      layoutChanges.forEach((lc, i) => headerLines.push("    " + (i+1) + ". " + lc.label))
+      headerLines.push("    See <style id=\"cksa-layout-changes\"> in <head>")
+    }
+    headerLines.push(sep)
+    headerLines.push("  INCLUDED FILES:")
+    headerLines.push("    1. " + (domain||"page") + "-final-YYYYMMDD.html  (this file)")
+    headerLines.push("    2. " + (domain||"page") + "-changes.css          (extracted CSS changes)")
+    headerLines.push(sep)
+    headerLines.push("-->")
+    headerLines.push("")
+    finalHtml = headerLines.join("\n") + finalHtml
 
-    finalHtml = header + finalHtml
-
-    // ── Download ──────────────────────────────────────────────────────────────
-    const blob     = new Blob([finalHtml], { type: "text/html;charset=utf-8" })
-    const blobUrl  = URL.createObjectURL(blob)
+    // ── 6. Download both files ──────────────────────────────────────────────────
     const safeName = (domain || "page").replace(/[^a-z0-9]/gi, "-").toLowerCase()
-    const filename = safeName + "-final-"
-      + now.getFullYear()
-      + String(now.getMonth()+1).padStart(2,"0")
-      + String(now.getDate()).padStart(2,"0") + ".html"
+    const dateStr  = now.getFullYear() + String(now.getMonth()+1).padStart(2,"0") + String(now.getDate()).padStart(2,"0")
+
+    // HTML file
+    const htmlBlob    = new Blob([finalHtml], { type: "text/html;charset=utf-8" })
+    const htmlUrl     = URL.createObjectURL(htmlBlob)
+    const htmlFilename = safeName + "-final-" + dateStr + ".html"
+
+    // CSS file
+    const cssBlob     = new Blob([extractedCSS], { type: "text/css;charset=utf-8" })
+    const cssUrl      = URL.createObjectURL(cssBlob)
+    const cssFilename  = safeName + "-changes-" + dateStr + ".css"
 
     if (chrome.downloads) {
-      await chrome.downloads.download({ url: blobUrl, filename, saveAs: true })
+      await chrome.downloads.download({ url: htmlUrl, filename: htmlFilename, saveAs: true })
+      // Small delay then download CSS
+      await new Promise(r => setTimeout(r, 800))
+      await chrome.downloads.download({ url: cssUrl, filename: cssFilename, saveAs: false })
     } else {
-      const a = document.createElement("a"); a.href = blobUrl; a.download = filename; a.click()
+      const a1 = document.createElement("a"); a1.href = htmlUrl; a1.download = htmlFilename; a1.click()
+      await new Promise(r => setTimeout(r, 600))
+      const a2 = document.createElement("a"); a2.href = cssUrl; a2.download = cssFilename; a2.click()
     }
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
+    setTimeout(() => { URL.revokeObjectURL(htmlUrl); URL.revokeObjectURL(cssUrl) }, 10000)
 
-    btn.innerHTML = '<span class="ga-icon">✅</span><span class="ga-label">Saved!</span>'
-    showToast("✅ Downloaded: " + filename, "success")
-    setTimeout(() => { btn.innerHTML = origHTML; btn.disabled = false; updateDownloadBadge() }, 3500)
+    btn.innerHTML = '<span class="ga-icon">✅</span><span class="ga-label">2 Files!</span>'
+    showToast("✅ Downloaded HTML + CSS!", "success")
+    setTimeout(() => { btn.innerHTML = origHTML; btn.disabled = false; updateDownloadBadge() }, 4000)
 
   } catch (err) {
     btn.innerHTML = origHTML; btn.disabled = false
@@ -3177,8 +1558,11 @@ async function applyTheme(theme) {
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
     document.querySelector(`.theme-card[data-id="${theme.id}"]`)?.classList.add("active-theme")
 
-    showToast(`🎨 ${theme.name} applied!`, "success")
-    setTimeout(() => showToast(`${savedIcon} ${savedTo}`, "info"), 1800)
+    if (saveRes?.source === "mongodb") {
+      showToast(`🎨 ${theme.name} applied! ☁️ Saved to MongoDB`, "success")
+    } else {
+      showToast(`🎨 ${theme.name} applied! ⚠️ Theme server offline`, "info")
+    }
     updateDownloadBadge()
   } catch { showToast("Could not apply theme. Reload page and try.", "error") }
 }
@@ -3187,8 +1571,8 @@ async function removeTheme() {
   try {
     const resp = await chrome.tabs.sendMessage(currentTabId, { type:"REMOVE_THEME" })
     activeThemeId = null
-    chrome.storage.local.remove("activeThemeId")
     if (resp?.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+    // Delete from MongoDB (no local storage)
     await chrome.runtime.sendMessage({ type:"SAVE_THEME", themeId: null }).catch(()=>{})
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
     showToast("Theme removed", "info")
