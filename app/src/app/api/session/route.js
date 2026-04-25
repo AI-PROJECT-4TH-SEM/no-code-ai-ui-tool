@@ -44,7 +44,6 @@ export async function POST(req) {
     changes: []
   })
 
-  // increment totalAnalyses on every new session
   await User.findByIdAndUpdate(userId, { $inc: { totalAnalyses: 1 } })
 
   return Response.json({ sessionId: session._id })
