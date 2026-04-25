@@ -131,7 +131,7 @@ export default function Home() {
               Transform Your Website's UI
               <br />
               <span className="bg-gradient-to-r from-pink-400 to-purple-500 bg-clip-text text-transparent">
-                with AI in Seconds
+                within Seconds
               </span>
             </h1>
             <p className="text-gray-400 text-base md:text-lg max-w-xl mx-auto">
