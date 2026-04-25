@@ -5,7 +5,6 @@ import jwt from "jsonwebtoken"
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET
 
-// ✅ GET theme
 export async function GET(req) {
   await connectDB()
 

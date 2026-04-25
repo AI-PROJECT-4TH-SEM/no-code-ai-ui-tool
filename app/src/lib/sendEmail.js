@@ -19,7 +19,7 @@ export async function sendEmail(to, subject, html) {
 
     console.log("EMAIL SENT:", info.response)
   } catch (err) {
-    console.log("EMAIL ERROR FULL:", err) // 🔥 DEBUG
+    console.log("EMAIL ERROR FULL:", err) 
     throw err
   }
 }

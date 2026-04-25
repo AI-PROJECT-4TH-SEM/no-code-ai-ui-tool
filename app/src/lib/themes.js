@@ -1,7 +1,42 @@
 
   export const themes = [
+
+
+     {
+    id: "midnight-luxury",
+    name: "🌙 Midnight Luxury",
+    preview: ["#0a0a0f","#c9a84c","#e8e0d0"],
+    css: `
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap');
+      *{transition:background 0.3s ease,color 0.3s ease,border-color 0.3s ease,box-shadow 0.3s ease!important;box-sizing:border-box!important}
+      html,body{background:#0a0a0f!important;color:#e8e0d0!important;font-family:'Inter',sans-serif!important;line-height:1.7!important}
+      h1,h2,h3,h4,h5,h6{font-family:'Playfair Display',serif!important;color:#c9a84c!important;letter-spacing:-0.02em!important;line-height:1.2!important}
+      h1{font-size:2.4em!important;margin-bottom:0.5em!important}
+      h2{font-size:1.9em!important}h3{font-size:1.5em!important}
+      p{color:#c8bfb0!important;font-size:1.05em!important;line-height:1.8!important;margin-bottom:1.2em!important}
+      a{color:#c9a84c!important;text-decoration:none!important;border-bottom:1px solid rgba(201,168,76,0.3)!important;padding-bottom:1px!important}
+      a:hover{color:#e8c96d!important;border-bottom-color:#e8c96d!important}
+      a:focus{outline:3px solid #c9a84c!important;outline-offset:3px!important;border-radius:3px!important}
+      button,[type=button],[type=submit],[role=button]{background:linear-gradient(135deg,#c9a84c,#a8863c)!important;color:#0a0a0f!important;border:none!important;border-radius:8px!important;padding:10px 24px!important;font-weight:600!important;font-size:0.95em!important;cursor:pointer!important;letter-spacing:0.03em!important;box-shadow:0 4px 20px rgba(201,168,76,0.3)!important}
+      button:hover{background:linear-gradient(135deg,#e8c96d,#c9a84c)!important;box-shadow:0 6px 28px rgba(201,168,76,0.45)!important;transform:translateY(-1px)!important}
+      button:focus{outline:3px solid #c9a84c!important;outline-offset:3px!important}
+      input,textarea,select{background:#14141c!important;color:#e8e0d0!important;border:1px solid #2a2820!important;border-radius:8px!important;padding:10px 14px!important;font-size:1em!important}
+      input:focus,textarea:focus,select:focus{border-color:#c9a84c!important;outline:none!important;box-shadow:0 0 0 3px rgba(201,168,76,0.2)!important}
+      input::placeholder{color:#5a5040!important}
+      nav,header{background:#07070c!important;border-bottom:1px solid #1e1c18!important;padding:12px 24px!important}
+      nav a{border-bottom:none!important;font-weight:500!important;color:#a89070!important;padding:6px 12px!important;border-radius:6px!important}
+      nav a:hover{background:rgba(201,168,76,0.1)!important;color:#c9a84c!important}
+      footer{background:#07070c!important;border-top:1px solid #1e1c18!important;color:#6a6050!important;padding:24px!important}
+      div,section,article,aside,main{background:transparent!important}
+      .card,[class*=card],[class*=panel],[class*=box]{background:#12121a!important;border:1px solid #1e1c18!important;border-radius:12px!important;padding:20px!important;box-shadow:0 8px 32px rgba(0,0,0,0.4)!important}
+      img{border-radius:8px!important;opacity:0.9!important}
+      hr{border-color:#1e1c18!important}
+      *:focus-visible{outline:3px solid #c9a84c!important;outline-offset:3px!important;border-radius:4px!important}
+    `
+  },
+  
   { 
-    name: "🚀 Neon Cyberpunk",
+    name: " Neon Cyberpunk",
     css: `
       body {
         background: radial-gradient(circle at top, #0a0015, #000) !important;
@@ -34,7 +69,7 @@
   },
 
   {
-    name: "🧠 AI Minimal",
+    name: "AI Minimal",
     css: `
       body {
         background: #0b0f19 !important;
