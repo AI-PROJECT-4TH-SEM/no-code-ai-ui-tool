@@ -2094,9 +2094,15 @@ let allExpanded     = false
 let fixTotal        = 0
 let fixApplied      = 0
 let inspectorOn     = false
+let dragModeOn      = false
+let clickMoveOn     = false
 let undoAvailable   = false
 let redoAvailable   = false
 let fixesApplied    = 0        
+let chatSessionId   = null
+let chatMessages    = []
+let chatBusy        = false
+let lastPickedForChat = null
 
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -2124,6 +2130,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupTabs()
   setupScan()
   setupInspector()
+  setupDragMode()
+  setupChatbot()
   setupThemes()
   setupHistory()
   setupGlobalActions()
@@ -2139,8 +2147,180 @@ function setupTabs() {
       btn.classList.add("active")
       document.getElementById(`tab-${name}`)?.classList.remove("hidden")
       if (name === "history") renderHistory()
+      if (name === "chat") renderChatMessages()
     })
   })
+}
+
+function setupChatbot() {
+  const sendBtn = document.getElementById("chat-send-btn")
+  const input = document.getElementById("chat-input")
+  const loadBtn = document.getElementById("chat-load-btn")
+  const clearBtn = document.getElementById("chat-clear-btn")
+
+  if (!sendBtn || !input) return
+
+  if (!chatMessages.length) {
+    chatMessages = [{
+      role: "assistant",
+      content: "I can suggest and apply layout changes, WCAG contrast fixes, and theme updates. If you clicked an element in Layout tab, I will target that selection.",
+    }]
+  }
+  renderChatMessages()
+
+  sendBtn.addEventListener("click", async () => {
+    const instruction = (input.value || "").trim()
+    if (!instruction || chatBusy) return
+
+    input.value = ""
+    chatMessages.push({ role: "user", content: instruction })
+    renderChatMessages()
+    setChatBusy(true)
+
+    try {
+      const payload = {
+        sessionId: chatSessionId,
+        instruction,
+        url: currentUrl,
+        selectedElement: lastPickedForChat,
+      }
+      const resp = await chrome.runtime.sendMessage({ type: "EXT_CHAT_SEND", payload })
+      if (!resp?.success) {
+        chatMessages.push({ role: "assistant", content: "Chat request failed: " + (resp?.error || "Unknown error") })
+        renderChatMessages()
+        return
+      }
+
+      chatSessionId = resp.sessionId || chatSessionId
+
+      chatMessages.push({
+        role: "assistant",
+        content: resp.reply || "Done.",
+        plan: {
+          layout: resp.layoutSuggestions || [],
+          contrast: resp.contrastSuggestions || [],
+          themes: resp.themeSuggestions || [],
+          actions: resp.actions || [],
+        }
+      })
+      renderChatMessages()
+
+      const autoApply = document.getElementById("chat-auto-apply")?.checked
+      if (autoApply) {
+        const appliedCount = await applyChatActions(resp.actions || [])
+        if (appliedCount > 0) {
+          showToast(`✅ Chatbot applied ${appliedCount} change${appliedCount !== 1 ? "s" : ""}`, "success")
+          updateDownloadBadge()
+        }
+      }
+    } catch (err) {
+      chatMessages.push({ role: "assistant", content: "Chat failed: " + err.message })
+      renderChatMessages()
+    } finally {
+      setChatBusy(false)
+    }
+  })
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendBtn.click()
+    }
+  })
+
+  loadBtn?.addEventListener("click", async () => {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: "EXT_CHAT_LOAD", payload: { sessionId: chatSessionId, url: currentUrl } })
+      if (!resp?.success) {
+        showToast("Could not load MongoDB chat: " + (resp?.error || "Unknown"), "error")
+        return
+      }
+      chatSessionId = resp.sessionId || chatSessionId
+      const dbMessages = Array.isArray(resp.messages) ? resp.messages : []
+      if (dbMessages.length) {
+        chatMessages = dbMessages.map(m => ({ role: m.role, content: m.content, plan: m.meta || null }))
+      }
+      if (!chatMessages.length) {
+        chatMessages = [{ role: "assistant", content: "No saved chat found for this page yet." }]
+      }
+      renderChatMessages()
+      showToast("☁️ Chat loaded from MongoDB", "success")
+    } catch (err) {
+      showToast("Chat load failed: " + err.message, "error")
+    }
+  })
+
+  clearBtn?.addEventListener("click", () => {
+    chatSessionId = null
+    chatMessages = [{ role: "assistant", content: "Started a new MongoDB chat session." }]
+    renderChatMessages()
+  })
+}
+
+function setChatBusy(isBusy) {
+  chatBusy = isBusy
+  const sendBtn = document.getElementById("chat-send-btn")
+  if (sendBtn) {
+    sendBtn.disabled = isBusy
+    sendBtn.textContent = isBusy ? "Sending..." : "Send"
+  }
+}
+
+function renderChatMessages() {
+  const box = document.getElementById("chat-messages")
+  const selection = document.getElementById("chat-selection")
+  if (!box) return
+
+  if (selection) {
+    const target = lastPickedForChat
+      ? `Target: ${lastPickedForChat.label || lastPickedForChat.selector || lastPickedForChat.tag || "selected element"}`
+      : "Target: whole page"
+    selection.textContent = target
+  }
+
+  box.innerHTML = ""
+  chatMessages.forEach(msg => {
+    const wrap = document.createElement("div")
+    wrap.className = `chat-msg ${msg.role === "user" ? "chat-msg-user" : "chat-msg-ai"}`
+    wrap.innerHTML = esc(msg.content || "")
+
+    if (msg.role === "assistant" && msg.plan) {
+      const layoutN = Array.isArray(msg.plan.layout) ? msg.plan.layout.length : 0
+      const contrastN = Array.isArray(msg.plan.contrast) ? msg.plan.contrast.length : 0
+      const themeN = Array.isArray(msg.plan.themes) ? msg.plan.themes.length : 0
+      const actionN = Array.isArray(msg.plan.actions) ? msg.plan.actions.length : 0
+      const info = document.createElement("div")
+      info.className = "chat-plan"
+      info.textContent = `layout ${layoutN} · contrast ${contrastN} · themes ${themeN} · actions ${actionN}`
+      wrap.appendChild(info)
+    }
+
+    box.appendChild(wrap)
+  })
+  box.scrollTop = box.scrollHeight
+}
+
+async function applyChatActions(actions) {
+  if (!Array.isArray(actions) || !actions.length) return 0
+  await chrome.scripting.executeScript({ target:{ tabId: currentTabId }, files:["content.js"] }).catch(() => {})
+
+  let applied = 0
+  for (const action of actions) {
+    if (action?.kind === "domFix" && action.fix) {
+      const resp = await chrome.tabs.sendMessage(currentTabId, { type: "APPLY_FIX", domFix: action.fix }).catch(() => null)
+      if (resp?.success) {
+        applied++
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+      }
+    } else if (action?.kind === "theme" && action.themeId) {
+      const theme = THEMES.find(t => t.id === action.themeId)
+      if (theme) {
+        await applyTheme(theme)
+        applied++
+      }
+    }
+  }
+  return applied
 }
 
 
@@ -2265,12 +2445,16 @@ async function startScan() {
   const scanBtn = document.getElementById("scan-btn")
   const loading = document.getElementById("loading")
   const results = document.getElementById("results")
+  const recoWrap = document.getElementById("theme-reco-wrap")
+  const recoGrid = document.getElementById("theme-reco-grid")
 
   scanBtn.disabled = true
   scanBtn.innerHTML = "<span>⏳</span> Scanning…"
   loading.classList.remove("hidden")
   document.getElementById("global-actions")?.classList.remove("hidden")
   results.classList.add("hidden")
+  recoWrap?.classList.add("hidden")
+  if (recoGrid) recoGrid.innerHTML = ""
   allExpanded = false; fixApplied = 0; fixTotal = 0
   animateLoadingSteps()
 
@@ -2342,7 +2526,17 @@ function renderResults({ score, violations, suggestions }) {
     legend.innerHTML = Object.entries(counts).filter(([,c])=>c)
       .map(([k,c])=>`<span class="leg-dot" style="background:${colors[k]}"></span><span>${c} ${k}</span>`).join("")
     legend.classList.remove("hidden")
+  } else {
+    document.getElementById("impact-bar")?.classList.add("hidden")
+    document.getElementById("impact-legend")?.classList.add("hidden")
   }
+
+  const recommendedThemes = getTopRecommendedThemes({
+    url: currentUrl,
+    score,
+    suggestions,
+  })
+  renderThemeRecommendations(recommendedThemes)
 
   const wrap = document.getElementById("suggestions-wrap")
   wrap.innerHTML = ""
@@ -2499,6 +2693,16 @@ function setupGlobalActions() {
       if (msg.canUndo !== undefined) setUndoState(msg.canUndo, msg.canRedo, msg.undoLabel, msg.redoLabel)
       updateDownloadBadge()
     }
+    // PRODUCTION: Listen for drag mode state changes
+    if (msg.type === "DRAG_MODE_TOGGLED") {
+      dragModeActive = msg.active
+      dragChangesExist = msg.hasChanges || false
+      updateDownloadBadge()
+    }
+    if (msg.type === "ELEMENT_DRAGGED") {
+      dragChangesExist = true
+      updateDownloadBadge()
+    }
   })
 }
 
@@ -2540,6 +2744,9 @@ function setUndoState(canUndo, canRedo, undoLabel, redoLabel) {
 }
 
 
+let dragModeActive = false
+let dragChangesExist = false
+
 function updateDownloadBadge() {
   const btn   = document.getElementById("download-all-btn")
   const badge = document.getElementById("dl-badge")
@@ -2548,9 +2755,10 @@ function updateDownloadBadge() {
   const fixCount    = document.querySelectorAll(".btn-fix-inline.applied-inline").length
   const hasTheme    = !!activeThemeId
   const layoutCount = layoutChangeCount  
-  const total       = fixCount + (hasTheme ? 1 : 0) + layoutCount
+  const dragCount   = dragModeActive && dragChangesExist ? 1 : 0
+  const total       = fixCount + (hasTheme ? 1 : 0) + layoutCount + dragCount
 
-  
+  // PRODUCTION: Enable download only if there are actual changes
   btn.disabled = total === 0
   if (badge) {
     if (total > 0) { badge.textContent = String(total); badge.classList.remove("hidden") }
@@ -2573,7 +2781,29 @@ async function downloadAllChanges() {
 
   try {
     await chrome.scripting.executeScript({ target: { tabId: currentTabId }, files: ["content.js"] }).catch(() => {})
-    const resp = await chrome.tabs.sendMessage(currentTabId, { type: "GET_HTML" })
+    
+    // PRODUCTION: If drag mode is active, capture drag modifications instead
+    let resp = null
+    if (dragModeActive && dragChangesExist) {
+      resp = await chrome.tabs.sendMessage(currentTabId, { type: "CAPTURE_DOWNLOAD" })
+      if (resp?.success) {
+        // Download drag-modified page directly
+        const blob = new Blob([resp.html], { type: "text/html;charset=utf-8" })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        const now = new Date()
+        const timestamp = now.toISOString().slice(0,19).replace(/:/g, "-")
+        link.href = url
+        link.download = `page-modified-${timestamp}.html`
+        link.click()
+        URL.revokeObjectURL(url)
+        showToast("✅ Page downloaded with all drag changes", "success")
+        btn.innerHTML = origHTML; btn.disabled = false; return
+      }
+    }
+    
+    // Fall back to GET_HTML for other changes
+    resp = await chrome.tabs.sendMessage(currentTabId, { type: "GET_HTML" })
     if (!resp?.html) {
       showToast("Could not read page HTML.", "error")
       btn.innerHTML = origHTML; btn.disabled = false; return
@@ -2829,6 +3059,13 @@ function setupInspector() {
     inspectorOn = !inspectorOn
     try {
       await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+
+      if (inspectorOn && dragModeOn) {
+        await chrome.tabs.sendMessage(currentTabId, { type:"TOGGLE_DRAG_MODE", active: false }).catch(() => {})
+        dragModeOn = false
+        updateDragModeUI(dragModeOn)
+      }
+
       await chrome.tabs.sendMessage(currentTabId, { type:"TOGGLE_INSPECTOR", active: inspectorOn })
     } catch {
       showToast("Could not activate inspector on this page.", "error")
@@ -2842,7 +3079,14 @@ function setupInspector() {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === "ELEMENT_PICKED") {
       inspEl = msg.selector
+      lastPickedForChat = {
+        selector: msg.selector,
+        tag: msg.tag,
+        label: msg.label,
+        styles: msg.styles || {},
+      }
       populateEditor(msg)
+      renderChatMessages()
     }
     if (msg.type === "INSPECTOR_CLOSED") {
       inspectorOn = false
@@ -2961,6 +3205,226 @@ function setupInspector() {
     sendToPage({ type: "APPLY_LIVE_STYLE", selector: inspEl, prop: "backgroundColor", value: e.target.value })
     updateContrastDisplay()
   })
+}
+
+
+function setupDragMode() {
+  document.getElementById("move-toggle-btn")?.addEventListener("click", async () => {
+    dragModeOn = !dragModeOn
+    try {
+      await chrome.scripting.executeScript({ 
+        target:{ tabId:currentTabId }, 
+        files:["content.js"] 
+      }).catch(()=>{})
+
+      if (dragModeOn && inspectorOn) {
+        await chrome.tabs.sendMessage(currentTabId, { type:"TOGGLE_INSPECTOR", active: false }).catch(() => {})
+        inspectorOn = false
+        updateInspectorUI()
+      }
+
+      const resp = await chrome.tabs.sendMessage(currentTabId, { 
+        type:"TOGGLE_DRAG_MODE", 
+        active: dragModeOn 
+      })
+      
+      if (resp?.success) {
+        if (!dragModeOn) {
+          clickMoveOn = false
+          dragChangesExist = false
+          await chrome.tabs.sendMessage(currentTabId, { type: "TOGGLE_CLICK_MOVE", active: false }).catch(() => {})
+        }
+        dragModeActive = dragModeOn
+        updateDragModeUI(dragModeOn)
+        updateClickMoveUI(clickMoveOn)
+        updateDownloadBadge()
+        if (dragModeOn) {
+          showToast("🔀 Drag mode enabled! Double-click any element to pick it, move with cursor, then click to drop.", "success")
+        } else {
+          showToast("🔀 Drag mode disabled", "info")
+        }
+      }
+    } catch (err) {
+      console.error("Drag mode error:", err)
+      showToast("Could not activate drag mode on this page.", "error")
+      dragModeOn = false
+      updateDragModeUI(dragModeOn)
+      updateClickMoveUI(false)
+    }
+  })
+
+  document.getElementById("move-add-image-btn")?.addEventListener("click", () => {
+    if (!dragModeOn) {
+      showToast("Enable drag mode first to add and move images.", "info")
+      return
+    }
+    document.getElementById("move-image-input")?.click()
+  })
+
+  document.getElementById("move-image-input")?.addEventListener("change", async (e) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+    if (!file.type || !file.type.startsWith("image/")) {
+      showToast("Please select an image file.", "error")
+      e.target.value = ""
+      return
+    }
+
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(new Error("Failed to read image"))
+        reader.readAsDataURL(file)
+      })
+
+      const resp = await chrome.tabs.sendMessage(currentTabId, {
+        type: "ADD_DRAG_IMAGE",
+        dataUrl,
+        name: file.name,
+      })
+
+      if (resp?.success) {
+        showToast("🖼 Image added. You can now drag or click-move it.", "success")
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      } else {
+        showToast("Could not add image to this page.", "error")
+      }
+    } catch {
+      showToast("Image upload failed on this page.", "error")
+    } finally {
+      e.target.value = ""
+    }
+  })
+
+  document.getElementById("move-click-mode-btn")?.addEventListener("click", async () => {
+    if (!dragModeOn) {
+      showToast("Enable drag mode first.", "info")
+      return
+    }
+    clickMoveOn = !clickMoveOn
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      await chrome.tabs.sendMessage(currentTabId, { type: "TOGGLE_CLICK_MOVE", active: clickMoveOn })
+      updateClickMoveUI(clickMoveOn)
+      showToast(clickMoveOn ? "🎯 Click Move ON: select an element, then click destination." : "🎯 Click Move OFF", "info")
+    } catch {
+      clickMoveOn = false
+      updateClickMoveUI(false)
+      showToast("Could not toggle Click Move on this page.", "error")
+    }
+  })
+
+  document.getElementById("move-reset-last-btn")?.addEventListener("click", async () => {
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      const resp = await chrome.tabs.sendMessage(currentTabId, { type:"RESET_LAST_MOVE" })
+      if (resp?.success) {
+        showToast("↩ Selected element reset", "success")
+        const selectedEl = document.getElementById("move-selected-el")
+        if (selectedEl) selectedEl.textContent = "No element selected yet"
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      } else {
+        showToast("No moved element selected yet.", "info")
+      }
+    } catch {
+      showToast("Could not reset selected element.", "error")
+    }
+  })
+
+  document.getElementById("move-reset-btn")?.addEventListener("click", async () => {
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      await new Promise(r => setTimeout(r, 100))
+      
+      const resp = await chrome.tabs.sendMessage(currentTabId, { type:"RESET_ALL_MOVES" })
+      if (resp?.success) {
+        showToast("🔀 All moves have been reset!", "success")
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      }
+    } catch (err) {
+      console.error("Reset error:", err)
+      showToast("Could not reset moves on this page.", "error")
+    }
+  })
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "ELEMENT_DRAGGED") {
+      const selectedEl = document.getElementById("move-selected-el")
+      if (selectedEl) {
+        selectedEl.textContent = "Currently moving: " + msg.label
+      }
+      if (msg.canUndo !== undefined) setUndoState(msg.canUndo, msg.canRedo, msg.undoLabel, msg.redoLabel)
+      updateDownloadBadge()
+    }
+    if (msg.type === "DRAG_MODE_CLOSED") {
+      dragModeOn = false
+      clickMoveOn = false
+      updateDragModeUI(dragModeOn)
+      updateClickMoveUI(clickMoveOn)
+    }
+  })
+
+  updateDragModeUI(dragModeOn)
+  updateClickMoveUI(clickMoveOn)
+}
+
+
+function updateDragModeUI(isOn) {
+  const btn = document.getElementById("move-toggle-btn")
+  const dot = document.getElementById("move-dot")
+  const status = document.getElementById("move-status")
+  const idle = document.getElementById("move-idle")
+  const active = document.getElementById("move-active")
+
+  if (!btn || !dot || !status || !idle || !active) return
+
+  if (isOn) {
+    btn.classList.add("move-toggle-on")
+    btn.textContent = "Disable"
+    dot.classList.remove("move-dot-off")
+    dot.classList.add("move-dot-on")
+    status.textContent = "Drag mode ON"
+    status.style.color = "#4ade80"
+    idle.classList.add("hidden")
+    active.classList.remove("hidden")
+  } else {
+    btn.classList.remove("move-toggle-on")
+    btn.textContent = "Enable"
+    dot.classList.add("move-dot-off")
+    dot.classList.remove("move-dot-on")
+    status.textContent = "Drag mode OFF"
+    status.style.color = "#4b5a7a"
+    idle.classList.remove("hidden")
+    active.classList.add("hidden")
+    const selectedEl = document.getElementById("move-selected-el")
+    if (selectedEl) selectedEl.textContent = "No element selected yet"
+  }
+}
+
+function updateClickMoveUI(isOn) {
+  const btn = document.getElementById("move-click-mode-btn")
+  if (!btn) return
+
+  if (!dragModeOn) {
+    btn.classList.remove("active")
+    btn.textContent = "🎯 Click Move: OFF"
+    btn.disabled = true
+    return
+  }
+
+  btn.disabled = false
+  if (isOn) {
+    btn.classList.add("active")
+    btn.textContent = "🎯 Click Move: ON"
+  } else {
+    btn.classList.remove("active")
+    btn.textContent = "🎯 Click Move: OFF"
+  }
 }
 
 
@@ -3243,6 +3707,140 @@ function updateScoreDisplay({ score, violations, suggestions }) {
     ring.style.transform  = "scale(1.08)"
     setTimeout(() => { ring.style.transform = "scale(1)" }, 300)
   }
+}
+
+function getTopRecommendedThemes({ url, score, suggestions }) {
+  const host = String(url || "").replace(/^https?:\/\/(www\.)?/i, "").split("/")[0].toLowerCase()
+  const urlText = String(url || "").toLowerCase()
+  const suggText = (suggestions || []).map(s => `${s?.id || ""} ${s?.title || ""} ${s?.explanation || ""}`).join(" ").toLowerCase()
+  const pageText = `${host} ${urlText} ${suggText}`
+
+  const severeCount = (suggestions || []).filter(s => ["critical", "serious"].includes(String(s.impact || "").toLowerCase())).length
+  const lowScore = Number(score || 0) < 65
+
+  const uniqueThemes = []
+  const seen = new Set()
+  THEMES.forEach(theme => {
+    if (!theme?.id || seen.has(theme.id)) return
+    seen.add(theme.id)
+    uniqueThemes.push(theme)
+  })
+
+  const pageTags = {
+    commerce: /(shop|store|cart|product|checkout|ecom|market|pricing|plan)/.test(pageText),
+    content: /(blog|news|article|docs|documentation|guide|tutorial|read)/.test(pageText),
+    creative: /(portfolio|agency|studio|creative|design|ux|ui|art|gallery)/.test(pageText),
+    app: /(saas|dashboard|admin|app|tool|platform|analytics|crm|panel)/.test(pageText),
+    auth: /(login|signup|register|password|account|profile|settings)/.test(pageText),
+    gaming: /(game|gaming|esports|stream)/.test(pageText),
+    health: /(health|medical|clinic|hospital|care|wellness)/.test(pageText),
+    finance: /(bank|finance|fintech|invest|wallet|payment)/.test(pageText),
+    education: /(course|school|college|learn|academy|education)/.test(pageText),
+  }
+
+  const bucketOf = (text) => {
+    if (/(minimal|nord|ice|zen|clean|editorial|sakura|warm)/.test(text)) return "clean"
+    if (/(midnight|deep|ocean|void|dark|night|royal)/.test(text)) return "dark"
+    if (/(cyber|neon|matrix|terminal|hologram|glitch|rgb|electric)/.test(text)) return "tech"
+    if (/(nature|forest|organic|sunny|ocean|earth)/.test(text)) return "nature"
+    if (/(luxury|velvet|luxe|premium|gold)/.test(text)) return "premium"
+    if (/(canva|gradient|aurora|sunset|candy|colorful|fiery)/.test(text)) return "vibrant"
+    return "general"
+  }
+
+  const ranked = uniqueThemes.map(theme => {
+    const text = `${String(theme.name || "").toLowerCase()} ${String(theme.id || "").toLowerCase()}`
+    const bucket = bucketOf(text)
+    let rank = 0
+
+    if (pageTags.commerce && /(clean|premium|dark|vibrant)/.test(bucket)) rank += 3
+    if (pageTags.content && /(clean|nature|general)/.test(bucket)) rank += 3
+    if (pageTags.creative && /(vibrant|tech|dark|premium)/.test(bucket)) rank += 3
+    if (pageTags.app && /(clean|dark|tech|general)/.test(bucket)) rank += 3
+    if (pageTags.auth && /(clean|dark|general)/.test(bucket)) rank += 2
+    if (pageTags.gaming && /(tech|dark|vibrant)/.test(bucket)) rank += 3
+    if (pageTags.health && /(clean|nature|general)/.test(bucket)) rank += 3
+    if (pageTags.finance && /(clean|dark|premium|general)/.test(bucket)) rank += 3
+    if (pageTags.education && /(clean|nature|general)/.test(bucket)) rank += 3
+
+    if (lowScore || severeCount >= 3) {
+      if (/(clean|nature|general)/.test(bucket)) rank += 4
+      if (bucket === "tech" || bucket === "vibrant") rank -= 1
+    } else {
+      if (bucket === "vibrant" || bucket === "premium") rank += 1
+    }
+
+    if (/(minimal|nord|canva|aurora|midnight|ocean|nature|sakura|ice|warm)/.test(text)) rank += 1
+
+    // Deterministic tie-break to avoid same order for every page
+    const seedText = `${host}:${score}:${severeCount}:${theme.id}`
+    let seed = 0
+    for (let i = 0; i < seedText.length; i++) seed = (seed * 31 + seedText.charCodeAt(i)) % 100000
+    rank += (seed % 97) / 10000
+
+    return { theme, rank, bucket }
+  })
+
+  ranked.sort((a, b) => b.rank - a.rank)
+
+  const selected = []
+  const usedIds = new Set()
+  const bucketCount = new Map()
+  const LIMIT = 10
+
+  // First pass: keep diversity across style buckets
+  for (const item of ranked) {
+    if (selected.length >= LIMIT) break
+    if (usedIds.has(item.theme.id)) continue
+    const c = bucketCount.get(item.bucket) || 0
+    if (c >= 2) continue
+    selected.push(item.theme)
+    usedIds.add(item.theme.id)
+    bucketCount.set(item.bucket, c + 1)
+  }
+
+  // Second pass: fill remaining best-ranked themes
+  if (selected.length < LIMIT) {
+    for (const item of ranked) {
+      if (selected.length >= LIMIT) break
+      if (usedIds.has(item.theme.id)) continue
+      selected.push(item.theme)
+      usedIds.add(item.theme.id)
+    }
+  }
+
+  return selected
+}
+
+function renderThemeRecommendations(themes) {
+  const wrap = document.getElementById("theme-reco-wrap")
+  const grid = document.getElementById("theme-reco-grid")
+  if (!wrap || !grid) return
+
+  if (!themes?.length) {
+    wrap.classList.add("hidden")
+    grid.innerHTML = ""
+    return
+  }
+
+  wrap.classList.remove("hidden")
+  grid.innerHTML = ""
+
+  themes.forEach((theme, index) => {
+    const row = document.createElement("div")
+    row.className = "theme-reco-card"
+    row.innerHTML = `
+      <div class="theme-reco-rank">#${index + 1}</div>
+      <div class="theme-reco-main">
+        <div class="theme-reco-name">${esc(theme.name)}</div>
+        <div class="theme-reco-swatches">${theme.preview.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div>
+      </div>
+      <button class="theme-reco-apply" data-theme-id="${theme.id}">Apply</button>
+    `
+
+    row.querySelector(".theme-reco-apply")?.addEventListener("click", () => applyTheme(theme))
+    grid.appendChild(row)
+  })
 }
 
 

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Navbar from "@/components/Navbar"
+import AssistantDrawer from "@/components/AssistantDrawer"
 import { useAuth } from "@/context/AuthContext"
 import { themes } from "@/lib/themes.js"
 
@@ -202,6 +203,48 @@ function applyDomFix(doc, fix) {
         el.replaceWith(n)
       }); break
     default: console.warn("Unknown fix type:", fix.type)
+  }
+}
+
+function buildCssPath(el) {
+  if (!el || el === document.body) return "body"
+  const path = []
+  let node = el
+  while (node && node !== document.body) {
+    const tag = node.tagName ? node.tagName.toLowerCase() : ""
+    let idx = 1
+    let sib = node.previousElementSibling
+    while (sib) {
+      if (sib.tagName === node.tagName) idx++
+      sib = sib.previousElementSibling
+    }
+    path.unshift(`${tag}:nth-of-type(${idx})`)
+    node = node.parentElement
+  }
+  return `body > ${path.join(" > ")}`
+}
+
+function buildAssistantSelectionContext(html, selectedEl) {
+  if (!html || !selectedEl?.selector) return null
+
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html")
+    const selectedNode = doc.querySelector(selectedEl.selector)
+    if (!selectedNode) return { ...selectedEl, selectedHtml: "", selectionMode: "element" }
+
+    const wrapper = selectedNode.closest(".thumbinner, figure, .gallerybox, .mw-file-element, .mw-file-description")
+    const effectiveNode = wrapper || selectedNode
+
+    return {
+      ...selectedEl,
+      effectiveSelector: wrapper ? buildCssPath(effectiveNode) : selectedEl.selector,
+      effectiveTag: effectiveNode.tagName ? effectiveNode.tagName.toLowerCase() : selectedEl.tag,
+      effectiveClassName: typeof effectiveNode.className === "string" ? effectiveNode.className : "",
+      selectedHtml: (effectiveNode.outerHTML || "").slice(0, 3500),
+      selectionMode: wrapper ? "wrapper" : "element",
+    }
+  } catch {
+    return { ...selectedEl, selectedHtml: "", selectionMode: "element" }
   }
 }
 
@@ -555,6 +598,49 @@ export default function Results() {
     setLayoutApplied(false)
   }
 
+  async function applyAssistantPlan(plan) {
+    if (!plan || !Array.isArray(plan.actions)) return { applied: false }
+
+    const currentHtml = htmlRef.current
+    const doc = new DOMParser().parseFromString(currentHtml, "text/html")
+    let htmlChanged = false
+    let themeChanged = false
+    let nextTheme = null
+
+    for (const action of plan.actions) {
+      if (action?.kind === "domFix" && action.fix) {
+        applyDomFix(doc, action.fix)
+        htmlChanged = true
+      }
+
+      if (action?.kind === "theme" && action.themeId) {
+        nextTheme = themes.find(theme => theme.id === action.themeId || theme.name === action.themeId) || null
+      }
+    }
+
+    if (htmlChanged) {
+      const newHtml = doc.documentElement.outerHTML
+      htmlRef.current = newHtml
+      setUndoStack(prev => [...prev, currentHtml])
+      setRedoStack([])
+      setHtml(newHtml)
+      setChanges(prev => [{
+        _id: Date.now().toString(),
+        themeName: plan.reply ? `AI Chat: ${plan.reply.slice(0, 40)}` : "AI Chat",
+        html: newHtml,
+        appliedAt: new Date(),
+      }, ...prev])
+      await saveToBackend(newHtml, plan.reply ? `AI Chat: ${plan.reply.slice(0, 40)}` : "AI Chat")
+    }
+
+    if (nextTheme) {
+      setActiveTheme(nextTheme)
+      themeChanged = true
+    }
+
+    return { applied: htmlChanged || themeChanged, htmlChanged, themeChanged }
+  }
+
   const iframeSrcDoc = (() => {
     if (!html) return ""
     const themeStyle = activeTheme ? `<style>${activeTheme.css}</style>` : ""
@@ -566,6 +652,7 @@ export default function Results() {
   const impactColor = { critical:"text-red-400", serious:"text-orange-400", moderate:"text-yellow-400", minor:"text-blue-400" }
 
   const LAYOUT_TABS = ["typography","spacing","size","colors"]
+  const assistantSelection = buildAssistantSelectionContext(html, selectedEl)
 
   return (
     <div className="flex flex-col min-h-screen text-white relative"
@@ -895,28 +982,68 @@ export default function Results() {
                     )}
 
                     {layoutTab === "colors" && (
-                      <>
-                        <ColorRow label="Text Color"  propKey="color"           value={pendingStyles.color           || "#000000"} onChange={handleColor} />
-                        <ColorRow label="Background"  propKey="backgroundColor" value={pendingStyles.backgroundColor || "#ffffff"} onChange={handleColor} />
-                        
-                        {(() => {
-                          const fg = pendingStyles.color?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [0,0,0]
-                          const bg = pendingStyles.backgroundColor?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [255,255,255]
-                          const lum = ([r,g,b]) => [r,g,b].reduce((s,v,i)=>{ v/=255; v=v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4); return s+v*[0.2126,0.7152,0.0722][i] },0)
-                          const ratio = ((Math.max(lum(fg),lum(bg))+0.05)/(Math.min(lum(fg),lum(bg))+0.05)).toFixed(2)
-                          const pass  = parseFloat(ratio) >= 4.5
-                          return (
-                            <div className={`mt-2 p-2.5 rounded-lg border text-center ${pass ? "bg-green-900/20 border-green-500/20" : "bg-red-900/20 border-red-500/20"}`}>
-                              <div className={`text-lg font-black ${pass ? "text-green-400" : "text-red-400"}`}>{ratio}:1</div>
-                              <div className={`text-[10px] font-semibold ${pass ? "text-green-400" : "text-red-400"}`}>
-                                {pass ? "✓ WCAG AA Pass" : "✗ WCAG AA Fail — min 4.5:1"}
-                              </div>
-                            </div>
-                          )
-                        })()}
-                      </>
-                    )}
-                  </div>
+  <>
+    <ColorRow label="Text Color"  propKey="color"           value={pendingStyles.color           || "#000000"} onChange={handleColor} />
+    <ColorRow label="Background"  propKey="backgroundColor" value={pendingStyles.backgroundColor || "#ffffff"} onChange={handleColor} />
+    
+    {(() => {
+      const fg = pendingStyles.color?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [0,0,0]
+      const bg = pendingStyles.backgroundColor?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [255,255,255]
+      const lum = ([r,g,b]) => [r,g,b].reduce((s,v,i)=>{ v/=255; v=v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4); return s+v*[0.2126,0.7152,0.0722][i] },0)
+      const ratio = ((Math.max(lum(fg),lum(bg))+0.05)/(Math.min(lum(fg),lum(bg))+0.05)).toFixed(2)
+      const pass  = parseFloat(ratio) >= 4.5
+
+      return (
+        <>
+          <div className={`mt-2 p-2.5 rounded-lg border text-center transition-all duration-300 ${pass ? "bg-green-900/20 border-green-500/20" : "bg-red-900/20 border-red-500/20"}`}>
+            <div className={`text-lg font-black ${pass ? "text-green-400" : "text-red-400"}`}>
+              {ratio}:1
+            </div>
+            <div className={`text-[10px] font-semibold ${pass ? "text-green-400" : "text-red-400"}`}>
+              {pass ? "✓ WCAG AA Pass" : "✗ WCAG AA Fail — min 4.5:1"}
+            </div>
+          </div>
+
+          <AssistantDrawer
+            html={html}
+            pageUrl={sessionRef.current?.url || session?.url || ""}
+            sessionId={sessionId}
+            selectedEl={assistantSelection}
+            activeTheme={activeTheme}
+            themeOptions={themes}
+            onApplyPlan={applyAssistantPlan}
+            onSessionId={() => {}}
+            onApplyTheme={(theme) => {
+              const nextTheme = themes.find(
+                item =>
+                  item.id === theme?.id ||
+                  item.name === theme?.name ||
+                  item.id === theme?.themeId ||
+                  item.name === theme?.themeId
+              )
+
+              if (nextTheme) {
+                setActiveTheme(nextTheme)
+                setChanges(prev => [
+                  {
+                    _id: Date.now().toString(),
+                    themeName: `AI Theme: ${nextTheme.name}`,
+                    html: htmlRef?.current || html,
+                    appliedAt: new Date(),
+                  },
+                  ...prev
+                ])
+              }
+            }}
+          />
+        </>
+      )
+    })()}
+  </>
+)}
+
+
+                   </div>
 
                   <div className="flex gap-2 px-3 pb-3">
                     <button onClick={resetLayoutStyles}

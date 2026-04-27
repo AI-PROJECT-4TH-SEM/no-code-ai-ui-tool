@@ -19,6 +19,8 @@
     <div class="tab-row">
       <button class="tab active" data-tab="scan">Scan</button>
       <button class="tab"        data-tab="inspector">📐 Layout</button>
+      <button class="tab"        data-tab="move">🖱 Drag</button>
+      <button class="tab"        data-tab="chat">💬 Chat</button>
       <button class="tab"        data-tab="themes">Themes</button>
       <button class="tab"        data-tab="history">History</button>
     </div>
@@ -110,6 +112,14 @@
         <button id="expand-all-btn"  class="btn-act">↕ Expand</button>
       </div>
 
+      <div id="theme-reco-wrap" class="theme-reco-wrap hidden">
+        <div class="theme-reco-head">
+          <span class="theme-reco-title">🎯 Top 6 Theme Suggestions For This Page</span>
+          <span class="theme-reco-sub">Based on scan score, structure and style context</span>
+        </div>
+        <div id="theme-reco-grid" class="theme-reco-grid"></div>
+      </div>
+
       <div id="suggestions-wrap" class="suggestions-wrap"></div>
     </div>
   </div>
@@ -117,7 +127,6 @@
   
   <div id="tab-inspector" class="tab-panel hidden">
 
-    z
     <div class="li-toggle-row">
       <div class="li-toggle-left">
         <span id="li-dot" class="li-dot li-dot-off"></span>
@@ -237,6 +246,74 @@
   </div>
 
   
+  <div id="tab-move" class="tab-panel hidden">
+    <div class="move-header">
+      <p class="move-desc">Use a small drag handle to rearrange cards, UI blocks, images, files, sections, buttons, spans, and forms like a Kanban board.</p>
+    </div>
+    
+    <div class="move-toggle-row">
+      <div class="move-toggle-left">
+        <span id="move-dot" class="move-dot move-dot-off"></span>
+        <span id="move-status" class="move-status-txt">Drag mode OFF</span>
+      </div>
+      <button id="move-toggle-btn" class="move-toggle-btn">Enable</button>
+    </div>
+
+    <div id="move-idle" class="move-idle">
+      <div class="move-idle-icon">🔀</div>
+      <p class="move-idle-title">Enable drag mode to move any element</p>
+      <p class="move-idle-sub">After enabling, hover an element to reveal its drag handle, then drag from that handle to move or reorder it.</p>
+    </div>
+
+    <div id="move-active" class="move-active hidden">
+      <div class="move-info-box">
+        <div class="move-info-icon">📍</div>
+        <div class="move-info-text">
+          <div class="move-info-title">Drag mode active</div>
+          <div class="move-info-sub" id="move-selected-el">No element selected yet</div>
+        </div>
+      </div>
+
+      <p class="move-tip">Drag from the handle for reorder, or double-click any element to pick it. While picked, it follows your cursor and drops on single click.</p>
+
+      <div class="move-tools">
+        <input id="move-image-input" type="file" accept="image/*" class="hidden">
+        <button id="move-add-image-btn" class="move-tool-btn">🖼 Add Image</button>
+        <button id="move-click-mode-btn" class="move-tool-btn">🎯 Click Move: OFF</button>
+      </div>
+      <p class="move-tip">Click Move mode: click an element once to select it, then click destination to place it smoothly.</p>
+
+      <div class="move-actions">
+        <button id="move-reset-last-btn" class="move-reset-btn">↩ Reset Selected</button>
+        <button id="move-reset-btn" class="move-reset-btn">↩ Reset All Moves</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-chat" class="tab-panel hidden">
+    <div class="chat-head">
+      <div class="chat-title">AI Layout Chatbot</div>
+      <div class="chat-sub">MongoDB-backed chat, no local chat storage</div>
+      <div id="chat-selection" class="chat-selection">Target: whole page</div>
+    </div>
+
+    <div id="chat-messages" class="chat-messages"></div>
+
+    <div class="chat-controls">
+      <label class="chat-check">
+        <input id="chat-auto-apply" type="checkbox" checked />
+        <span>Auto-apply safe changes</span>
+      </label>
+      <button id="chat-load-btn" class="chat-mini-btn">Load DB Chat</button>
+      <button id="chat-clear-btn" class="chat-mini-btn">New Session</button>
+    </div>
+
+    <div class="chat-compose">
+      <textarea id="chat-input" placeholder="Tell chatbot what to change in selected div/section/image..." rows="4"></textarea>
+      <button id="chat-send-btn" class="chat-send-btn">Send</button>
+    </div>
+  </div>
+
   <div id="tab-themes" class="tab-panel hidden">
     <div class="themes-header">
       <p class="themes-desc">Inject a live CSS theme. Resets on page reload.</p>

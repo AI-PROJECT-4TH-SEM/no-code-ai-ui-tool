@@ -1,4 +1,4 @@
-const EXTENSION_ID = "YOUR_EXTENSION_ID_HERE"
+const EXTENSION_ID = "agkigmoblgmnknebhjihfkonjgghjdbm"
 
 export async function checkExtensionInstalled() {
   return new Promise((resolve) => {

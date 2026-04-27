@@ -55,8 +55,47 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case "LOAD_THEME":
       loadThemeMongo().then(sendResponse)
       return true
+    case "EXT_CHAT_SEND":
+      sendExtensionChat(msg.payload).then(sendResponse)
+      return true
+    case "EXT_CHAT_LOAD":
+      loadExtensionChat(msg.payload).then(sendResponse)
+      return true
   }
 })
+
+async function sendExtensionChat(payload) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/extension-chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { success: false, error: data.error || `Server error (${res.status})` }
+    }
+    return { success: true, ...data }
+  } catch (err) {
+    return { success: false, error: "Cannot reach chat API. " + err.message }
+  }
+}
+
+async function loadExtensionChat(payload) {
+  try {
+    const sessionId = encodeURIComponent(payload?.sessionId || "")
+    const url = encodeURIComponent(payload?.url || "")
+    const q = sessionId ? `sessionId=${sessionId}` : (url ? `url=${url}` : "")
+    const res = await fetch(`${BASE_URL}/api/extension-chat${q ? `?${q}` : ""}`)
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { success: false, error: data.error || `Server error (${res.status})` }
+    }
+    return { success: true, ...data }
+  } catch (err) {
+    return { success: false, error: "Cannot load chat history. " + err.message }
+  }
+}
 
 async function handleAnalyse(url) {
   try {
