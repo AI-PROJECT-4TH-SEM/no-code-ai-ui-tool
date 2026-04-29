@@ -2105,12 +2105,25 @@ let chatMessages    = []
 let chatBusy        = false
 let lastPickedForChat = null
 let chatPickModeActive = false
+let lastScanResults = null  // Store scan results for theme optimization
+let lastUserInput   = null  // Store user input for theme optimization
+let currentPageKey  = null
+
+function getPageKey(url) {
+  try {
+    const parsed = new URL(url || currentUrl || location.href)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return String(url || currentUrl || location.href || "").split("#")[0].split("?")[0]
+  }
+}
 
 
 document.addEventListener("DOMContentLoaded", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   currentTabId = tab?.id
   currentUrl   = tab?.url || ""
+  currentPageKey = getPageKey(currentUrl)
   document.getElementById("current-url").textContent = currentUrl
 
 
@@ -2120,8 +2133,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   
-  chrome.runtime.sendMessage({ type:"LOAD_THEME" }).then(res => {
-    activeThemeId = res?.themeId || null
+  chrome.runtime.sendMessage({ type:"LOAD_THEME", pageKey: currentPageKey }).then(res => {
+    activeThemeId = res?.theme?.id || null
     if (activeThemeId) {
       document.querySelector(`.theme-card[data-id="${activeThemeId}"]`)?.classList.add("active-theme")
     }
@@ -2137,6 +2150,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupThemes()
   setupHistory()
   setupGlobalActions()
+  setupAIThemeRefresh()
 })
 
 
@@ -2696,16 +2710,12 @@ async function startScan() {
   const scanBtn = document.getElementById("scan-btn")
   const loading = document.getElementById("loading")
   const results = document.getElementById("results")
-  const recoWrap = document.getElementById("theme-reco-wrap")
-  const recoGrid = document.getElementById("theme-reco-grid")
 
   scanBtn.disabled = true
   scanBtn.innerHTML = "<span>⏳</span> Scanning…"
   loading.classList.remove("hidden")
   document.getElementById("global-actions")?.classList.remove("hidden")
   results.classList.add("hidden")
-  recoWrap?.classList.add("hidden")
-  if (recoGrid) recoGrid.innerHTML = ""
   allExpanded = false; fixApplied = 0; fixTotal = 0
   animateLoadingSteps()
 
@@ -2742,6 +2752,7 @@ function stopLoadingSteps() { clearInterval(stepTimer) }
 
 
 function renderResults({ score, violations, suggestions }) {
+  const pageProfile = buildPageThemeProfile({ url: currentUrl, score, suggestions })
   const arc = document.getElementById("score-arc")
   const C   = 2 * Math.PI * 32
   arc.style.strokeDasharray  = C
@@ -2787,7 +2798,10 @@ function renderResults({ score, violations, suggestions }) {
     score,
     suggestions,
   })
-  renderThemeRecommendations(recommendedThemes)
+  renderThemeRecommendations(recommendedThemes, pageProfile)
+
+  // Generate AI personalized themes based on scan results
+  generateAIThemes({ score, violations, suggestions, url: currentUrl })
 
   const wrap = document.getElementById("suggestions-wrap")
   wrap.innerHTML = ""
@@ -4033,6 +4047,8 @@ function getTopRecommendedThemes({ url, score, suggestions }) {
   const urlText = String(url || "").toLowerCase()
   const suggText = (suggestions || []).map(s => `${s?.id || ""} ${s?.title || ""} ${s?.explanation || ""}`).join(" ").toLowerCase()
   const pageText = `${host} ${urlText} ${suggText}`
+  const pageSeed = buildPageThemeSeed(url, score, suggestions)
+  const pageProfile = buildPageThemeProfile({ url, score, suggestions })
 
   const severeCount = (suggestions || []).filter(s => ["critical", "serious"].includes(String(s.impact || "").toLowerCase())).length
   const lowScore = Number(score || 0) < 65
@@ -4072,6 +4088,14 @@ function getTopRecommendedThemes({ url, score, suggestions }) {
     const bucket = bucketOf(text)
     let rank = 0
 
+    if (pageProfile.tags.institutional && /(premium|dark|clean|editorial|science)/.test(bucket)) rank += 4
+    if (pageProfile.tags.education && /(clean|nature|editorial|general)/.test(bucket)) rank += 4
+    if (pageProfile.tags.science && /(tech|dark|clean|premium)/.test(bucket)) rank += 4
+    if (pageProfile.tags.commerce && /(premium|vibrant|dark|clean)/.test(bucket)) rank += 4
+    if (pageProfile.tags.app && /(tech|clean|dark|general)/.test(bucket)) rank += 4
+    if (pageProfile.tags.content && /(editorial|warm|clean|nature)/.test(bucket)) rank += 4
+    if (pageProfile.tags.auth && /(clean|dark|general)/.test(bucket)) rank += 3
+
     if (pageTags.commerce && /(clean|premium|dark|vibrant)/.test(bucket)) rank += 3
     if (pageTags.content && /(clean|nature|general)/.test(bucket)) rank += 3
     if (pageTags.creative && /(vibrant|tech|dark|premium)/.test(bucket)) rank += 3
@@ -4091,7 +4115,6 @@ function getTopRecommendedThemes({ url, score, suggestions }) {
 
     if (/(minimal|nord|canva|aurora|midnight|ocean|nature|sakura|ice|warm)/.test(text)) rank += 1
 
-    // Deterministic tie-break to avoid same order for every page
     const seedText = `${host}:${score}:${severeCount}:${theme.id}`
     let seed = 0
     for (let i = 0; i < seedText.length; i++) seed = (seed * 31 + seedText.charCodeAt(i)) % 100000
@@ -4105,9 +4128,8 @@ function getTopRecommendedThemes({ url, score, suggestions }) {
   const selected = []
   const usedIds = new Set()
   const bucketCount = new Map()
-  const LIMIT = 10
+  const LIMIT = 6
 
-  // First pass: keep diversity across style buckets
   for (const item of ranked) {
     if (selected.length >= LIMIT) break
     if (usedIds.has(item.theme.id)) continue
@@ -4118,7 +4140,6 @@ function getTopRecommendedThemes({ url, score, suggestions }) {
     bucketCount.set(item.bucket, c + 1)
   }
 
-  // Second pass: fill remaining best-ranked themes
   if (selected.length < LIMIT) {
     for (const item of ranked) {
       if (selected.length >= LIMIT) break
@@ -4128,10 +4149,78 @@ function getTopRecommendedThemes({ url, score, suggestions }) {
     }
   }
 
-  return selected
+  if (!selected.length) return []
+
+  const rotateBy = pageSeed % selected.length
+  return selected.slice(rotateBy).concat(selected.slice(0, rotateBy))
 }
 
-function renderThemeRecommendations(themes) {
+function buildPageThemeSeed(url, score, suggestions) {
+  const seedText = `${String(url || "").toLowerCase()}|${Number(score || 0)}|${(suggestions || []).map(s => `${s?.id || ""}:${s?.impact || ""}`).join(";")}`
+  let seed = 0
+  for (let i = 0; i < seedText.length; i++) {
+    seed = (seed * 31 + seedText.charCodeAt(i)) % 2147483647
+  }
+  return seed
+}
+
+function buildPageThemeProfile({ url, score, suggestions }) {
+  const host = String(url || "").replace(/^https?:\/\/(www\.)?/i, "").split("/")[0].toLowerCase()
+  const text = `${host} ${(suggestions || []).map(s => `${s?.id || ""} ${s?.title || ""} ${s?.explanation || ""}`).join(" ").toLowerCase()}`
+
+  const tags = {
+    education: /(education|school|college|university|course|learn|academy|student|faculty)/.test(text),
+    institutional: /(nasa|isro|government|institute|research|laboratory|lab|official|authority)/.test(text),
+    science: /(science|research|space|data|lab|scientific|engineering|technical)/.test(text),
+    commerce: /(shop|store|cart|product|checkout|ecom|market|pricing|plan|buy)/.test(text),
+    content: /(blog|news|article|docs|documentation|guide|tutorial|read)/.test(text),
+    app: /(saas|dashboard|admin|app|tool|platform|analytics|crm|panel)/.test(text),
+    auth: /(login|signup|register|password|account|profile|settings)/.test(text),
+    health: /(health|medical|clinic|hospital|care|wellness)/.test(text),
+    finance: /(bank|finance|fintech|invest|wallet|payment)/.test(text),
+  }
+
+  const pages = [
+    { name: 'Institutional Science', mood: 'professional', intent: 'best for universities, labs, agencies, and national institutions', paletteModes: ['high-contrast', 'balanced'], directions: ['clean', 'editorial', 'precision', 'structured'], avoid: ['playful', 'candy', 'neon'] },
+    { name: 'Education Editorial', mood: 'calm', intent: 'best for schools, colleges, courses, and learning portals', paletteModes: ['balanced', 'soft'], directions: ['editorial', 'clean', 'warm', 'minimal'], avoid: ['glitch', 'terminal', 'harsh'] },
+    { name: 'Commerce Conversion', mood: 'vibrant', intent: 'best for stores, pricing pages, and conversion-focused flows', paletteModes: ['vibrant', 'balanced'], directions: ['premium', 'clear', 'bold', 'high-contrast'], avoid: ['flat', 'muted'] },
+    { name: 'Application Dashboard', mood: 'modern', intent: 'best for SaaS dashboards, admin panels, and product tools', paletteModes: ['balanced', 'high-contrast'], directions: ['clean', 'tech', 'structured', 'minimal'], avoid: ['ornate', 'decorative'] },
+    { name: 'Content Editorial', mood: 'calm', intent: 'best for blogs, news, knowledge bases, and docs', paletteModes: ['balanced', 'soft'], directions: ['editorial', 'readable', 'clean', 'warm'], avoid: ['loud', 'neon'] },
+    { name: 'General Premium', mood: 'contemporary', intent: 'best for general websites that need a polished modern identity', paletteModes: ['balanced', 'vibrant'], directions: ['premium', 'modern', 'clean', 'polished'], avoid: ['generic', 'plain'] },
+  ]
+
+  if (tags.institutional || tags.science) return { ...pages[0], tags }
+  if (tags.education) return { ...pages[1], tags }
+  if (tags.commerce || tags.finance) return { ...pages[2], tags }
+  if (tags.app || tags.auth) return { ...pages[3], tags }
+  if (tags.content) return { ...pages[4], tags }
+  return { ...pages[5], tags }
+}
+
+function buildPersonaPreviewSwatches(preview, pageProfile, index = 0) {
+  const base = Array.isArray(preview) && preview.length ? preview.slice(0, 3) : ["#0f172a", "#6366f1", "#e5e7eb"]
+  if (!pageProfile) return base
+
+  const personaSwatches = {
+    "Institutional Science": ["#081120", "#1d4ed8", "#e2e8f0"],
+    "Education Editorial": ["#f8fafc", "#2563eb", "#f59e0b"],
+    "Commerce Conversion": ["#111827", "#f97316", "#fde68a"],
+    "Application Dashboard": ["#0f172a", "#06b6d4", "#cbd5e1"],
+    "Content Editorial": ["#fffaf5", "#b91c1c", "#334155"],
+    "General Premium": ["#0b1020", "#8b5cf6", "#f8fafc"],
+  }
+
+  const persona = personaSwatches[pageProfile.name] || personaSwatches["General Premium"]
+  const toneShift = index % 2 === 0 ? 0 : 1
+
+  return [
+    persona[0],
+    base[1] || persona[1 + toneShift] || persona[1],
+    base[2] || persona[2],
+  ]
+}
+
+function renderThemeRecommendations(themes, pageProfile) {
   const wrap = document.getElementById("theme-reco-wrap")
   const grid = document.getElementById("theme-reco-grid")
   if (!wrap || !grid) return
@@ -4148,11 +4237,12 @@ function renderThemeRecommendations(themes) {
   themes.forEach((theme, index) => {
     const row = document.createElement("div")
     row.className = "theme-reco-card"
+    const preview = buildPersonaPreviewSwatches(theme.preview || [], pageProfile, index)
     row.innerHTML = `
       <div class="theme-reco-rank">#${index + 1}</div>
       <div class="theme-reco-main">
         <div class="theme-reco-name">${esc(theme.name)}</div>
-        <div class="theme-reco-swatches">${theme.preview.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div>
+        <div class="theme-reco-swatches">${preview.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div>
       </div>
       <button class="theme-reco-apply" data-theme-id="${theme.id}">Apply</button>
     `
@@ -4161,7 +4251,6 @@ function renderThemeRecommendations(themes) {
     grid.appendChild(row)
   })
 }
-
 
 function setupThemes() {
   const grid = document.getElementById("themes-grid")
@@ -4184,27 +4273,47 @@ function setupThemes() {
 
 async function applyTheme(theme) {
   try {
+    // Step 1: Optimize theme with APIVerve for better contrast
+    let optimizedTheme = theme
+    try {
+      const optimizeRes = await fetch('/api/optimize-theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          theme: theme,
+          userInput: lastUserInput || theme.name || 'modern',
+          scanResults: lastScanResults || {}
+        })
+      })
+
+      if (optimizeRes.ok) {
+        const optimizeData = await optimizeRes.json()
+        if (optimizeData.optimizedTheme) {
+          optimizedTheme = optimizeData.optimizedTheme
+        }
+      }
+    } catch (err) {
+      console.warn('Theme optimization skipped:', err)
+      // Continue with original theme if optimization fails
+    }
+
+    // Step 2: Apply the theme (optimized or original)
     await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
     
-    const resp = await chrome.tabs.sendMessage(currentTabId, { type:"APPLY_THEME", css:theme.css, name:theme.name })
+    const resp = await chrome.tabs.sendMessage(currentTabId, { type:"APPLY_THEME", css:optimizedTheme.css, name:optimizedTheme.name })
     activeThemeId = theme.id
 
-    
     if (resp?.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
 
-   
-    const saveRes = await chrome.runtime.sendMessage({ type:"SAVE_THEME", themeId: theme.id })
+    const saveRes = await chrome.runtime.sendMessage({ type:"SAVE_THEME", pageKey: currentPageKey, theme: optimizedTheme })
     const savedIcon = saveRes?.source === "mongodb" ? "☁️" : "💾"
     const savedTo   = saveRes?.source === "mongodb" ? "Saved to MongoDB" : "Saved locally"
 
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
     document.querySelector(`.theme-card[data-id="${theme.id}"]`)?.classList.add("active-theme")
 
-    if (saveRes?.source === "mongodb") {
-      showToast(` ${theme.name} applied!  Saved to MongoDB`, "success")
-    } else {
-      showToast(` ${theme.name} applied!  Theme server offline`, "info")
-    }
+    const storageMsg = saveRes?.source === "mongodb" ? "Saved to MongoDB" : "Saved locally"
+    showToast(` ${theme.name} applied!  ${storageMsg}`, "success")
     updateDownloadBadge()
   } catch { showToast("Could not apply theme. Reload page and try.", "error") }
 }
@@ -4215,11 +4324,174 @@ async function removeTheme() {
     activeThemeId = null
     if (resp?.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
    
-    await chrome.runtime.sendMessage({ type:"SAVE_THEME", themeId: null }).catch(()=>{})
+    await chrome.runtime.sendMessage({ type:"SAVE_THEME", pageKey: currentPageKey, theme: null }).catch(()=>{})
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
     showToast("Theme removed", "info")
     updateDownloadBadge()
   } catch { showToast("No active theme.", "info") }
+}
+
+
+// AI Theme Suggestions generated after scan
+function buildAIThemePrompt({ score, violations, suggestions, url }) {
+  const issues = Array.isArray(suggestions)
+    ? suggestions.slice(0, 6).map(s => `${s.title || s.id} (${s.impact || "minor"})`).join("; ")
+    : ""
+  const pageSignature = buildPageThemeSeed(url, score, suggestions)
+  const pageProfile = buildPageThemeProfile({ url, score, suggestions })
+
+  return [
+    `Generate themes for the scanned webpage.`,
+    `URL: ${url || "unknown"}`,
+    `Accessibility score: ${score}/100`,
+    `Violations found: ${violations}`,
+    `Page signature: ${pageSignature}`,
+    `Page persona: ${pageProfile.name}`,
+    `Page intent: ${pageProfile.intent}`,
+    `Prefer directions: ${pageProfile.directions.join(', ')}`,
+    `Avoid: ${pageProfile.avoid.join(', ')}`,
+    issues ? `Key issues: ${issues}` : "",
+  ].filter(Boolean).join(" ")
+}
+
+async function generateAIThemes({ score, violations, suggestions, url }) {
+  const wrap = document.getElementById("ai-theme-reco-wrap")
+  const grid = document.getElementById("ai-theme-reco-grid")
+  const loading = document.getElementById("ai-theme-loading")
+  const refreshBtn = document.getElementById("ai-refresh-themes")
+  const randomizeToggle = document.getElementById("ai-randomize-toggle")
+
+  if (!wrap || !grid || !loading) return
+
+  wrap.classList.remove("hidden")
+  loading.classList.remove("hidden")
+  grid.innerHTML = ""
+  if (refreshBtn) refreshBtn.disabled = true
+  // Store scan results for theme optimization
+  lastScanResults = { score, violations, suggestions }
+  lastUserInput = `Webpage with ${score}/100 accessibility score and ${violations || 0} violations`
+
+
+  const payload = {
+    userInput: buildAIThemePrompt({ score, violations, suggestions, url }),
+    scanResults: { score, violations, suggestions },
+    url,
+    randomize: Boolean(randomizeToggle?.checked),
+  }
+
+  try {
+    const response = await fetch(`${BASE_URL}/api/ai-themes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || !data.success || !Array.isArray(data.themes)) {
+      throw new Error(data.error || `Server error: ${response.status}`)
+    }
+
+    renderAIThemeSuggestions(data.themes)
+    showToast(`✨ Generated ${data.count || data.themes.length} AI themes using APIVerve palettes`, "success")
+  } catch (error) {
+    console.error("AI theme generation failed:", error)
+    const fallback = buildFallbackAIThemes({ score, violations, suggestions })
+    renderAIThemeSuggestions(fallback)
+    showToast("AI theme generation fell back to local suggestions", "info")
+  } finally {
+    loading.classList.add("hidden")
+    if (refreshBtn) refreshBtn.disabled = false
+  }
+}
+
+function buildFallbackAIThemes({ score, violations, suggestions }) {
+  const highContrast = score < 50 || (suggestions || []).some(s => ["critical", "serious"].includes(String(s.impact || "").toLowerCase()))
+  const palettes = highContrast
+    ? [
+        ["#0b0f19", "#6366f1", "#f8fafc"],
+        ["#020617", "#38bdf8", "#e2e8f0"],
+        ["#111827", "#f97316", "#fef3c7"],
+        ["#050816", "#22c55e", "#dcfce7"],
+        ["#1a1026", "#ec4899", "#f5d0fe"],
+        ["#0f172a", "#facc15", "#eff6ff"],
+      ]
+    : [
+        ["#f8fafc", "#6366f1", "#111827"],
+        ["#fff7ed", "#f97316", "#431407"],
+        ["#f0fdf4", "#22c55e", "#14532d"],
+        ["#fff1f2", "#db2777", "#4a044e"],
+        ["#ecfeff", "#0ea5e9", "#082f49"],
+        ["#f5f3ff", "#8b5cf6", "#1e1b4b"],
+      ]
+
+  return palettes.map((preview, index) => ({
+    id: `fallback-ai-${index}`,
+    name: `Runtime Theme ${index + 1}`,
+    mood: highContrast ? "High contrast runtime theme" : "Modern runtime theme",
+    description: `Generated locally as a safety fallback for scan score ${score}.`,
+    preview,
+    css: `:root{--bg:${preview[0]};--primary:${preview[1]};--text:${preview[2]}}body{background:${preview[0]}!important;color:${preview[2]}!important}`,
+  }))
+}
+
+function renderAIThemeSuggestions(themes) {
+  const grid = document.getElementById("ai-theme-reco-grid")
+  const wrap = document.getElementById("ai-theme-reco-wrap")
+  if (!grid || !wrap) return
+
+  const safeThemes = Array.isArray(themes) ? themes.slice(0, 6) : []
+  if (!safeThemes.length) {
+    grid.innerHTML = '<div class="ai-theme-error">No AI themes returned.</div>'
+    wrap.classList.remove("hidden")
+    return
+  }
+
+  grid.innerHTML = safeThemes.map((theme, index) => `
+    <div class="ai-theme-card" data-index="${index}">
+      <div class="ai-theme-card-preview">
+        ${(theme.preview || []).slice(0, 3).map(color => `<span class="ai-theme-card-swatch" style="background:${color}"></span>`).join("")}
+      </div>
+      <div class="ai-theme-card-name">${esc(theme.name || `AI Theme ${index + 1}`)}</div>
+      <div class="ai-theme-card-mood">${esc(theme.mood || theme.description || "AI-generated")}</div>
+      <button class="ai-theme-card-apply" data-index="${index}">Apply Theme</button>
+    </div>
+  `).join("")
+
+  grid.querySelectorAll(".ai-theme-card").forEach(card => {
+    const index = Number(card.dataset.index)
+    const theme = safeThemes[index]
+    const applyBtn = card.querySelector(".ai-theme-card-apply")
+
+    applyBtn?.addEventListener("click", async (e) => {
+      e.stopPropagation()
+      if (theme) await applyTheme(theme)
+    })
+
+    card.addEventListener("click", async () => {
+      if (theme) {
+        await applyTheme(theme)
+        showToast(`🎨 ${theme.name} applied`, "success")
+      }
+    })
+  })
+
+  wrap.classList.remove("hidden")
+}
+
+function setupAIThemeRefresh() {
+  document.getElementById("ai-refresh-themes")?.addEventListener("click", () => {
+    if (!lastResults) {
+      showToast("Run a scan first", "info")
+      return
+    }
+
+    generateAIThemes({
+      score: lastResults.score,
+      violations: lastResults.violations,
+      suggestions: lastResults.suggestions,
+      url: currentUrl,
+    })
+  })
 }
 
 

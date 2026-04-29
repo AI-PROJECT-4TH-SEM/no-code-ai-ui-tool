@@ -1,5 +1,6 @@
 const BASE_URL       = "http://localhost:3000"
 const EXTENSION_KEY  = "chai-ke-sath-extension-2025"
+const THEME_PAGE_MAP_KEY = "themeByPageKey"
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
@@ -50,10 +51,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       clearHistory().then(sendResponse)
       return true
     case "SAVE_THEME":
-      saveThemeMongo(msg.themeId).then(sendResponse)
+      saveThemeMongo(msg.themeId, msg.pageKey, msg.theme).then(sendResponse)
       return true
     case "LOAD_THEME":
-      loadThemeMongo().then(sendResponse)
+      loadThemeMongo(msg.pageKey).then(sendResponse)
       return true
     case "EXT_CHAT_SEND":
       sendExtensionChat(msg.payload).then(sendResponse)
@@ -218,8 +219,41 @@ async function getDeviceId() {
   })
 }
 
-async function saveThemeMongo(themeId) {
-  
+function normalizePageKey(url) {
+  if (!url) return ""
+  try {
+    const parsed = new URL(url)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return String(url).split("#")[0].split("?")[0]
+  }
+}
+
+async function saveThemeMongo(themeId, pageKey, theme) {
+  const key = normalizePageKey(pageKey)
+  if (!key) {
+    return { success: false, source: "none", error: "Missing page key" }
+  }
+
+  await new Promise(resolve => {
+    chrome.storage.local.get([THEME_PAGE_MAP_KEY], data => {
+      const map = data[THEME_PAGE_MAP_KEY] || {}
+      if (theme) {
+        map[key] = {
+          id: theme.id || themeId || null,
+          name: theme.name || themeId || null,
+          css: theme.css || null,
+          preview: theme.preview || null,
+          mood: theme.mood || null,
+          savedAt: new Date().toISOString(),
+        }
+      } else {
+        delete map[key]
+      }
+      chrome.storage.local.set({ [THEME_PAGE_MAP_KEY]: map }, resolve)
+    })
+  })
+
   try {
     const deviceId = await getDeviceId()
     const res = await fetch(`${THEME_SERVER}/theme`, {
@@ -229,30 +263,30 @@ async function saveThemeMongo(themeId) {
         "x-extension-key": EXTENSION_KEY,
         "x-device-id":     deviceId,
       },
-      body: JSON.stringify({ themeId, themeName: themeId }),
+      body: JSON.stringify({ themeId: themeId || (theme && theme.id) || null, themeName: (theme && theme.name) || themeId || null, pageKey: key }),
     })
     if (res.ok) return { success: true, source: "mongodb" }
   } catch {  }
 
-  return { success: false, source: "none", error: "Theme server not reachable" }
+  return { success: true, source: "local" }
 }
 
-async function loadThemeMongo() {
- 
-  try {
-    const deviceId = await getDeviceId()
-    const res = await fetch(`${THEME_SERVER}/theme`, {
-      headers: {
-        "x-extension-key": EXTENSION_KEY,
-        "x-device-id":     deviceId,
-      },
-    })
-    if (res.ok) {
-      const data    = await res.json()
-      const themeId = data.themeId || null
-      return { themeId, source: "mongodb" }
-    }
-  } catch {  }
+async function loadThemeMongo(pageKey) {
+  const key = normalizePageKey(pageKey)
+  if (!key) {
+    return { theme: null, source: "none" }
+  }
 
-  return { themeId: null, source: "none" }
+  const localTheme = await new Promise(resolve => {
+    chrome.storage.local.get([THEME_PAGE_MAP_KEY], data => {
+      const map = data[THEME_PAGE_MAP_KEY] || {}
+      resolve(map[key] || null)
+    })
+  })
+
+  if (localTheme) {
+    return { theme: localTheme, source: "local" }
+  }
+
+  return { theme: null, source: "none" }
 }

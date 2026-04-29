@@ -120,6 +120,23 @@
         <div id="theme-reco-grid" class="theme-reco-grid"></div>
       </div>
 
+      <div id="ai-theme-reco-wrap" class="ai-theme-reco-wrap hidden">
+        <div class="ai-theme-reco-head">
+          <span class="ai-theme-reco-title">🤖 AI Personalized Themes</span>
+          <span class="ai-theme-reco-sub">Custom themes generated based on your page analysis</span>
+          <label class="ai-randomize-toggle" title="Use true random seed for every generation">
+            <input id="ai-randomize-toggle" type="checkbox" />
+            <span>Randomize</span>
+          </label>
+          <button id="ai-refresh-themes" class="btn-ai-refresh" title="Regenerate themes">🔄</button>
+        </div>
+        <div id="ai-theme-reco-grid" class="ai-theme-reco-grid"></div>
+        <div id="ai-theme-loading" class="ai-theme-loading hidden">
+          <div class="ai-loading-spinner"></div>
+          <span>AI is analyzing your page and generating custom themes...</span>
+        </div>
+      </div>
+
       <div id="suggestions-wrap" class="suggestions-wrap"></div>
     </div>
   </div>

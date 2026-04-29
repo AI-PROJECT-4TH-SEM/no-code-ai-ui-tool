@@ -2,6 +2,35 @@ const THEME_ID   = "__cksa_theme"
 const OVERLAY_ID = "__cksa_overlay"
 const PANEL_ID   = "__cksa_panel"
 const BADGE_ID   = "__cksa_badge"
+let lastThemePageKey = null
+
+function normalizePageKey(url) {
+  if (!url) return ""
+  try {
+    const parsed = new URL(url, location.origin)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return String(url).split("#")[0].split("?")[0]
+  }
+}
+
+async function syncThemeForCurrentPage(force = false) {
+  const pageKey = normalizePageKey(location.href)
+  if (!pageKey) return
+  if (!force && pageKey === lastThemePageKey) return
+  lastThemePageKey = pageKey
+
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "LOAD_THEME", pageKey })
+    if (res?.theme?.css) {
+      injectCSS(res.theme.css)
+    } else {
+      removeCSS()
+    }
+  } catch {
+    removeCSS()
+  }
+}
 
 let inspectorActive = false
 let selectedEl      = null
@@ -79,6 +108,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       try {
         pushUndo("Theme: " + (msg.name || "applied"))
         injectCSS(msg.css)
+        lastThemePageKey = normalizePageKey(location.href)
         sendResponse({ success: true, ...stackState() })
       }
       catch (e) { undoStack.pop(); sendResponse({ success: false, error: e.message }) }
@@ -87,6 +117,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case "REMOVE_THEME":
       pushUndo("Remove theme")
       removeCSS()
+      lastThemePageKey = normalizePageKey(location.href)
       sendResponse({ success: true, ...stackState() })
       return true
 
@@ -2114,3 +2145,13 @@ ${layoutMarkings.length > 0 ? `console.log('Applied Layout Changes:', ${JSON.str
     return { success: false, error: "Download failed: " + e.message }
   }
 }
+
+syncThemeForCurrentPage(true).catch(() => {})
+
+let themePageWatchHref = location.href
+setInterval(() => {
+  if (location.href !== themePageWatchHref) {
+    themePageWatchHref = location.href
+    syncThemeForCurrentPage(true).catch(() => {})
+  }
+}, 800)
