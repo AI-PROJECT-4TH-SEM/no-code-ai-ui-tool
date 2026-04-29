@@ -83,10 +83,15 @@ async function sendExtensionChat(payload) {
 
 async function loadExtensionChat(payload) {
   try {
-    const sessionId = encodeURIComponent(payload?.sessionId || "")
-    const url = encodeURIComponent(payload?.url || "")
-    const q = sessionId ? `sessionId=${sessionId}` : (url ? `url=${url}` : "")
-    const res = await fetch(`${BASE_URL}/api/extension-chat${q ? `?${q}` : ""}`)
+    const sessionId = payload?.sessionId ? encodeURIComponent(payload.sessionId) : null
+    const url = payload?.url ? encodeURIComponent(payload.url) : null
+    let query = ""
+    if (sessionId) {
+      query = `?sessionId=${sessionId}`
+    } else if (url) {
+      query = `?url=${url}`
+    }
+    const res = await fetch(`${BASE_URL}/api/extension-chat${query}`)
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       return { success: false, error: data.error || `Server error (${res.status})` }

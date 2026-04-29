@@ -2083,6 +2083,7 @@ const THEMES = [
 
 
 const domFixMap = new Map()
+const BASE_URL = "http://localhost:3000"
 
 let layoutChangeCount = 0
 
@@ -2103,6 +2104,7 @@ let chatSessionId   = null
 let chatMessages    = []
 let chatBusy        = false
 let lastPickedForChat = null
+let chatPickModeActive = false
 
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -2147,7 +2149,14 @@ function setupTabs() {
       btn.classList.add("active")
       document.getElementById(`tab-${name}`)?.classList.remove("hidden")
       if (name === "history") renderHistory()
-      if (name === "chat") renderChatMessages()
+      if (name === "chat") {
+        chatPickModeActive = true
+        chrome.tabs.sendMessage(currentTabId, { type: "ENABLE_CHAT_PICK_MODE" }).catch(() => {})
+        renderChatMessages()
+      } else {
+        chatPickModeActive = false
+        chrome.tabs.sendMessage(currentTabId, { type: "DISABLE_CHAT_PICK_MODE" }).catch(() => {})
+      }
     })
   })
 }
@@ -2163,10 +2172,25 @@ function setupChatbot() {
   if (!chatMessages.length) {
     chatMessages = [{
       role: "assistant",
-      content: "I can suggest and apply layout changes, WCAG contrast fixes, and theme updates. If you clicked an element in Layout tab, I will target that selection.",
+      content: "🎨 I can directly modify any element! Just click on any element below and give me instructions like 'change color to yellow', 'make bigger', 'increase font size', 'add padding', etc.",
     }]
   }
   renderChatMessages()
+
+  // Listen for element picks from chat tab
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "CHAT_ELEMENT_PICKED") {
+      lastPickedForChat = {
+        selector: msg.info.selector,
+        tag: msg.info.tag,
+        label: msg.info.label,
+        id: msg.info.id,
+        className: msg.info.className,
+      }
+      renderChatMessages()
+      showToast(`✅ Selected: ${msg.info.label}`, "success")
+    }
+  })
 
   sendBtn.addEventListener("click", async () => {
     const instruction = (input.value || "").trim()
@@ -2178,20 +2202,33 @@ function setupChatbot() {
     setChatBusy(true)
 
     try {
+      console.log("📤 Sending chat instruction to Cohere...", instruction)
+      
       const payload = {
         sessionId: chatSessionId,
         instruction,
         url: currentUrl,
         selectedElement: lastPickedForChat,
       }
+      
       const resp = await chrome.runtime.sendMessage({ type: "EXT_CHAT_SEND", payload })
+      console.log("📥 Received response from background:", resp)
+      
       if (!resp?.success) {
-        chatMessages.push({ role: "assistant", content: "Chat request failed: " + (resp?.error || "Unknown error") })
+        const errorMsg = "Chat request failed: " + (resp?.error || "Unknown error")
+        console.error("❌", errorMsg)
+        chatMessages.push({ role: "assistant", content: errorMsg })
         renderChatMessages()
+        showToast(errorMsg, "error")
         return
       }
 
       chatSessionId = resp.sessionId || chatSessionId
+      console.log("✅ Chat session:", chatSessionId)
+
+      // Ensure actions array is properly formatted
+      const actions = Array.isArray(resp.actions) ? resp.actions : []
+      console.log("📦 Actions to apply:", actions.length)
 
       chatMessages.push({
         role: "assistant",
@@ -2199,23 +2236,30 @@ function setupChatbot() {
         plan: {
           layout: resp.layoutSuggestions || [],
           contrast: resp.contrastSuggestions || [],
-          themes: resp.themeSuggestions || [],
-          actions: resp.actions || [],
+          actions: actions,
         }
       })
       renderChatMessages()
 
-      const autoApply = document.getElementById("chat-auto-apply")?.checked
+      const autoApply = document.getElementById("chat-auto-apply")?.checked ?? true
       if (autoApply) {
-        const appliedCount = await applyChatActions(resp.actions || [])
+        console.log("🔄 Auto-applying", actions.length, "actions...")
+        const appliedCount = await applyChatActions(actions)
+        console.log("✅ Applied", appliedCount, "actions successfully")
+        
         if (appliedCount > 0) {
-          showToast(`✅ Chatbot applied ${appliedCount} change${appliedCount !== 1 ? "s" : ""}`, "success")
+          showToast(`✅ Applied ${appliedCount} change${appliedCount !== 1 ? "s" : ""}`, "success")
           updateDownloadBadge()
+        } else if (actions.length > 0) {
+          showToast("⚠️ Actions generated but could not apply to page. Check element selector.", "warning")
         }
       }
     } catch (err) {
-      chatMessages.push({ role: "assistant", content: "Chat failed: " + err.message })
+      console.error("❌ Chat error:", err)
+      const errorMsg = "Chat failed: " + err.message
+      chatMessages.push({ role: "assistant", content: errorMsg })
       renderChatMessages()
+      showToast(errorMsg, "error")
     } finally {
       setChatBusy(false)
     }
@@ -2252,9 +2296,167 @@ function setupChatbot() {
 
   clearBtn?.addEventListener("click", () => {
     chatSessionId = null
-    chatMessages = [{ role: "assistant", content: "Started a new MongoDB chat session." }]
+    chatMessages = [{ role: "assistant", content: "🆕 Started a new MongoDB chat session." }]
     renderChatMessages()
+    showToast("New session started", "success")
   })
+
+  // 📚 History Button Handler
+  const historyBtn = document.getElementById("chat-history-btn")
+  const historyModal = document.getElementById("chat-history-modal")
+  const historyClose = document.getElementById("chat-history-close")
+  const historyClearAll = document.getElementById("chat-history-clear-all")
+
+  historyBtn?.addEventListener("click", async () => {
+    console.log("📂 Opening chat history modal...")
+    if (historyModal) historyModal.classList.remove("hidden")
+    
+    const historyList = document.getElementById("chat-history-list")
+    if (!historyList) {
+      console.warn("⚠️ History list element not found")
+      return
+    }
+    
+    // Show loading state
+    historyList.innerHTML = '<div class="chat-history-empty">Loading history...</div>'
+    
+    // Load all sessions from MongoDB with improved error handling
+    try {
+      const res = await fetch(`${BASE_URL}/api/extension-chat/sessions`, {
+        timeout: 5000 // 5 second timeout
+      })
+      
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`)
+      }
+      
+      const data = await res.json()
+      const sessions = (data?.sessions && Array.isArray(data.sessions)) ? data.sessions : []
+      
+      console.log("📊 Loaded", sessions.length, "sessions from MongoDB")
+      
+      if (!sessions.length) {
+        historyList.innerHTML = '<div class="chat-history-empty">No chat history yet.</div>'
+        return
+      }
+      
+      historyList.innerHTML = sessions.map((session, idx) => {
+        // Validate session data
+        const sessionId = session?.sessionId || "unknown"
+        const createdAt = session?.createdAt ? new Date(session.createdAt).toLocaleString() : 'Unknown date'
+        const messages = Array.isArray(session?.messages) ? session.messages : []
+        const preview = messages.length > 0 && messages[0]?.content 
+          ? messages[0].content.substring(0, 50) + '...' 
+          : 'No messages'
+        
+        return `
+          <div class="chat-history-item" data-session-id="${sessionId}">
+            <div class="chat-history-item-time">${createdAt}</div>
+            <div class="chat-history-item-text">${preview}</div>
+            <div style="font-size:9px;color:#3d4f6a;margin-top:2px;">
+              ${messages.length} message${messages.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        `
+      }).join("")
+      
+      // Add click handlers to history items
+      historyList.querySelectorAll(".chat-history-item").forEach(item => {
+        item.addEventListener("click", async () => {
+          const sessionId = item.getAttribute("data-session-id")
+          if (!sessionId || sessionId === "unknown") {
+            showToast("Invalid session ID", "error")
+            return
+          }
+          console.log("🔄 Restoring session:", sessionId)
+          await loadChatSession(sessionId)
+          if (historyModal) historyModal.classList.add("hidden")
+        })
+      })
+    } catch (err) {
+      console.error("❌ Error loading history:", err)
+      historyList.innerHTML = `
+        <div class="chat-history-empty" style="color: #e74c3c;">
+          ⚠️ Failed to load history<br>
+          <small>${err.message}</small>
+        </div>
+      `
+      showToast("Failed to load chat history: " + err.message, "error")
+    }
+  })
+
+  historyClose?.addEventListener("click", () => {
+    if (historyModal) historyModal.classList.add("hidden")
+  })
+
+  historyClearAll?.addEventListener("click", async () => {
+    if (!confirm("🗑 Delete ALL chat history? This cannot be undone.")) return
+    
+    try {
+      console.log("🗑 Clearing all chat history...")
+      const res = await fetch(`${BASE_URL}/api/extension-chat/sessions`, {
+        method: "DELETE",
+        timeout: 5000
+      })
+      
+      if (!res.ok) {
+        throw new Error(`Failed to clear (${res.status})`)
+      }
+      
+      const data = await res.json()
+      const deletedCount = data?.deletedCount || 0
+      console.log("✅ Cleared", deletedCount, "sessions")
+      
+      const historyList = document.getElementById("chat-history-list")
+      if (historyList) {
+        historyList.innerHTML = '<div class="chat-history-empty">No chat history.</div>'
+      }
+      
+      showToast("✅ All chat history cleared", "success")
+    } catch (err) {
+      console.error("❌ Error clearing history:", err)
+      showToast("Failed to clear history: " + err.message, "error")
+    }
+  })
+}
+
+async function loadChatSession(sessionId) {
+  try {
+    console.log("📂 Loading session:", sessionId)
+    
+    // Query the specific session directly instead of fetching all
+    const res = await fetch(`${BASE_URL}/api/extension-chat?sessionId=${encodeURIComponent(sessionId)}`, {
+      timeout: 5000
+    })
+    
+    if (!res.ok) {
+      throw new Error(`Failed to load session (${res.status})`)
+    }
+    
+    const data = await res.json()
+    const messages = Array.isArray(data?.messages) ? data.messages : []
+    
+    if (!messages.length) {
+      showToast("Session is empty or not found", "warning")
+      return
+    }
+    
+    console.log("✅ Found session with", messages.length, "messages")
+    
+    chatSessionId = sessionId
+    chatMessages = messages.map(m => ({
+      role: m?.role || "user",
+      content: m?.content || "",
+      plan: m?.meta || null
+    })).filter(m => m.content) // Filter out empty messages
+    
+    renderChatMessages()
+    showToast("✅ Chat session restored", "success")
+  } catch (err) {
+    console.error("❌ Error loading session:", err)
+    showToast("Failed to load session: " + err.message, "error")
+    // Keep current session on error
+  }
 }
 
 function setChatBusy(isBusy) {
@@ -2287,11 +2489,10 @@ function renderChatMessages() {
     if (msg.role === "assistant" && msg.plan) {
       const layoutN = Array.isArray(msg.plan.layout) ? msg.plan.layout.length : 0
       const contrastN = Array.isArray(msg.plan.contrast) ? msg.plan.contrast.length : 0
-      const themeN = Array.isArray(msg.plan.themes) ? msg.plan.themes.length : 0
       const actionN = Array.isArray(msg.plan.actions) ? msg.plan.actions.length : 0
       const info = document.createElement("div")
       info.className = "chat-plan"
-      info.textContent = `layout ${layoutN} · contrast ${contrastN} · themes ${themeN} · actions ${actionN}`
+      info.textContent = `layout ${layoutN} · contrast ${contrastN} · actions ${actionN}`
       wrap.appendChild(info)
     }
 
@@ -2301,24 +2502,74 @@ function renderChatMessages() {
 }
 
 async function applyChatActions(actions) {
-  if (!Array.isArray(actions) || !actions.length) return 0
-  await chrome.scripting.executeScript({ target:{ tabId: currentTabId }, files:["content.js"] }).catch(() => {})
+  if (!Array.isArray(actions) || !actions.length) {
+    console.log("ℹ️  No actions to apply")
+    return 0
+  }
+  
+  console.log("📝 Applying", actions.length, "actions to tab", currentTabId)
+  console.log("Actions:", JSON.stringify(actions, null, 2))
+  
+  // Ensure content script is loaded
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: currentTabId },
+      files: ["content.js"]
+    }).catch(() => {
+      console.warn("⚠️  Content script already loaded")
+    })
+  } catch (err) {
+    console.error("❌ Failed to inject content script:", err)
+  }
 
   let applied = 0
+  let failed = 0
+  const failedReasons = []
+  
   for (const action of actions) {
-    if (action?.kind === "domFix" && action.fix) {
-      const resp = await chrome.tabs.sendMessage(currentTabId, { type: "APPLY_FIX", domFix: action.fix }).catch(() => null)
-      if (resp?.success) {
-        applied++
-        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+    try {
+      const fixType = action?.fix?.type || "unknown"
+      const selector = action?.fix?.selector || "no-selector"
+      console.log(`🔧 Applying action ${applied + failed + 1}/${actions.length}:`, fixType, "selector:", selector)
+      
+      if (action?.kind === "domFix" && action.fix) {
+        const resp = await chrome.tabs.sendMessage(currentTabId, {
+          type: "APPLY_FIX",
+          domFix: action.fix
+        }).catch((err) => {
+          console.error("❌ Message delivery error:", err.message)
+          return { success: false, error: "Message failed: " + err.message }
+        })
+        
+        if (resp?.success) {
+          applied++
+          console.log(`✅ Applied [${applied}]:`, resp.result)
+          if (resp.canUndo !== undefined) {
+            setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+          }
+        } else {
+          failed++
+          const reason = resp?.error || "Unknown error (no response)"
+          failedReasons.push(`${fixType} on "${selector}": ${reason}`)
+          console.error(`❌ Failed [${failed}]:`, reason)
+        }
+      } else {
+        failed++
+        const reason = `Invalid action format: missing kind or fix object`
+        failedReasons.push(reason)
+        console.warn("⚠️  Invalid action format:", action)
       }
-    } else if (action?.kind === "theme" && action.themeId) {
-      const theme = THEMES.find(t => t.id === action.themeId)
-      if (theme) {
-        await applyTheme(theme)
-        applied++
-      }
+    } catch (err) {
+      failed++
+      const reason = `Exception: ${err.message}`
+      failedReasons.push(reason)
+      console.error("❌ Exception applying action:", err)
     }
+  }
+  
+  console.log(`\n📊 RESULTS: ${applied}/${actions.length} applied, ${failed} failed`)
+  if (failed > 0) {
+    console.log("Failed actions:", failedReasons)
   }
   return applied
 }
@@ -2782,27 +3033,32 @@ async function downloadAllChanges() {
   try {
     await chrome.scripting.executeScript({ target: { tabId: currentTabId }, files: ["content.js"] }).catch(() => {})
     
-    // PRODUCTION: If drag mode is active, capture drag modifications instead
-    let resp = null
-    if (dragModeActive && dragChangesExist) {
-      resp = await chrome.tabs.sendMessage(currentTabId, { type: "CAPTURE_DOWNLOAD" })
-      if (resp?.success) {
-        // Download drag-modified page directly
-        const blob = new Blob([resp.html], { type: "text/html;charset=utf-8" })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement("a")
-        const now = new Date()
-        const timestamp = now.toISOString().slice(0,19).replace(/:/g, "-")
-        link.href = url
-        link.download = `page-modified-${timestamp}.html`
-        link.click()
-        URL.revokeObjectURL(url)
-        showToast("✅ Page downloaded with all drag changes", "success")
-        btn.innerHTML = origHTML; btn.disabled = false; return
-      }
+    // Try to capture ALL modifications (chat fixes, drag changes, theme changes)
+    let resp = await chrome.tabs.sendMessage(currentTabId, { type: "CAPTURE_DOWNLOAD" })
+    
+    if (resp?.success && resp.html) {
+      // Use the comprehensive capture with all CSS and modifications
+      const blob = new Blob([resp.html], { type: "text/html;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const now = new Date()
+      const timestamp = now.toISOString().slice(0,19).replace(/:/g, "-")
+      const domain = currentUrl.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
+      const safeName = (domain || "page").replace(/[^a-z0-9]/gi, "-").toLowerCase()
+      
+      link.href = url
+      link.download = `${safeName}-modified-${timestamp}.html`
+      link.click()
+      URL.revokeObjectURL(url)
+      
+      const msg = `✅ Downloaded with ${resp.modifiedElements || 0} modified element(s) and ${resp.layoutChanges || 0} layout change(s)`
+      showToast(msg, "success")
+      btn.innerHTML = origHTML
+      btn.disabled = false
+      return
     }
     
-    // Fall back to GET_HTML for other changes
+    // Fall back to GET_HTML for other changes (legacy support)
     resp = await chrome.tabs.sendMessage(currentTabId, { type: "GET_HTML" })
     if (!resp?.html) {
       showToast("Could not read page HTML.", "error")
@@ -2993,7 +3249,7 @@ async function downloadAllChanges() {
     setTimeout(() => { URL.revokeObjectURL(htmlUrl); URL.revokeObjectURL(cssUrl) }, 10000)
 
     btn.innerHTML = '<span class="ga-icon">✅</span><span class="ga-label">2 Files!</span>'
-    showToast(" Downloaded HTML + CSS!", "success")
+    showToast("✅ Downloaded HTML + CSS!", "success")
     setTimeout(() => { btn.innerHTML = origHTML; btn.disabled = false; updateDownloadBadge() }, 4000)
 
   } catch (err) {
@@ -3204,6 +3460,23 @@ function setupInspector() {
     document.getElementById("li-bg-hex").textContent = e.target.value
     sendToPage({ type: "APPLY_LIVE_STYLE", selector: inspEl, prop: "backgroundColor", value: e.target.value })
     updateContrastDisplay()
+  })
+
+  document.getElementById("li-text-replace-btn")?.addEventListener("click", async () => {
+    await applyInspectorTextChange("replace")
+  })
+
+  document.getElementById("li-text-clear-btn")?.addEventListener("click", async () => {
+    const input = document.getElementById("li-text-input")
+    if (input) input.value = ""
+    await applyInspectorTextChange("replace")
+  })
+
+  document.getElementById("li-text-input")?.addEventListener("keydown", async (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault()
+      await applyInspectorTextChange("replace")
+    }
   })
 }
 
@@ -3489,7 +3762,53 @@ function populateEditor(msg) {
   if (cp) { cp.value = color; document.getElementById("li-color-hex").textContent = color }
   if (bp) { bp.value = bg;    document.getElementById("li-bg-hex").textContent    = bg    }
 
+  const currentText = typeof msg.currentText === "string" ? msg.currentText : ""
+  const currentTextEl = document.getElementById("li-current-text")
+  const textInput = document.getElementById("li-text-input")
+  if (currentTextEl) currentTextEl.textContent = currentText || "Selected element has no text"
+  if (textInput) textInput.value = currentText
+
   updateContrastDisplay()
+}
+
+async function applyInspectorTextChange(mode = "replace") {
+  if (!inspEl) {
+    showToast("Pick an element first", "info")
+    return
+  }
+
+  const input = document.getElementById("li-text-input")
+  const currentTextEl = document.getElementById("li-current-text")
+  const textValue = input ? input.value : ""
+
+  const replaceBtn = document.getElementById("li-text-replace-btn")
+  const clearBtn = document.getElementById("li-text-clear-btn")
+  if (replaceBtn) replaceBtn.disabled = true
+  if (clearBtn) clearBtn.disabled = true
+
+  try {
+    await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+    const resp = await chrome.tabs.sendMessage(currentTabId, {
+      type: "APPLY_TEXT_CONTENT",
+      selector: inspEl,
+      text: textValue,
+      mode,
+    })
+
+    if (resp?.success) {
+      if (currentTextEl) currentTextEl.textContent = textValue || "(empty text)"
+      if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+      updateDownloadBadge()
+      showToast("✅ Text updated", "success")
+    } else {
+      showToast("Text update failed: " + (resp?.error || "Unknown"), "error")
+    }
+  } catch (e) {
+    showToast("Could not update text on page.", "error")
+  } finally {
+    if (replaceBtn) replaceBtn.disabled = false
+    if (clearBtn) clearBtn.disabled = false
+  }
 }
 
 function setVal(id, v) {

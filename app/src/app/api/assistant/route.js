@@ -98,42 +98,113 @@ export async function POST(req) {
       })),
     }
 
-    const prompt = `You are a precise UI modification assistant that applies ONLY requested changes.
-Return ONLY valid JSON. No markdown, no code fences, no commentary.
+    const prompt = `You are a comprehensive UI/UX modification system supporting ALL modern CSS features and structural DOM changes.
+Parse user instructions literally. Apply ONLY requested changes. No suggestions or alternatives.
+Return ONLY valid JSON with no markdown, code fences, or commentary.
 
-**CRITICAL - READ THIS CAREFULLY:**
-The user has selected an element and given you an instruction.
-Apply ONLY the exact change they asked for. Nothing else.
+**COMPREHENSIVE ACTION TYPES REFERENCE:**
 
-**YOUR RESPONSE MUST:**
-- Have a reply that is ONLY a simple confirmation (1 sentence max)
-- NEVER mention suggestions, improvements, layout, contrast, or themes in the reply
-- Example good reply: "Changed font size to 18px."
+=== COLORS & BACKGROUNDS ===
+- "change background to RED" → type: "setBackgroundColorAdvanced", styleValue: "#ff0000"
+- "gradient from blue to purple" → type: "setGradientBackground", colors: ["#0000ff", "#800080"]
+- "change text color to white" → type: "setColorAdvanced", styleValue: "#ffffff"
+- "change icon color to green" → type: "setIconColorAdvanced", styleValue: "#00ff00"
 
-**RULES:**
-- NEVER return ANY suggestions, themes, or additional information
-- Only return actions for the EXACT change requested
-- NEVER suggest, interpret, or add extra features
-- NEVER apply, recommend, or mention themes
+=== SIZING & SPACING ===
+- "make it wider" → type: "setStyleImportant", style: "width", styleValue: "100%"
+- "increase padding" → type: "setStyleImportant", style: "padding", styleValue: "20px"
+- "add margin" → type: "setStyleImportant", style: "margin", styleValue: "16px"
+- "set height to 300px" → type: "setStyleImportant", style: "height", styleValue: "300px"
+- "max-width 500px" → type: "setStyleImportant", style: "maxWidth", styleValue: "500px"
 
-User instruction: "${instruction}"
+=== BORDERS & CORNERS ===
+- "add border" → type: "setBorderAdvanced", styleValue: "2px solid #333"
+- "round corners" → type: "setStyleImportant", style: "borderRadius", styleValue: "12px"
+- "dashed border" → type: "setBorderAdvanced", styleValue: "2px dashed #999"
 
-Context:
-${JSON.stringify(payload, null, 2)}
+=== TYPOGRAPHY ===
+- "bigger font" → type: "setStyleImportant", style: "fontSize", styleValue: "24px"
+- "bold text" → type: "setStyleImportant", style: "fontWeight", styleValue: "700"
+- "line height 1.8" → type: "setStyleImportant", style: "lineHeight", styleValue: "1.8"
+- "letter spacing" → type: "setStyleImportant", style: "letterSpacing", styleValue: "1px"
+- "uppercase" → type: "setTextAdvanced", styleValue: "uppercase"
 
-Return ONLY this JSON:
+=== FLEXBOX ===
+- "flex layout" → type: "setStyleImportant", style: "display", styleValue: "flex"
+- "center items" → type: "setFlexboxAdvanced", styleValue: "center"
+- "space between" → type: "setFlexboxAdvanced", styleValue: "space-between"
+- "column direction" → type: "setFlexboxAdvanced", styleValue: "column"
+- "gap 16px" → type: "setStyleImportant", style: "gap", styleValue: "16px"
+
+=== GRID ===
+- "grid layout" → type: "setStyleImportant", style: "display", styleValue: "grid"
+- "3 columns" → type: "setGridAdvanced", styleValue: "repeat(3, 1fr)"
+- "gap between items" → type: "setStyleImportant", style: "gap", styleValue: "20px"
+
+=== POSITIONING ===
+- "fixed position" → type: "setStyleImportant", style: "position", styleValue: "fixed"
+- "absolute" → type: "setStyleImportant", style: "position", styleValue: "absolute"
+- "z-index 1000" → type: "setStyleImportant", style: "zIndex", styleValue: "1000"
+- "sticky" → type: "setStyleImportant", style: "position", styleValue: "sticky"
+
+=== SHADOWS & EFFECTS ===
+- "add shadow" → type: "setShadowEffect", styleValue: "0 4px 12px rgba(0,0,0,0.15)"
+- "text shadow" → type: "setStyleImportant", style: "textShadow", styleValue: "2px 2px 4px rgba(0,0,0,0.3)"
+- "blur filter" → type: "setComplexStyle", styleValue: "filter: blur(8px)"
+- "opacity" → type: "setStyleImportant", style: "opacity", styleValue: "0.8"
+- "backdrop blur" → type: "setComplexStyle", styleValue: "backdrop-filter: blur(10px)"
+
+=== TRANSFORMS & ANIMATIONS ===
+- "rotate 45 degrees" → type: "setComplexStyle", styleValue: "transform: rotate(45deg)"
+- "scale up" → type: "setComplexStyle", styleValue: "transform: scale(1.2)"
+- "smooth transition" → type: "setTransitionAnimations", styleValue: "all 0.3s ease"
+- "animation" → type: "setTransitionAnimations", styleValue: "spin 2s linear infinite"
+
+=== DISPLAY & VISIBILITY ===
+- "hide it" → type: "setStyleImportant", style: "display", styleValue: "none"
+- "show it" → type: "setStyleImportant", style: "display", styleValue: "block"
+- "invisible" → type: "setStyleImportant", style: "visibility", styleValue: "hidden"
+
+=== STRUCTURAL CHANGES (DOM) ===
+- "wrap this in a div" → type: "setStructuralChange", action: "wrap", tag: "div"
+- "make it a section" → type: "setStructuralChange", action: "replaceTag", tag: "section"
+- "add a container" → type: "setStructuralChange", action: "wrapElement", tag: "div", classes: ["container"]
+
+**CRITICAL RULES:**
+1. ALWAYS include selector as CSS path (e.g., "#vector-main-menu-dropdown-checkbox" or ".button-primary" or "header > nav > ul")
+2. For complex selectors, try direct ID/class first, then nth-child fallback
+3. NEVER suggest themes, layouts redesigns, or additional changes
+4. Use exact user instruction language in reply
+5. Apply ONLY what user explicitly requests
+6. For colors: validate hex format (#RRGGBB)
+7. Multiple selectors: create separate actions
+
+**SELECTOR RESOLUTION:**
+- If user says "the button": use closest button selector
+- If user says "#id-name": use exactly "#id-name"  
+- If user says "the header": try "header", "header", ".header", "[role='banner']"
+- Complex paths: "div.container > button.primary"
+
+**YOUR RESPONSE:**
+- reply: 1 sentence confirming EXACTLY what you changed (use user's words)
+- actions: array of domFix objects with complete fix specifications
+
+User: "${instruction}"
+
+Return ONLY valid JSON (no markdown):
 {
-  "reply": "1-sentence confirmation. No suggestions.",
+  "reply": "Done. [Specific change description]",
   "actions": [
     {
       "kind": "domFix",
       "fix": {
-        "type": "setStyle | setStyleImportant | setAttribute",
-        "selector": "css selector",
-        "style": "property name",
-        "styleValue": "value with unit"
+        "type": "action type from above",
+        "selector": "valid css selector string",
+        "style": "css property name or null",
+        "styleValue": "complete value including units",
+        "colors": ["#color1", "#color2"] (if gradient)
       },
-      "reason": "what changed"
+      "reason": "why this change"
     }
   ]
 }
@@ -142,6 +213,8 @@ Return ONLY this JSON:
     const response = await cohere.chat({
       model: "command-a-03-2025",
       message: prompt,
+      max_tokens: 800,
+      temperature: 0.3,
     })
 
     const raw = String(response.text || "").replace(/```json|```/g, "").trim()
@@ -152,29 +225,33 @@ Return ONLY this JSON:
         reply: "I could not parse your request. Please try again.",
         layoutSuggestions: [],
         contrastSuggestions: [],
-        themeSuggestions: [],
         actions: [],
       })
     }
 
-    // Check if user explicitly asked for theme changes with VERY strict keywords
-    const instructionLower = instruction.toLowerCase()
-    const askedForTheme = /\bapply\s+theme|\bchange\s+theme|\bswitch\s+theme|\buse\s+theme|\bdark\s+theme|\blight\s+theme|\bapply\s+dark|\bapply\s+light/.test(instructionLower)
-
-    // Filter actions: only include theme actions if user explicitly asked for them
+    // Filter and validate actions with advanced color support
     const filteredActions = (Array.isArray(parsed.actions) ? parsed.actions : []).filter(action => {
-      if (action.kind === "theme") {
-        return askedForTheme
+      return action.kind === "domFix" && action.fix && action.fix.type
+    }).map(action => {
+      // Normalize action structure
+      return {
+        kind: "domFix",
+        fix: {
+          type: action.fix.type,
+          selector: action.fix.selector || "",
+          style: action.fix.style || null,
+          styleValue: action.fix.styleValue || "",
+          colors: action.fix.colors || [],
+        },
+        reason: action.reason || ""
       }
-      return true
     })
 
-    // ALWAYS force empty suggestion arrays - never return suggestions
+    // Return optimized response
     const normalized = {
       reply: String(parsed.reply || "Done.").replace(/suggestions?.*(focus|improve|better|readability|contrast|layout|visual)/gi, "").trim(),
       layoutSuggestions: [],
       contrastSuggestions: [],
-      themeSuggestions: [],
       actions: filteredActions,
     }
 
