@@ -77,15 +77,15 @@ export default function Settings() {
       })
       const data = await res.json()
       if (res.ok) {
-        alert("Profile updated ✅")
+        alert("Profile updated ")
         setUser(data.user)
         setName(data.user.firstName + " " + data.user.lastName)
         setEmail(data.user.email)
       } else {
-        alert(data.error || "Update failed ❌")
+        alert(data.error || "Update failed ")
       }
     } catch {
-      alert("Update failed ❌")
+      alert("Update failed ")
     }
   }
 

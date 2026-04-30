@@ -2,8 +2,11 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Navbar from "@/components/Navbar"
+import AssistantDrawer from "@/components/AssistantDrawer"
 import { useAuth } from "@/context/AuthContext"
 import { themes } from "@/lib/themes.js"
+import { themeManager } from "@/lib/themeManager"
+import { downloadUtils } from "@/lib/downloadUtils"
 
 const STRUCTURAL_IDS = new Set([
   "region", "landmark-one-main", "heading-order", "page-has-heading-one",
@@ -202,6 +205,48 @@ function applyDomFix(doc, fix) {
         el.replaceWith(n)
       }); break
     default: console.warn("Unknown fix type:", fix.type)
+  }
+}
+
+function buildCssPath(el) {
+  if (!el || el === document.body) return "body"
+  const path = []
+  let node = el
+  while (node && node !== document.body) {
+    const tag = node.tagName ? node.tagName.toLowerCase() : ""
+    let idx = 1
+    let sib = node.previousElementSibling
+    while (sib) {
+      if (sib.tagName === node.tagName) idx++
+      sib = sib.previousElementSibling
+    }
+    path.unshift(`${tag}:nth-of-type(${idx})`)
+    node = node.parentElement
+  }
+  return `body > ${path.join(" > ")}`
+}
+
+function buildAssistantSelectionContext(html, selectedEl) {
+  if (!html || !selectedEl?.selector) return null
+
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html")
+    const selectedNode = doc.querySelector(selectedEl.selector)
+    if (!selectedNode) return { ...selectedEl, selectedHtml: "", selectionMode: "element" }
+
+    const wrapper = selectedNode.closest(".thumbinner, figure, .gallerybox, .mw-file-element, .mw-file-description")
+    const effectiveNode = wrapper || selectedNode
+
+    return {
+      ...selectedEl,
+      effectiveSelector: wrapper ? buildCssPath(effectiveNode) : selectedEl.selector,
+      effectiveTag: effectiveNode.tagName ? effectiveNode.tagName.toLowerCase() : selectedEl.tag,
+      effectiveClassName: typeof effectiveNode.className === "string" ? effectiveNode.className : "",
+      selectedHtml: (effectiveNode.outerHTML || "").slice(0, 3500),
+      selectionMode: wrapper ? "wrapper" : "element",
+    }
+  } catch {
+    return { ...selectedEl, selectedHtml: "", selectionMode: "element" }
   }
 }
 
@@ -458,6 +503,7 @@ export default function Results() {
     setHtml(next); htmlRef.current = next
   }
 
+  // Enhanced theme injection with wrapper
   function injectTheme(html, theme) {
     if (!theme) return html
     return `<div class="theme-wrapper"><style>${theme.css}
@@ -468,12 +514,58 @@ export default function Results() {
       .theme-wrapper button:hover{transform:scale(1.05)}
     </style>${html}</div>`
   }
+
+  // Download HTML with theme applied
   function downloadHtml() {
     const finalHtml = activeTheme ? injectTheme(html, activeTheme) : html
-    const a = document.createElement("a")
-    a.href = URL.createObjectURL(new Blob([finalHtml], { type: "text/html" }))
-    a.download = "fixed-page.html"; a.click()
+    downloadUtils.downloadSelfContainedHtml(finalHtml, activeTheme, `fixed-page-${new Date().getTime()}.html`)
   }
+
+  // Download complete package with HTML, CSS, and modifications
+  function downloadCompletePackage() {
+    const modificationsCss = themeManager.extractModificationsCss(html)
+    downloadUtils.downloadAllModifications(html, modificationsCss, activeTheme)
+  }
+
+  // Download CSS modifications separately
+  function downloadCssOnly() {
+    const modificationsCss = themeManager.extractModificationsCss(html)
+    const timestamp = new Date().toISOString().slice(0, 10)
+    downloadUtils.downloadCssFile(modificationsCss, `modifications-${timestamp}.css`)
+  }
+
+  // Theme change handler - uses sessionStorage
+  function handleThemeChange(theme) {
+    setActiveTheme(theme)
+    // Save to sessionStorage (cleared on page reload)
+    themeManager.saveActiveTheme(theme)
+  }
+
+  // Remove theme handler
+  function removeTheme() {
+    setActiveTheme(null)
+    themeManager.clearActiveTheme()
+  }
+
+  // Restore theme from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = themeManager.getActiveTheme()
+      if (savedTheme) {
+        const fullTheme = themes.find(t => t.name === savedTheme.name)
+        if (fullTheme) {
+          setActiveTheme(fullTheme)
+        }
+      }
+    }
+  }, [])
+
+  // Clean up theme on component unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup function - sessionStorage will auto-clear on page reload
+    }
+  }, [])
 
  
   function liveUpdate(cssProp, rawValue, unit = "px") {
@@ -555,6 +647,49 @@ export default function Results() {
     setLayoutApplied(false)
   }
 
+  async function applyAssistantPlan(plan) {
+    if (!plan || !Array.isArray(plan.actions)) return { applied: false }
+
+    const currentHtml = htmlRef.current
+    const doc = new DOMParser().parseFromString(currentHtml, "text/html")
+    let htmlChanged = false
+    let themeChanged = false
+    let nextTheme = null
+
+    for (const action of plan.actions) {
+      if (action?.kind === "domFix" && action.fix) {
+        applyDomFix(doc, action.fix)
+        htmlChanged = true
+      }
+
+      if (action?.kind === "theme" && action.themeId) {
+        nextTheme = themes.find(theme => theme.id === action.themeId || theme.name === action.themeId) || null
+      }
+    }
+
+    if (htmlChanged) {
+      const newHtml = doc.documentElement.outerHTML
+      htmlRef.current = newHtml
+      setUndoStack(prev => [...prev, currentHtml])
+      setRedoStack([])
+      setHtml(newHtml)
+      setChanges(prev => [{
+        _id: Date.now().toString(),
+        themeName: plan.reply ? `AI Chat: ${plan.reply.slice(0, 40)}` : "AI Chat",
+        html: newHtml,
+        appliedAt: new Date(),
+      }, ...prev])
+      await saveToBackend(newHtml, plan.reply ? `AI Chat: ${plan.reply.slice(0, 40)}` : "AI Chat")
+    }
+
+    if (nextTheme) {
+      setActiveTheme(nextTheme)
+      themeChanged = true
+    }
+
+    return { applied: htmlChanged || themeChanged, htmlChanged, themeChanged }
+  }
+
   const iframeSrcDoc = (() => {
     if (!html) return ""
     const themeStyle = activeTheme ? `<style>${activeTheme.css}</style>` : ""
@@ -566,6 +701,7 @@ export default function Results() {
   const impactColor = { critical:"text-red-400", serious:"text-orange-400", moderate:"text-yellow-400", minor:"text-blue-400" }
 
   const LAYOUT_TABS = ["typography","spacing","size","colors"]
+  const assistantSelection = buildAssistantSelectionContext(html, selectedEl)
 
   return (
     <div className="flex flex-col min-h-screen text-white relative"
@@ -697,10 +833,20 @@ export default function Results() {
               )}
               <div className="flex-1"/>
               {saving && <span className="text-xs text-gray-400">Saving...</span>}
-              <button onClick={downloadHtml}
-                className="px-3 py-1 text-xs rounded bg-purple-600 hover:bg-purple-700 transition-colors">
-                Download HTML
-              </button>
+              <div className="flex gap-1.5">
+                <button onClick={downloadHtml}
+                  className="px-2 py-1 text-xs rounded bg-purple-600 hover:bg-purple-700 transition-colors">
+                  💾 HTML
+                </button>
+                <button onClick={downloadCssOnly}
+                  className="px-2 py-1 text-xs rounded border border-purple-500 text-purple-300 hover:bg-purple-900/20 transition-colors">
+                  📄 CSS
+                </button>
+                <button onClick={downloadCompletePackage}
+                  className="px-2 py-1 text-xs rounded border border-green-500 text-green-300 hover:bg-green-900/20 transition-colors">
+                  📦 Package
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 bg-white overflow-hidden relative">
@@ -745,23 +891,48 @@ export default function Results() {
             <h2 className="text-lg font-semibold mb-3">Theme</h2>
             {activeTheme ? (
               <div className="mb-5 p-3 bg-white/5 border border-white/10 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium">{activeTheme.name}</span>
-                  <button onClick={() => setActiveTheme(null)} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Remove</button>
+                  <button onClick={removeTheme} className="text-xs text-gray-500 hover:text-red-400 transition-colors">✕ Remove</button>
                 </div>
-                <button onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
-                  className="w-full py-1.5 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors">
-                  Change Theme
-                </button>
+                <div className="space-y-2 mb-3">
+                  <button onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
+                    className="w-full py-1.5 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors">
+                    Change Theme
+                  </button>
+                  <button onClick={downloadHtml}
+                    className="w-full py-1.5 text-xs bg-purple-600/30 border border-purple-500/30 text-purple-300 rounded hover:bg-purple-600/40 transition-colors">
+                    💾 Download with Theme
+                  </button>
+                </div>
               </div>
             ) : (
               <button onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
                 className="mb-5 w-full py-2 text-sm border border-white/10 rounded hover:bg-white/10 transition-colors">
-                Pick a Theme
+                🎨 Pick a Theme
               </button>
             )}
 
-           
+            <div className="mb-5 border-t border-white/10 pt-4">
+              <h3 className="text-sm font-semibold mb-3">📥 Download Options</h3>
+              <div className="space-y-2">
+                <button onClick={downloadHtml}
+                  className="w-full py-2 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors text-gray-400 hover:text-white">
+                  ✓ HTML + Theme
+                </button>
+                <button onClick={downloadCssOnly}
+                  className="w-full py-2 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors text-gray-400 hover:text-white">
+                  📄 CSS Only
+                </button>
+                <button onClick={downloadCompletePackage}
+                  className="w-full py-2 text-xs bg-green-600/20 border border-green-500/20 text-green-300 rounded hover:bg-green-600/30 transition-colors">
+                  📦 Complete Package
+                </button>
+              </div>
+              <p className="text-xs text-white/30 mt-2 leading-relaxed">
+                Download your modified page with applied theme, CSS modifications, and more.
+              </p>
+            </div>
             <div className="mb-5">
               
               <div className="flex items-center justify-between mb-3">
@@ -895,28 +1066,68 @@ export default function Results() {
                     )}
 
                     {layoutTab === "colors" && (
-                      <>
-                        <ColorRow label="Text Color"  propKey="color"           value={pendingStyles.color           || "#000000"} onChange={handleColor} />
-                        <ColorRow label="Background"  propKey="backgroundColor" value={pendingStyles.backgroundColor || "#ffffff"} onChange={handleColor} />
-                        
-                        {(() => {
-                          const fg = pendingStyles.color?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [0,0,0]
-                          const bg = pendingStyles.backgroundColor?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [255,255,255]
-                          const lum = ([r,g,b]) => [r,g,b].reduce((s,v,i)=>{ v/=255; v=v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4); return s+v*[0.2126,0.7152,0.0722][i] },0)
-                          const ratio = ((Math.max(lum(fg),lum(bg))+0.05)/(Math.min(lum(fg),lum(bg))+0.05)).toFixed(2)
-                          const pass  = parseFloat(ratio) >= 4.5
-                          return (
-                            <div className={`mt-2 p-2.5 rounded-lg border text-center ${pass ? "bg-green-900/20 border-green-500/20" : "bg-red-900/20 border-red-500/20"}`}>
-                              <div className={`text-lg font-black ${pass ? "text-green-400" : "text-red-400"}`}>{ratio}:1</div>
-                              <div className={`text-[10px] font-semibold ${pass ? "text-green-400" : "text-red-400"}`}>
-                                {pass ? "✓ WCAG AA Pass" : "✗ WCAG AA Fail — min 4.5:1"}
-                              </div>
-                            </div>
-                          )
-                        })()}
-                      </>
-                    )}
-                  </div>
+  <>
+    <ColorRow label="Text Color"  propKey="color"           value={pendingStyles.color           || "#000000"} onChange={handleColor} />
+    <ColorRow label="Background"  propKey="backgroundColor" value={pendingStyles.backgroundColor || "#ffffff"} onChange={handleColor} />
+    
+    {(() => {
+      const fg = pendingStyles.color?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [0,0,0]
+      const bg = pendingStyles.backgroundColor?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [255,255,255]
+      const lum = ([r,g,b]) => [r,g,b].reduce((s,v,i)=>{ v/=255; v=v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4); return s+v*[0.2126,0.7152,0.0722][i] },0)
+      const ratio = ((Math.max(lum(fg),lum(bg))+0.05)/(Math.min(lum(fg),lum(bg))+0.05)).toFixed(2)
+      const pass  = parseFloat(ratio) >= 4.5
+
+      return (
+        <>
+          <div className={`mt-2 p-2.5 rounded-lg border text-center transition-all duration-300 ${pass ? "bg-green-900/20 border-green-500/20" : "bg-red-900/20 border-red-500/20"}`}>
+            <div className={`text-lg font-black ${pass ? "text-green-400" : "text-red-400"}`}>
+              {ratio}:1
+            </div>
+            <div className={`text-[10px] font-semibold ${pass ? "text-green-400" : "text-red-400"}`}>
+              {pass ? "✓ WCAG AA Pass" : "✗ WCAG AA Fail — min 4.5:1"}
+            </div>
+          </div>
+
+          <AssistantDrawer
+            html={html}
+            pageUrl={sessionRef.current?.url || session?.url || ""}
+            sessionId={sessionId}
+            selectedEl={assistantSelection}
+            activeTheme={activeTheme}
+            themeOptions={themes}
+            onApplyPlan={applyAssistantPlan}
+            onSessionId={() => {}}
+            onApplyTheme={(theme) => {
+              const nextTheme = themes.find(
+                item =>
+                  item.id === theme?.id ||
+                  item.name === theme?.name ||
+                  item.id === theme?.themeId ||
+                  item.name === theme?.themeId
+              )
+
+              if (nextTheme) {
+                setActiveTheme(nextTheme)
+                setChanges(prev => [
+                  {
+                    _id: Date.now().toString(),
+                    themeName: `AI Theme: ${nextTheme.name}`,
+                    html: htmlRef?.current || html,
+                    appliedAt: new Date(),
+                  },
+                  ...prev
+                ])
+              }
+            }}
+          />
+        </>
+      )
+    })()}
+  </>
+)}
+
+
+                   </div>
 
                   <div className="flex gap-2 px-3 pb-3">
                     <button onClick={resetLayoutStyles}

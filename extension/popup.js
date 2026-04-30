@@ -2083,6 +2083,7 @@ const THEMES = [
 
 
 const domFixMap = new Map()
+const BASE_URL = "http://localhost:3000"
 
 let layoutChangeCount = 0
 
@@ -2094,15 +2095,35 @@ let allExpanded     = false
 let fixTotal        = 0
 let fixApplied      = 0
 let inspectorOn     = false
+let dragModeOn      = false
+let clickMoveOn     = false
 let undoAvailable   = false
 let redoAvailable   = false
 let fixesApplied    = 0        
+let chatSessionId   = null
+let chatMessages    = []
+let chatBusy        = false
+let lastPickedForChat = null
+let chatPickModeActive = false
+let lastScanResults = null  // Store scan results for theme optimization
+let lastUserInput   = null  // Store user input for theme optimization
+let currentPageKey  = null
+
+function getPageKey(url) {
+  try {
+    const parsed = new URL(url || currentUrl || location.href)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return String(url || currentUrl || location.href || "").split("#")[0].split("?")[0]
+  }
+}
 
 
 document.addEventListener("DOMContentLoaded", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   currentTabId = tab?.id
   currentUrl   = tab?.url || ""
+  currentPageKey = getPageKey(currentUrl)
   document.getElementById("current-url").textContent = currentUrl
 
 
@@ -2112,8 +2133,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   
-  chrome.runtime.sendMessage({ type:"LOAD_THEME" }).then(res => {
-    activeThemeId = res?.themeId || null
+  chrome.runtime.sendMessage({ type:"LOAD_THEME", pageKey: currentPageKey }).then(res => {
+    activeThemeId = res?.theme?.id || null
     if (activeThemeId) {
       document.querySelector(`.theme-card[data-id="${activeThemeId}"]`)?.classList.add("active-theme")
     }
@@ -2124,9 +2145,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupTabs()
   setupScan()
   setupInspector()
+  setupDragMode()
+  setupChatbot()
   setupThemes()
   setupHistory()
   setupGlobalActions()
+  setupAIThemeRefresh()
 })
 
 
@@ -2139,8 +2163,429 @@ function setupTabs() {
       btn.classList.add("active")
       document.getElementById(`tab-${name}`)?.classList.remove("hidden")
       if (name === "history") renderHistory()
+      if (name === "chat") {
+        chatPickModeActive = true
+        chrome.tabs.sendMessage(currentTabId, { type: "ENABLE_CHAT_PICK_MODE" }).catch(() => {})
+        renderChatMessages()
+      } else {
+        chatPickModeActive = false
+        chrome.tabs.sendMessage(currentTabId, { type: "DISABLE_CHAT_PICK_MODE" }).catch(() => {})
+      }
     })
   })
+}
+
+function setupChatbot() {
+  const sendBtn = document.getElementById("chat-send-btn")
+  const input = document.getElementById("chat-input")
+  const loadBtn = document.getElementById("chat-load-btn")
+  const clearBtn = document.getElementById("chat-clear-btn")
+
+  if (!sendBtn || !input) return
+
+  if (!chatMessages.length) {
+    chatMessages = [{
+      role: "assistant",
+      content: "🎨 I can directly modify any element! Just click on any element below and give me instructions like 'change color to yellow', 'make bigger', 'increase font size', 'add padding', etc.",
+    }]
+  }
+  renderChatMessages()
+
+  // Listen for element picks from chat tab
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "CHAT_ELEMENT_PICKED") {
+      lastPickedForChat = {
+        selector: msg.info.selector,
+        tag: msg.info.tag,
+        label: msg.info.label,
+        id: msg.info.id,
+        className: msg.info.className,
+      }
+      renderChatMessages()
+      showToast(`✅ Selected: ${msg.info.label}`, "success")
+    }
+  })
+
+  sendBtn.addEventListener("click", async () => {
+    const instruction = (input.value || "").trim()
+    if (!instruction || chatBusy) return
+
+    input.value = ""
+    chatMessages.push({ role: "user", content: instruction })
+    renderChatMessages()
+    setChatBusy(true)
+
+    try {
+      console.log("📤 Sending chat instruction to Cohere...", instruction)
+      
+      const payload = {
+        sessionId: chatSessionId,
+        instruction,
+        url: currentUrl,
+        selectedElement: lastPickedForChat,
+      }
+      
+      const resp = await chrome.runtime.sendMessage({ type: "EXT_CHAT_SEND", payload })
+      console.log("📥 Received response from background:", resp)
+      
+      if (!resp?.success) {
+        const errorMsg = "Chat request failed: " + (resp?.error || "Unknown error")
+        console.error("❌", errorMsg)
+        chatMessages.push({ role: "assistant", content: errorMsg })
+        renderChatMessages()
+        showToast(errorMsg, "error")
+        return
+      }
+
+      chatSessionId = resp.sessionId || chatSessionId
+      console.log("✅ Chat session:", chatSessionId)
+
+      // Ensure actions array is properly formatted
+      const actions = Array.isArray(resp.actions) ? resp.actions : []
+      console.log("📦 Actions to apply:", actions.length)
+
+      chatMessages.push({
+        role: "assistant",
+        content: resp.reply || "Done.",
+        plan: {
+          layout: resp.layoutSuggestions || [],
+          contrast: resp.contrastSuggestions || [],
+          actions: actions,
+        }
+      })
+      renderChatMessages()
+
+      const autoApply = document.getElementById("chat-auto-apply")?.checked ?? true
+      if (autoApply) {
+        console.log("🔄 Auto-applying", actions.length, "actions...")
+        const appliedCount = await applyChatActions(actions)
+        console.log("✅ Applied", appliedCount, "actions successfully")
+        
+        if (appliedCount > 0) {
+          showToast(`✅ Applied ${appliedCount} change${appliedCount !== 1 ? "s" : ""}`, "success")
+          updateDownloadBadge()
+        } else if (actions.length > 0) {
+          showToast("⚠️ Actions generated but could not apply to page. Check element selector.", "warning")
+        }
+      }
+    } catch (err) {
+      console.error("❌ Chat error:", err)
+      const errorMsg = "Chat failed: " + err.message
+      chatMessages.push({ role: "assistant", content: errorMsg })
+      renderChatMessages()
+      showToast(errorMsg, "error")
+    } finally {
+      setChatBusy(false)
+    }
+  })
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendBtn.click()
+    }
+  })
+
+  loadBtn?.addEventListener("click", async () => {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: "EXT_CHAT_LOAD", payload: { sessionId: chatSessionId, url: currentUrl } })
+      if (!resp?.success) {
+        showToast("Could not load MongoDB chat: " + (resp?.error || "Unknown"), "error")
+        return
+      }
+      chatSessionId = resp.sessionId || chatSessionId
+      const dbMessages = Array.isArray(resp.messages) ? resp.messages : []
+      if (dbMessages.length) {
+        chatMessages = dbMessages.map(m => ({ role: m.role, content: m.content, plan: m.meta || null }))
+      }
+      if (!chatMessages.length) {
+        chatMessages = [{ role: "assistant", content: "No saved chat found for this page yet." }]
+      }
+      renderChatMessages()
+      showToast("☁️ Chat loaded from MongoDB", "success")
+    } catch (err) {
+      showToast("Chat load failed: " + err.message, "error")
+    }
+  })
+
+  clearBtn?.addEventListener("click", () => {
+    chatSessionId = null
+    chatMessages = [{ role: "assistant", content: "🆕 Started a new MongoDB chat session." }]
+    renderChatMessages()
+    showToast("New session started", "success")
+  })
+
+  // 📚 History Button Handler
+  const historyBtn = document.getElementById("chat-history-btn")
+  const historyModal = document.getElementById("chat-history-modal")
+  const historyClose = document.getElementById("chat-history-close")
+  const historyClearAll = document.getElementById("chat-history-clear-all")
+
+  historyBtn?.addEventListener("click", async () => {
+    console.log("📂 Opening chat history modal...")
+    if (historyModal) historyModal.classList.remove("hidden")
+    
+    const historyList = document.getElementById("chat-history-list")
+    if (!historyList) {
+      console.warn("⚠️ History list element not found")
+      return
+    }
+    
+    // Show loading state
+    historyList.innerHTML = '<div class="chat-history-empty">Loading history...</div>'
+    
+    // Load all sessions from MongoDB with improved error handling
+    try {
+      const res = await fetch(`${BASE_URL}/api/extension-chat/sessions`, {
+        timeout: 5000 // 5 second timeout
+      })
+      
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`)
+      }
+      
+      const data = await res.json()
+      const sessions = (data?.sessions && Array.isArray(data.sessions)) ? data.sessions : []
+      
+      console.log("📊 Loaded", sessions.length, "sessions from MongoDB")
+      
+      if (!sessions.length) {
+        historyList.innerHTML = '<div class="chat-history-empty">No chat history yet.</div>'
+        return
+      }
+      
+      historyList.innerHTML = sessions.map((session, idx) => {
+        // Validate session data
+        const sessionId = session?.sessionId || "unknown"
+        const createdAt = session?.createdAt ? new Date(session.createdAt).toLocaleString() : 'Unknown date'
+        const messages = Array.isArray(session?.messages) ? session.messages : []
+        const preview = messages.length > 0 && messages[0]?.content 
+          ? messages[0].content.substring(0, 50) + '...' 
+          : 'No messages'
+        
+        return `
+          <div class="chat-history-item" data-session-id="${sessionId}">
+            <div class="chat-history-item-time">${createdAt}</div>
+            <div class="chat-history-item-text">${preview}</div>
+            <div style="font-size:9px;color:#3d4f6a;margin-top:2px;">
+              ${messages.length} message${messages.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        `
+      }).join("")
+      
+      // Add click handlers to history items
+      historyList.querySelectorAll(".chat-history-item").forEach(item => {
+        item.addEventListener("click", async () => {
+          const sessionId = item.getAttribute("data-session-id")
+          if (!sessionId || sessionId === "unknown") {
+            showToast("Invalid session ID", "error")
+            return
+          }
+          console.log("🔄 Restoring session:", sessionId)
+          await loadChatSession(sessionId)
+          if (historyModal) historyModal.classList.add("hidden")
+        })
+      })
+    } catch (err) {
+      console.error("❌ Error loading history:", err)
+      historyList.innerHTML = `
+        <div class="chat-history-empty" style="color: #e74c3c;">
+          ⚠️ Failed to load history<br>
+          <small>${err.message}</small>
+        </div>
+      `
+      showToast("Failed to load chat history: " + err.message, "error")
+    }
+  })
+
+  historyClose?.addEventListener("click", () => {
+    if (historyModal) historyModal.classList.add("hidden")
+  })
+
+  historyClearAll?.addEventListener("click", async () => {
+    if (!confirm("🗑 Delete ALL chat history? This cannot be undone.")) return
+    
+    try {
+      console.log("🗑 Clearing all chat history...")
+      const res = await fetch(`${BASE_URL}/api/extension-chat/sessions`, {
+        method: "DELETE",
+        timeout: 5000
+      })
+      
+      if (!res.ok) {
+        throw new Error(`Failed to clear (${res.status})`)
+      }
+      
+      const data = await res.json()
+      const deletedCount = data?.deletedCount || 0
+      console.log("✅ Cleared", deletedCount, "sessions")
+      
+      const historyList = document.getElementById("chat-history-list")
+      if (historyList) {
+        historyList.innerHTML = '<div class="chat-history-empty">No chat history.</div>'
+      }
+      
+      showToast("✅ All chat history cleared", "success")
+    } catch (err) {
+      console.error("❌ Error clearing history:", err)
+      showToast("Failed to clear history: " + err.message, "error")
+    }
+  })
+}
+
+async function loadChatSession(sessionId) {
+  try {
+    console.log("📂 Loading session:", sessionId)
+    
+    // Query the specific session directly instead of fetching all
+    const res = await fetch(`${BASE_URL}/api/extension-chat?sessionId=${encodeURIComponent(sessionId)}`, {
+      timeout: 5000
+    })
+    
+    if (!res.ok) {
+      throw new Error(`Failed to load session (${res.status})`)
+    }
+    
+    const data = await res.json()
+    const messages = Array.isArray(data?.messages) ? data.messages : []
+    
+    if (!messages.length) {
+      showToast("Session is empty or not found", "warning")
+      return
+    }
+    
+    console.log("✅ Found session with", messages.length, "messages")
+    
+    chatSessionId = sessionId
+    chatMessages = messages.map(m => ({
+      role: m?.role || "user",
+      content: m?.content || "",
+      plan: m?.meta || null
+    })).filter(m => m.content) // Filter out empty messages
+    
+    renderChatMessages()
+    showToast("✅ Chat session restored", "success")
+  } catch (err) {
+    console.error("❌ Error loading session:", err)
+    showToast("Failed to load session: " + err.message, "error")
+    // Keep current session on error
+  }
+}
+
+function setChatBusy(isBusy) {
+  chatBusy = isBusy
+  const sendBtn = document.getElementById("chat-send-btn")
+  if (sendBtn) {
+    sendBtn.disabled = isBusy
+    sendBtn.textContent = isBusy ? "Sending..." : "Send"
+  }
+}
+
+function renderChatMessages() {
+  const box = document.getElementById("chat-messages")
+  const selection = document.getElementById("chat-selection")
+  if (!box) return
+
+  if (selection) {
+    const target = lastPickedForChat
+      ? `Target: ${lastPickedForChat.label || lastPickedForChat.selector || lastPickedForChat.tag || "selected element"}`
+      : "Target: whole page"
+    selection.textContent = target
+  }
+
+  box.innerHTML = ""
+  chatMessages.forEach(msg => {
+    const wrap = document.createElement("div")
+    wrap.className = `chat-msg ${msg.role === "user" ? "chat-msg-user" : "chat-msg-ai"}`
+    wrap.innerHTML = esc(msg.content || "")
+
+    if (msg.role === "assistant" && msg.plan) {
+      const layoutN = Array.isArray(msg.plan.layout) ? msg.plan.layout.length : 0
+      const contrastN = Array.isArray(msg.plan.contrast) ? msg.plan.contrast.length : 0
+      const actionN = Array.isArray(msg.plan.actions) ? msg.plan.actions.length : 0
+      const info = document.createElement("div")
+      info.className = "chat-plan"
+      info.textContent = `layout ${layoutN} · contrast ${contrastN} · actions ${actionN}`
+      wrap.appendChild(info)
+    }
+
+    box.appendChild(wrap)
+  })
+  box.scrollTop = box.scrollHeight
+}
+
+async function applyChatActions(actions) {
+  if (!Array.isArray(actions) || !actions.length) {
+    console.log("ℹ️  No actions to apply")
+    return 0
+  }
+  
+  console.log("📝 Applying", actions.length, "actions to tab", currentTabId)
+  console.log("Actions:", JSON.stringify(actions, null, 2))
+  
+  // Ensure content script is loaded
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: currentTabId },
+      files: ["content.js"]
+    }).catch(() => {
+      console.warn("⚠️  Content script already loaded")
+    })
+  } catch (err) {
+    console.error("❌ Failed to inject content script:", err)
+  }
+
+  let applied = 0
+  let failed = 0
+  const failedReasons = []
+  
+  for (const action of actions) {
+    try {
+      const fixType = action?.fix?.type || "unknown"
+      const selector = action?.fix?.selector || "no-selector"
+      console.log(`🔧 Applying action ${applied + failed + 1}/${actions.length}:`, fixType, "selector:", selector)
+      
+      if (action?.kind === "domFix" && action.fix) {
+        const resp = await chrome.tabs.sendMessage(currentTabId, {
+          type: "APPLY_FIX",
+          domFix: action.fix
+        }).catch((err) => {
+          console.error("❌ Message delivery error:", err.message)
+          return { success: false, error: "Message failed: " + err.message }
+        })
+        
+        if (resp?.success) {
+          applied++
+          console.log(`✅ Applied [${applied}]:`, resp.result)
+          if (resp.canUndo !== undefined) {
+            setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+          }
+        } else {
+          failed++
+          const reason = resp?.error || "Unknown error (no response)"
+          failedReasons.push(`${fixType} on "${selector}": ${reason}`)
+          console.error(`❌ Failed [${failed}]:`, reason)
+        }
+      } else {
+        failed++
+        const reason = `Invalid action format: missing kind or fix object`
+        failedReasons.push(reason)
+        console.warn("⚠️  Invalid action format:", action)
+      }
+    } catch (err) {
+      failed++
+      const reason = `Exception: ${err.message}`
+      failedReasons.push(reason)
+      console.error("❌ Exception applying action:", err)
+    }
+  }
+  
+  console.log(`\n📊 RESULTS: ${applied}/${actions.length} applied, ${failed} failed`)
+  if (failed > 0) {
+    console.log("Failed actions:", failedReasons)
+  }
+  return applied
 }
 
 
@@ -2307,6 +2752,7 @@ function stopLoadingSteps() { clearInterval(stepTimer) }
 
 
 function renderResults({ score, violations, suggestions }) {
+  const pageProfile = buildPageThemeProfile({ url: currentUrl, score, suggestions })
   const arc = document.getElementById("score-arc")
   const C   = 2 * Math.PI * 32
   arc.style.strokeDasharray  = C
@@ -2342,7 +2788,20 @@ function renderResults({ score, violations, suggestions }) {
     legend.innerHTML = Object.entries(counts).filter(([,c])=>c)
       .map(([k,c])=>`<span class="leg-dot" style="background:${colors[k]}"></span><span>${c} ${k}</span>`).join("")
     legend.classList.remove("hidden")
+  } else {
+    document.getElementById("impact-bar")?.classList.add("hidden")
+    document.getElementById("impact-legend")?.classList.add("hidden")
   }
+
+  const recommendedThemes = getTopRecommendedThemes({
+    url: currentUrl,
+    score,
+    suggestions,
+  })
+  renderThemeRecommendations(recommendedThemes, pageProfile)
+
+  // Generate AI personalized themes based on scan results
+  generateAIThemes({ score, violations, suggestions, url: currentUrl })
 
   const wrap = document.getElementById("suggestions-wrap")
   wrap.innerHTML = ""
@@ -2499,6 +2958,16 @@ function setupGlobalActions() {
       if (msg.canUndo !== undefined) setUndoState(msg.canUndo, msg.canRedo, msg.undoLabel, msg.redoLabel)
       updateDownloadBadge()
     }
+    // PRODUCTION: Listen for drag mode state changes
+    if (msg.type === "DRAG_MODE_TOGGLED") {
+      dragModeActive = msg.active
+      dragChangesExist = msg.hasChanges || false
+      updateDownloadBadge()
+    }
+    if (msg.type === "ELEMENT_DRAGGED") {
+      dragChangesExist = true
+      updateDownloadBadge()
+    }
   })
 }
 
@@ -2540,6 +3009,9 @@ function setUndoState(canUndo, canRedo, undoLabel, redoLabel) {
 }
 
 
+let dragModeActive = false
+let dragChangesExist = false
+
 function updateDownloadBadge() {
   const btn   = document.getElementById("download-all-btn")
   const badge = document.getElementById("dl-badge")
@@ -2548,9 +3020,10 @@ function updateDownloadBadge() {
   const fixCount    = document.querySelectorAll(".btn-fix-inline.applied-inline").length
   const hasTheme    = !!activeThemeId
   const layoutCount = layoutChangeCount  
-  const total       = fixCount + (hasTheme ? 1 : 0) + layoutCount
+  const dragCount   = dragModeActive && dragChangesExist ? 1 : 0
+  const total       = fixCount + (hasTheme ? 1 : 0) + layoutCount + dragCount
 
-  
+  // PRODUCTION: Enable download only if there are actual changes
   btn.disabled = total === 0
   if (badge) {
     if (total > 0) { badge.textContent = String(total); badge.classList.remove("hidden") }
@@ -2573,7 +3046,34 @@ async function downloadAllChanges() {
 
   try {
     await chrome.scripting.executeScript({ target: { tabId: currentTabId }, files: ["content.js"] }).catch(() => {})
-    const resp = await chrome.tabs.sendMessage(currentTabId, { type: "GET_HTML" })
+    
+    // Try to capture ALL modifications (chat fixes, drag changes, theme changes)
+    let resp = await chrome.tabs.sendMessage(currentTabId, { type: "CAPTURE_DOWNLOAD" })
+    
+    if (resp?.success && resp.html) {
+      // Use the comprehensive capture with all CSS and modifications
+      const blob = new Blob([resp.html], { type: "text/html;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const now = new Date()
+      const timestamp = now.toISOString().slice(0,19).replace(/:/g, "-")
+      const domain = currentUrl.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
+      const safeName = (domain || "page").replace(/[^a-z0-9]/gi, "-").toLowerCase()
+      
+      link.href = url
+      link.download = `${safeName}-modified-${timestamp}.html`
+      link.click()
+      URL.revokeObjectURL(url)
+      
+      const msg = `✅ Downloaded with ${resp.modifiedElements || 0} modified element(s) and ${resp.layoutChanges || 0} layout change(s)`
+      showToast(msg, "success")
+      btn.innerHTML = origHTML
+      btn.disabled = false
+      return
+    }
+    
+    // Fall back to GET_HTML for other changes (legacy support)
+    resp = await chrome.tabs.sendMessage(currentTabId, { type: "GET_HTML" })
     if (!resp?.html) {
       showToast("Could not read page HTML.", "error")
       btn.innerHTML = origHTML; btn.disabled = false; return
@@ -2763,7 +3263,7 @@ async function downloadAllChanges() {
     setTimeout(() => { URL.revokeObjectURL(htmlUrl); URL.revokeObjectURL(cssUrl) }, 10000)
 
     btn.innerHTML = '<span class="ga-icon">✅</span><span class="ga-label">2 Files!</span>'
-    showToast(" Downloaded HTML + CSS!", "success")
+    showToast("✅ Downloaded HTML + CSS!", "success")
     setTimeout(() => { btn.innerHTML = origHTML; btn.disabled = false; updateDownloadBadge() }, 4000)
 
   } catch (err) {
@@ -2829,6 +3329,13 @@ function setupInspector() {
     inspectorOn = !inspectorOn
     try {
       await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+
+      if (inspectorOn && dragModeOn) {
+        await chrome.tabs.sendMessage(currentTabId, { type:"TOGGLE_DRAG_MODE", active: false }).catch(() => {})
+        dragModeOn = false
+        updateDragModeUI(dragModeOn)
+      }
+
       await chrome.tabs.sendMessage(currentTabId, { type:"TOGGLE_INSPECTOR", active: inspectorOn })
     } catch {
       showToast("Could not activate inspector on this page.", "error")
@@ -2842,7 +3349,14 @@ function setupInspector() {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === "ELEMENT_PICKED") {
       inspEl = msg.selector
+      lastPickedForChat = {
+        selector: msg.selector,
+        tag: msg.tag,
+        label: msg.label,
+        styles: msg.styles || {},
+      }
       populateEditor(msg)
+      renderChatMessages()
     }
     if (msg.type === "INSPECTOR_CLOSED") {
       inspectorOn = false
@@ -2961,6 +3475,243 @@ function setupInspector() {
     sendToPage({ type: "APPLY_LIVE_STYLE", selector: inspEl, prop: "backgroundColor", value: e.target.value })
     updateContrastDisplay()
   })
+
+  document.getElementById("li-text-replace-btn")?.addEventListener("click", async () => {
+    await applyInspectorTextChange("replace")
+  })
+
+  document.getElementById("li-text-clear-btn")?.addEventListener("click", async () => {
+    const input = document.getElementById("li-text-input")
+    if (input) input.value = ""
+    await applyInspectorTextChange("replace")
+  })
+
+  document.getElementById("li-text-input")?.addEventListener("keydown", async (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault()
+      await applyInspectorTextChange("replace")
+    }
+  })
+}
+
+
+function setupDragMode() {
+  document.getElementById("move-toggle-btn")?.addEventListener("click", async () => {
+    dragModeOn = !dragModeOn
+    try {
+      await chrome.scripting.executeScript({ 
+        target:{ tabId:currentTabId }, 
+        files:["content.js"] 
+      }).catch(()=>{})
+
+      if (dragModeOn && inspectorOn) {
+        await chrome.tabs.sendMessage(currentTabId, { type:"TOGGLE_INSPECTOR", active: false }).catch(() => {})
+        inspectorOn = false
+        updateInspectorUI()
+      }
+
+      const resp = await chrome.tabs.sendMessage(currentTabId, { 
+        type:"TOGGLE_DRAG_MODE", 
+        active: dragModeOn 
+      })
+      
+      if (resp?.success) {
+        if (!dragModeOn) {
+          clickMoveOn = false
+          dragChangesExist = false
+          await chrome.tabs.sendMessage(currentTabId, { type: "TOGGLE_CLICK_MOVE", active: false }).catch(() => {})
+        }
+        dragModeActive = dragModeOn
+        updateDragModeUI(dragModeOn)
+        updateClickMoveUI(clickMoveOn)
+        updateDownloadBadge()
+        if (dragModeOn) {
+          showToast("🔀 Drag mode enabled! Double-click any element to pick it, move with cursor, then click to drop.", "success")
+        } else {
+          showToast("🔀 Drag mode disabled", "info")
+        }
+      }
+    } catch (err) {
+      console.error("Drag mode error:", err)
+      showToast("Could not activate drag mode on this page.", "error")
+      dragModeOn = false
+      updateDragModeUI(dragModeOn)
+      updateClickMoveUI(false)
+    }
+  })
+
+  document.getElementById("move-add-image-btn")?.addEventListener("click", () => {
+    if (!dragModeOn) {
+      showToast("Enable drag mode first to add and move images.", "info")
+      return
+    }
+    document.getElementById("move-image-input")?.click()
+  })
+
+  document.getElementById("move-image-input")?.addEventListener("change", async (e) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+    if (!file.type || !file.type.startsWith("image/")) {
+      showToast("Please select an image file.", "error")
+      e.target.value = ""
+      return
+    }
+
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(new Error("Failed to read image"))
+        reader.readAsDataURL(file)
+      })
+
+      const resp = await chrome.tabs.sendMessage(currentTabId, {
+        type: "ADD_DRAG_IMAGE",
+        dataUrl,
+        name: file.name,
+      })
+
+      if (resp?.success) {
+        showToast("🖼 Image added. You can now drag or click-move it.", "success")
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      } else {
+        showToast("Could not add image to this page.", "error")
+      }
+    } catch {
+      showToast("Image upload failed on this page.", "error")
+    } finally {
+      e.target.value = ""
+    }
+  })
+
+  document.getElementById("move-click-mode-btn")?.addEventListener("click", async () => {
+    if (!dragModeOn) {
+      showToast("Enable drag mode first.", "info")
+      return
+    }
+    clickMoveOn = !clickMoveOn
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      await chrome.tabs.sendMessage(currentTabId, { type: "TOGGLE_CLICK_MOVE", active: clickMoveOn })
+      updateClickMoveUI(clickMoveOn)
+      showToast(clickMoveOn ? "🎯 Click Move ON: select an element, then click destination." : "🎯 Click Move OFF", "info")
+    } catch {
+      clickMoveOn = false
+      updateClickMoveUI(false)
+      showToast("Could not toggle Click Move on this page.", "error")
+    }
+  })
+
+  document.getElementById("move-reset-last-btn")?.addEventListener("click", async () => {
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      const resp = await chrome.tabs.sendMessage(currentTabId, { type:"RESET_LAST_MOVE" })
+      if (resp?.success) {
+        showToast("↩ Selected element reset", "success")
+        const selectedEl = document.getElementById("move-selected-el")
+        if (selectedEl) selectedEl.textContent = "No element selected yet"
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      } else {
+        showToast("No moved element selected yet.", "info")
+      }
+    } catch {
+      showToast("Could not reset selected element.", "error")
+    }
+  })
+
+  document.getElementById("move-reset-btn")?.addEventListener("click", async () => {
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      await new Promise(r => setTimeout(r, 100))
+      
+      const resp = await chrome.tabs.sendMessage(currentTabId, { type:"RESET_ALL_MOVES" })
+      if (resp?.success) {
+        showToast("🔀 All moves have been reset!", "success")
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      }
+    } catch (err) {
+      console.error("Reset error:", err)
+      showToast("Could not reset moves on this page.", "error")
+    }
+  })
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "ELEMENT_DRAGGED") {
+      const selectedEl = document.getElementById("move-selected-el")
+      if (selectedEl) {
+        selectedEl.textContent = "Currently moving: " + msg.label
+      }
+      if (msg.canUndo !== undefined) setUndoState(msg.canUndo, msg.canRedo, msg.undoLabel, msg.redoLabel)
+      updateDownloadBadge()
+    }
+    if (msg.type === "DRAG_MODE_CLOSED") {
+      dragModeOn = false
+      clickMoveOn = false
+      updateDragModeUI(dragModeOn)
+      updateClickMoveUI(clickMoveOn)
+    }
+  })
+
+  updateDragModeUI(dragModeOn)
+  updateClickMoveUI(clickMoveOn)
+}
+
+
+function updateDragModeUI(isOn) {
+  const btn = document.getElementById("move-toggle-btn")
+  const dot = document.getElementById("move-dot")
+  const status = document.getElementById("move-status")
+  const idle = document.getElementById("move-idle")
+  const active = document.getElementById("move-active")
+
+  if (!btn || !dot || !status || !idle || !active) return
+
+  if (isOn) {
+    btn.classList.add("move-toggle-on")
+    btn.textContent = "Disable"
+    dot.classList.remove("move-dot-off")
+    dot.classList.add("move-dot-on")
+    status.textContent = "Drag mode ON"
+    status.style.color = "#4ade80"
+    idle.classList.add("hidden")
+    active.classList.remove("hidden")
+  } else {
+    btn.classList.remove("move-toggle-on")
+    btn.textContent = "Enable"
+    dot.classList.add("move-dot-off")
+    dot.classList.remove("move-dot-on")
+    status.textContent = "Drag mode OFF"
+    status.style.color = "#4b5a7a"
+    idle.classList.remove("hidden")
+    active.classList.add("hidden")
+    const selectedEl = document.getElementById("move-selected-el")
+    if (selectedEl) selectedEl.textContent = "No element selected yet"
+  }
+}
+
+function updateClickMoveUI(isOn) {
+  const btn = document.getElementById("move-click-mode-btn")
+  if (!btn) return
+
+  if (!dragModeOn) {
+    btn.classList.remove("active")
+    btn.textContent = "🎯 Click Move: OFF"
+    btn.disabled = true
+    return
+  }
+
+  btn.disabled = false
+  if (isOn) {
+    btn.classList.add("active")
+    btn.textContent = "🎯 Click Move: ON"
+  } else {
+    btn.classList.remove("active")
+    btn.textContent = "🎯 Click Move: OFF"
+  }
 }
 
 
@@ -3025,7 +3776,53 @@ function populateEditor(msg) {
   if (cp) { cp.value = color; document.getElementById("li-color-hex").textContent = color }
   if (bp) { bp.value = bg;    document.getElementById("li-bg-hex").textContent    = bg    }
 
+  const currentText = typeof msg.currentText === "string" ? msg.currentText : ""
+  const currentTextEl = document.getElementById("li-current-text")
+  const textInput = document.getElementById("li-text-input")
+  if (currentTextEl) currentTextEl.textContent = currentText || "Selected element has no text"
+  if (textInput) textInput.value = currentText
+
   updateContrastDisplay()
+}
+
+async function applyInspectorTextChange(mode = "replace") {
+  if (!inspEl) {
+    showToast("Pick an element first", "info")
+    return
+  }
+
+  const input = document.getElementById("li-text-input")
+  const currentTextEl = document.getElementById("li-current-text")
+  const textValue = input ? input.value : ""
+
+  const replaceBtn = document.getElementById("li-text-replace-btn")
+  const clearBtn = document.getElementById("li-text-clear-btn")
+  if (replaceBtn) replaceBtn.disabled = true
+  if (clearBtn) clearBtn.disabled = true
+
+  try {
+    await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+    const resp = await chrome.tabs.sendMessage(currentTabId, {
+      type: "APPLY_TEXT_CONTENT",
+      selector: inspEl,
+      text: textValue,
+      mode,
+    })
+
+    if (resp?.success) {
+      if (currentTextEl) currentTextEl.textContent = textValue || "(empty text)"
+      if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+      updateDownloadBadge()
+      showToast("✅ Text updated", "success")
+    } else {
+      showToast("Text update failed: " + (resp?.error || "Unknown"), "error")
+    }
+  } catch (e) {
+    showToast("Could not update text on page.", "error")
+  } finally {
+    if (replaceBtn) replaceBtn.disabled = false
+    if (clearBtn) clearBtn.disabled = false
+  }
 }
 
 function setVal(id, v) {
@@ -3245,6 +4042,215 @@ function updateScoreDisplay({ score, violations, suggestions }) {
   }
 }
 
+function getTopRecommendedThemes({ url, score, suggestions }) {
+  const host = String(url || "").replace(/^https?:\/\/(www\.)?/i, "").split("/")[0].toLowerCase()
+  const urlText = String(url || "").toLowerCase()
+  const suggText = (suggestions || []).map(s => `${s?.id || ""} ${s?.title || ""} ${s?.explanation || ""}`).join(" ").toLowerCase()
+  const pageText = `${host} ${urlText} ${suggText}`
+  const pageSeed = buildPageThemeSeed(url, score, suggestions)
+  const pageProfile = buildPageThemeProfile({ url, score, suggestions })
+
+  const severeCount = (suggestions || []).filter(s => ["critical", "serious"].includes(String(s.impact || "").toLowerCase())).length
+  const lowScore = Number(score || 0) < 65
+
+  const uniqueThemes = []
+  const seen = new Set()
+  THEMES.forEach(theme => {
+    if (!theme?.id || seen.has(theme.id)) return
+    seen.add(theme.id)
+    uniqueThemes.push(theme)
+  })
+
+  const pageTags = {
+    commerce: /(shop|store|cart|product|checkout|ecom|market|pricing|plan)/.test(pageText),
+    content: /(blog|news|article|docs|documentation|guide|tutorial|read)/.test(pageText),
+    creative: /(portfolio|agency|studio|creative|design|ux|ui|art|gallery)/.test(pageText),
+    app: /(saas|dashboard|admin|app|tool|platform|analytics|crm|panel)/.test(pageText),
+    auth: /(login|signup|register|password|account|profile|settings)/.test(pageText),
+    gaming: /(game|gaming|esports|stream)/.test(pageText),
+    health: /(health|medical|clinic|hospital|care|wellness)/.test(pageText),
+    finance: /(bank|finance|fintech|invest|wallet|payment)/.test(pageText),
+    education: /(course|school|college|learn|academy|education)/.test(pageText),
+  }
+
+  const bucketOf = (text) => {
+    if (/(minimal|nord|ice|zen|clean|editorial|sakura|warm)/.test(text)) return "clean"
+    if (/(midnight|deep|ocean|void|dark|night|royal)/.test(text)) return "dark"
+    if (/(cyber|neon|matrix|terminal|hologram|glitch|rgb|electric)/.test(text)) return "tech"
+    if (/(nature|forest|organic|sunny|ocean|earth)/.test(text)) return "nature"
+    if (/(luxury|velvet|luxe|premium|gold)/.test(text)) return "premium"
+    if (/(canva|gradient|aurora|sunset|candy|colorful|fiery)/.test(text)) return "vibrant"
+    return "general"
+  }
+
+  const ranked = uniqueThemes.map(theme => {
+    const text = `${String(theme.name || "").toLowerCase()} ${String(theme.id || "").toLowerCase()}`
+    const bucket = bucketOf(text)
+    let rank = 0
+
+    if (pageProfile.tags.institutional && /(premium|dark|clean|editorial|science)/.test(bucket)) rank += 4
+    if (pageProfile.tags.education && /(clean|nature|editorial|general)/.test(bucket)) rank += 4
+    if (pageProfile.tags.science && /(tech|dark|clean|premium)/.test(bucket)) rank += 4
+    if (pageProfile.tags.commerce && /(premium|vibrant|dark|clean)/.test(bucket)) rank += 4
+    if (pageProfile.tags.app && /(tech|clean|dark|general)/.test(bucket)) rank += 4
+    if (pageProfile.tags.content && /(editorial|warm|clean|nature)/.test(bucket)) rank += 4
+    if (pageProfile.tags.auth && /(clean|dark|general)/.test(bucket)) rank += 3
+
+    if (pageTags.commerce && /(clean|premium|dark|vibrant)/.test(bucket)) rank += 3
+    if (pageTags.content && /(clean|nature|general)/.test(bucket)) rank += 3
+    if (pageTags.creative && /(vibrant|tech|dark|premium)/.test(bucket)) rank += 3
+    if (pageTags.app && /(clean|dark|tech|general)/.test(bucket)) rank += 3
+    if (pageTags.auth && /(clean|dark|general)/.test(bucket)) rank += 2
+    if (pageTags.gaming && /(tech|dark|vibrant)/.test(bucket)) rank += 3
+    if (pageTags.health && /(clean|nature|general)/.test(bucket)) rank += 3
+    if (pageTags.finance && /(clean|dark|premium|general)/.test(bucket)) rank += 3
+    if (pageTags.education && /(clean|nature|general)/.test(bucket)) rank += 3
+
+    if (lowScore || severeCount >= 3) {
+      if (/(clean|nature|general)/.test(bucket)) rank += 4
+      if (bucket === "tech" || bucket === "vibrant") rank -= 1
+    } else {
+      if (bucket === "vibrant" || bucket === "premium") rank += 1
+    }
+
+    if (/(minimal|nord|canva|aurora|midnight|ocean|nature|sakura|ice|warm)/.test(text)) rank += 1
+
+    const seedText = `${host}:${score}:${severeCount}:${theme.id}`
+    let seed = 0
+    for (let i = 0; i < seedText.length; i++) seed = (seed * 31 + seedText.charCodeAt(i)) % 100000
+    rank += (seed % 97) / 10000
+
+    return { theme, rank, bucket }
+  })
+
+  ranked.sort((a, b) => b.rank - a.rank)
+
+  const selected = []
+  const usedIds = new Set()
+  const bucketCount = new Map()
+  const LIMIT = 6
+
+  for (const item of ranked) {
+    if (selected.length >= LIMIT) break
+    if (usedIds.has(item.theme.id)) continue
+    const c = bucketCount.get(item.bucket) || 0
+    if (c >= 2) continue
+    selected.push(item.theme)
+    usedIds.add(item.theme.id)
+    bucketCount.set(item.bucket, c + 1)
+  }
+
+  if (selected.length < LIMIT) {
+    for (const item of ranked) {
+      if (selected.length >= LIMIT) break
+      if (usedIds.has(item.theme.id)) continue
+      selected.push(item.theme)
+      usedIds.add(item.theme.id)
+    }
+  }
+
+  if (!selected.length) return []
+
+  const rotateBy = pageSeed % selected.length
+  return selected.slice(rotateBy).concat(selected.slice(0, rotateBy))
+}
+
+function buildPageThemeSeed(url, score, suggestions) {
+  const seedText = `${String(url || "").toLowerCase()}|${Number(score || 0)}|${(suggestions || []).map(s => `${s?.id || ""}:${s?.impact || ""}`).join(";")}`
+  let seed = 0
+  for (let i = 0; i < seedText.length; i++) {
+    seed = (seed * 31 + seedText.charCodeAt(i)) % 2147483647
+  }
+  return seed
+}
+
+function buildPageThemeProfile({ url, score, suggestions }) {
+  const host = String(url || "").replace(/^https?:\/\/(www\.)?/i, "").split("/")[0].toLowerCase()
+  const text = `${host} ${(suggestions || []).map(s => `${s?.id || ""} ${s?.title || ""} ${s?.explanation || ""}`).join(" ").toLowerCase()}`
+
+  const tags = {
+    education: /(education|school|college|university|course|learn|academy|student|faculty)/.test(text),
+    institutional: /(nasa|isro|government|institute|research|laboratory|lab|official|authority)/.test(text),
+    science: /(science|research|space|data|lab|scientific|engineering|technical)/.test(text),
+    commerce: /(shop|store|cart|product|checkout|ecom|market|pricing|plan|buy)/.test(text),
+    content: /(blog|news|article|docs|documentation|guide|tutorial|read)/.test(text),
+    app: /(saas|dashboard|admin|app|tool|platform|analytics|crm|panel)/.test(text),
+    auth: /(login|signup|register|password|account|profile|settings)/.test(text),
+    health: /(health|medical|clinic|hospital|care|wellness)/.test(text),
+    finance: /(bank|finance|fintech|invest|wallet|payment)/.test(text),
+  }
+
+  const pages = [
+    { name: 'Institutional Science', mood: 'professional', intent: 'best for universities, labs, agencies, and national institutions', paletteModes: ['high-contrast', 'balanced'], directions: ['clean', 'editorial', 'precision', 'structured'], avoid: ['playful', 'candy', 'neon'] },
+    { name: 'Education Editorial', mood: 'calm', intent: 'best for schools, colleges, courses, and learning portals', paletteModes: ['balanced', 'soft'], directions: ['editorial', 'clean', 'warm', 'minimal'], avoid: ['glitch', 'terminal', 'harsh'] },
+    { name: 'Commerce Conversion', mood: 'vibrant', intent: 'best for stores, pricing pages, and conversion-focused flows', paletteModes: ['vibrant', 'balanced'], directions: ['premium', 'clear', 'bold', 'high-contrast'], avoid: ['flat', 'muted'] },
+    { name: 'Application Dashboard', mood: 'modern', intent: 'best for SaaS dashboards, admin panels, and product tools', paletteModes: ['balanced', 'high-contrast'], directions: ['clean', 'tech', 'structured', 'minimal'], avoid: ['ornate', 'decorative'] },
+    { name: 'Content Editorial', mood: 'calm', intent: 'best for blogs, news, knowledge bases, and docs', paletteModes: ['balanced', 'soft'], directions: ['editorial', 'readable', 'clean', 'warm'], avoid: ['loud', 'neon'] },
+    { name: 'General Premium', mood: 'contemporary', intent: 'best for general websites that need a polished modern identity', paletteModes: ['balanced', 'vibrant'], directions: ['premium', 'modern', 'clean', 'polished'], avoid: ['generic', 'plain'] },
+  ]
+
+  if (tags.institutional || tags.science) return { ...pages[0], tags }
+  if (tags.education) return { ...pages[1], tags }
+  if (tags.commerce || tags.finance) return { ...pages[2], tags }
+  if (tags.app || tags.auth) return { ...pages[3], tags }
+  if (tags.content) return { ...pages[4], tags }
+  return { ...pages[5], tags }
+}
+
+function buildPersonaPreviewSwatches(preview, pageProfile, index = 0) {
+  const base = Array.isArray(preview) && preview.length ? preview.slice(0, 3) : ["#0f172a", "#6366f1", "#e5e7eb"]
+  if (!pageProfile) return base
+
+  const personaSwatches = {
+    "Institutional Science": ["#081120", "#1d4ed8", "#e2e8f0"],
+    "Education Editorial": ["#f8fafc", "#2563eb", "#f59e0b"],
+    "Commerce Conversion": ["#111827", "#f97316", "#fde68a"],
+    "Application Dashboard": ["#0f172a", "#06b6d4", "#cbd5e1"],
+    "Content Editorial": ["#fffaf5", "#b91c1c", "#334155"],
+    "General Premium": ["#0b1020", "#8b5cf6", "#f8fafc"],
+  }
+
+  const persona = personaSwatches[pageProfile.name] || personaSwatches["General Premium"]
+  const toneShift = index % 2 === 0 ? 0 : 1
+
+  return [
+    persona[0],
+    base[1] || persona[1 + toneShift] || persona[1],
+    base[2] || persona[2],
+  ]
+}
+
+function renderThemeRecommendations(themes, pageProfile) {
+  const wrap = document.getElementById("theme-reco-wrap")
+  const grid = document.getElementById("theme-reco-grid")
+  if (!wrap || !grid) return
+
+  if (!themes?.length) {
+    wrap.classList.add("hidden")
+    grid.innerHTML = ""
+    return
+  }
+
+  wrap.classList.remove("hidden")
+  grid.innerHTML = ""
+
+  themes.forEach((theme, index) => {
+    const row = document.createElement("div")
+    row.className = "theme-reco-card"
+    const preview = buildPersonaPreviewSwatches(theme.preview || [], pageProfile, index)
+    row.innerHTML = `
+      <div class="theme-reco-rank">#${index + 1}</div>
+      <div class="theme-reco-main">
+        <div class="theme-reco-name">${esc(theme.name)}</div>
+        <div class="theme-reco-swatches">${preview.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div>
+      </div>
+      <button class="theme-reco-apply" data-theme-id="${theme.id}">Apply</button>
+    `
+
+    row.querySelector(".theme-reco-apply")?.addEventListener("click", () => applyTheme(theme))
+    grid.appendChild(row)
+  })
+}
 
 function setupThemes() {
   const grid = document.getElementById("themes-grid")
@@ -3267,27 +4273,47 @@ function setupThemes() {
 
 async function applyTheme(theme) {
   try {
+    // Step 1: Optimize theme with APIVerve for better contrast
+    let optimizedTheme = theme
+    try {
+      const optimizeRes = await fetch('/api/optimize-theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          theme: theme,
+          userInput: lastUserInput || theme.name || 'modern',
+          scanResults: lastScanResults || {}
+        })
+      })
+
+      if (optimizeRes.ok) {
+        const optimizeData = await optimizeRes.json()
+        if (optimizeData.optimizedTheme) {
+          optimizedTheme = optimizeData.optimizedTheme
+        }
+      }
+    } catch (err) {
+      console.warn('Theme optimization skipped:', err)
+      // Continue with original theme if optimization fails
+    }
+
+    // Step 2: Apply the theme (optimized or original)
     await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
     
-    const resp = await chrome.tabs.sendMessage(currentTabId, { type:"APPLY_THEME", css:theme.css, name:theme.name })
+    const resp = await chrome.tabs.sendMessage(currentTabId, { type:"APPLY_THEME", css:optimizedTheme.css, name:optimizedTheme.name })
     activeThemeId = theme.id
 
-    
     if (resp?.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
 
-   
-    const saveRes = await chrome.runtime.sendMessage({ type:"SAVE_THEME", themeId: theme.id })
+    const saveRes = await chrome.runtime.sendMessage({ type:"SAVE_THEME", pageKey: currentPageKey, theme: optimizedTheme })
     const savedIcon = saveRes?.source === "mongodb" ? "☁️" : "💾"
     const savedTo   = saveRes?.source === "mongodb" ? "Saved to MongoDB" : "Saved locally"
 
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
     document.querySelector(`.theme-card[data-id="${theme.id}"]`)?.classList.add("active-theme")
 
-    if (saveRes?.source === "mongodb") {
-      showToast(` ${theme.name} applied!  Saved to MongoDB`, "success")
-    } else {
-      showToast(` ${theme.name} applied!  Theme server offline`, "info")
-    }
+    const storageMsg = saveRes?.source === "mongodb" ? "Saved to MongoDB" : "Saved locally"
+    showToast(` ${theme.name} applied!  ${storageMsg}`, "success")
     updateDownloadBadge()
   } catch { showToast("Could not apply theme. Reload page and try.", "error") }
 }
@@ -3298,11 +4324,174 @@ async function removeTheme() {
     activeThemeId = null
     if (resp?.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
    
-    await chrome.runtime.sendMessage({ type:"SAVE_THEME", themeId: null }).catch(()=>{})
+    await chrome.runtime.sendMessage({ type:"SAVE_THEME", pageKey: currentPageKey, theme: null }).catch(()=>{})
     document.querySelectorAll(".theme-card").forEach(c => c.classList.remove("active-theme"))
     showToast("Theme removed", "info")
     updateDownloadBadge()
   } catch { showToast("No active theme.", "info") }
+}
+
+
+// AI Theme Suggestions generated after scan
+function buildAIThemePrompt({ score, violations, suggestions, url }) {
+  const issues = Array.isArray(suggestions)
+    ? suggestions.slice(0, 6).map(s => `${s.title || s.id} (${s.impact || "minor"})`).join("; ")
+    : ""
+  const pageSignature = buildPageThemeSeed(url, score, suggestions)
+  const pageProfile = buildPageThemeProfile({ url, score, suggestions })
+
+  return [
+    `Generate themes for the scanned webpage.`,
+    `URL: ${url || "unknown"}`,
+    `Accessibility score: ${score}/100`,
+    `Violations found: ${violations}`,
+    `Page signature: ${pageSignature}`,
+    `Page persona: ${pageProfile.name}`,
+    `Page intent: ${pageProfile.intent}`,
+    `Prefer directions: ${pageProfile.directions.join(', ')}`,
+    `Avoid: ${pageProfile.avoid.join(', ')}`,
+    issues ? `Key issues: ${issues}` : "",
+  ].filter(Boolean).join(" ")
+}
+
+async function generateAIThemes({ score, violations, suggestions, url }) {
+  const wrap = document.getElementById("ai-theme-reco-wrap")
+  const grid = document.getElementById("ai-theme-reco-grid")
+  const loading = document.getElementById("ai-theme-loading")
+  const refreshBtn = document.getElementById("ai-refresh-themes")
+  const randomizeToggle = document.getElementById("ai-randomize-toggle")
+
+  if (!wrap || !grid || !loading) return
+
+  wrap.classList.remove("hidden")
+  loading.classList.remove("hidden")
+  grid.innerHTML = ""
+  if (refreshBtn) refreshBtn.disabled = true
+  // Store scan results for theme optimization
+  lastScanResults = { score, violations, suggestions }
+  lastUserInput = `Webpage with ${score}/100 accessibility score and ${violations || 0} violations`
+
+
+  const payload = {
+    userInput: buildAIThemePrompt({ score, violations, suggestions, url }),
+    scanResults: { score, violations, suggestions },
+    url,
+    randomize: Boolean(randomizeToggle?.checked),
+  }
+
+  try {
+    const response = await fetch(`${BASE_URL}/api/ai-themes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || !data.success || !Array.isArray(data.themes)) {
+      throw new Error(data.error || `Server error: ${response.status}`)
+    }
+
+    renderAIThemeSuggestions(data.themes)
+    showToast(`✨ Generated ${data.count || data.themes.length} AI themes using APIVerve palettes`, "success")
+  } catch (error) {
+    console.error("AI theme generation failed:", error)
+    const fallback = buildFallbackAIThemes({ score, violations, suggestions })
+    renderAIThemeSuggestions(fallback)
+    showToast("AI theme generation fell back to local suggestions", "info")
+  } finally {
+    loading.classList.add("hidden")
+    if (refreshBtn) refreshBtn.disabled = false
+  }
+}
+
+function buildFallbackAIThemes({ score, violations, suggestions }) {
+  const highContrast = score < 50 || (suggestions || []).some(s => ["critical", "serious"].includes(String(s.impact || "").toLowerCase()))
+  const palettes = highContrast
+    ? [
+        ["#0b0f19", "#6366f1", "#f8fafc"],
+        ["#020617", "#38bdf8", "#e2e8f0"],
+        ["#111827", "#f97316", "#fef3c7"],
+        ["#050816", "#22c55e", "#dcfce7"],
+        ["#1a1026", "#ec4899", "#f5d0fe"],
+        ["#0f172a", "#facc15", "#eff6ff"],
+      ]
+    : [
+        ["#f8fafc", "#6366f1", "#111827"],
+        ["#fff7ed", "#f97316", "#431407"],
+        ["#f0fdf4", "#22c55e", "#14532d"],
+        ["#fff1f2", "#db2777", "#4a044e"],
+        ["#ecfeff", "#0ea5e9", "#082f49"],
+        ["#f5f3ff", "#8b5cf6", "#1e1b4b"],
+      ]
+
+  return palettes.map((preview, index) => ({
+    id: `fallback-ai-${index}`,
+    name: `Runtime Theme ${index + 1}`,
+    mood: highContrast ? "High contrast runtime theme" : "Modern runtime theme",
+    description: `Generated locally as a safety fallback for scan score ${score}.`,
+    preview,
+    css: `:root{--bg:${preview[0]};--primary:${preview[1]};--text:${preview[2]}}body{background:${preview[0]}!important;color:${preview[2]}!important}`,
+  }))
+}
+
+function renderAIThemeSuggestions(themes) {
+  const grid = document.getElementById("ai-theme-reco-grid")
+  const wrap = document.getElementById("ai-theme-reco-wrap")
+  if (!grid || !wrap) return
+
+  const safeThemes = Array.isArray(themes) ? themes.slice(0, 6) : []
+  if (!safeThemes.length) {
+    grid.innerHTML = '<div class="ai-theme-error">No AI themes returned.</div>'
+    wrap.classList.remove("hidden")
+    return
+  }
+
+  grid.innerHTML = safeThemes.map((theme, index) => `
+    <div class="ai-theme-card" data-index="${index}">
+      <div class="ai-theme-card-preview">
+        ${(theme.preview || []).slice(0, 3).map(color => `<span class="ai-theme-card-swatch" style="background:${color}"></span>`).join("")}
+      </div>
+      <div class="ai-theme-card-name">${esc(theme.name || `AI Theme ${index + 1}`)}</div>
+      <div class="ai-theme-card-mood">${esc(theme.mood || theme.description || "AI-generated")}</div>
+      <button class="ai-theme-card-apply" data-index="${index}">Apply Theme</button>
+    </div>
+  `).join("")
+
+  grid.querySelectorAll(".ai-theme-card").forEach(card => {
+    const index = Number(card.dataset.index)
+    const theme = safeThemes[index]
+    const applyBtn = card.querySelector(".ai-theme-card-apply")
+
+    applyBtn?.addEventListener("click", async (e) => {
+      e.stopPropagation()
+      if (theme) await applyTheme(theme)
+    })
+
+    card.addEventListener("click", async () => {
+      if (theme) {
+        await applyTheme(theme)
+        showToast(`🎨 ${theme.name} applied`, "success")
+      }
+    })
+  })
+
+  wrap.classList.remove("hidden")
+}
+
+function setupAIThemeRefresh() {
+  document.getElementById("ai-refresh-themes")?.addEventListener("click", () => {
+    if (!lastResults) {
+      showToast("Run a scan first", "info")
+      return
+    }
+
+    generateAIThemes({
+      score: lastResults.score,
+      violations: lastResults.violations,
+      suggestions: lastResults.suggestions,
+      url: currentUrl,
+    })
+  })
 }
 
 

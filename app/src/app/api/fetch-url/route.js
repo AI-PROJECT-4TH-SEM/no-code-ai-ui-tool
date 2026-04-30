@@ -1,6 +1,4 @@
 import puppeteer from "puppeteer"
-import History from "@/lib/models/History"
-import connectDB from "@/lib/db"
 
 // detect JS heavy
 function isJsHeavySite(html) {
@@ -49,12 +47,6 @@ export async function POST(request) {
       const html = await fetchWithPuppeteer(url)
       const safeHtml = ensureFullHTML(html, url) 
 
-      await connectDB()
-      await History.create({
-        label: url,
-        html: safeHtml.substring(0, 20000)
-      })
-
       return Response.json({
         html: safeHtml,
         method: "puppeteer"
@@ -62,12 +54,6 @@ export async function POST(request) {
     }
 
     const safeHtml = ensureFullHTML(simpleHtml, url) 
-
-    await connectDB()
-    await History.create({
-      label: url,
-      html: safeHtml.substring(0, 20000)
-    })
 
     return Response.json({
       html: safeHtml,
@@ -80,12 +66,6 @@ export async function POST(request) {
     try {
       const html = await fetchWithPuppeteer(url)
       const safeHtml = ensureFullHTML(html, url) 
-
-      await connectDB()
-      await History.create({
-        label: url,
-        html: safeHtml.substring(0, 20000)
-      })
 
       return Response.json({
         html: safeHtml,
