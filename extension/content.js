@@ -2,15 +2,57 @@ const THEME_ID   = "__cksa_theme"
 const OVERLAY_ID = "__cksa_overlay"
 const PANEL_ID   = "__cksa_panel"
 const BADGE_ID   = "__cksa_badge"
+const GLOBAL_THEME_KEY = "global_website_theme"
 let lastThemePageKey = null
+
+// Inject global theme manager for cross-page theme application
+function injectGlobalThemeManager() {
+  if (document.getElementById('global-theme-manager-script')) return
+
+  const script = document.createElement('script')
+  script.id = 'global-theme-manager-script'
+  script.src = chrome.runtime.getURL('global-theme-manager.js')
+  document.head.appendChild(script)
+}
 
 function normalizePageKey(url) {
   if (!url) return ""
   try {
     const parsed = new URL(url, location.origin)
-    return `${parsed.origin}${parsed.pathname}`
+    return parsed.origin
   } catch {
-    return String(url).split("#")[0].split("?")[0]
+    const raw = String(url)
+    const match = raw.match(/^https?:\/\/[^/]+/i)
+    return match ? match[0] : raw.split("#")[0].split("?")[0]
+  }
+}
+
+function isReloadNavigation() {
+  try {
+    const navEntries = performance.getEntriesByType("navigation")
+    if (navEntries?.length && navEntries[0]?.type === "reload") return true
+  } catch { }
+
+  try {
+    return performance.navigation && performance.navigation.type === 1
+  } catch {
+    return false
+  }
+}
+
+async function clearThemeOnReloadIfNeeded() {
+  if (!isReloadNavigation()) return
+
+  const pageKey = normalizePageKey(location.href)
+  if (!pageKey) return
+
+  try {
+    await chrome.runtime.sendMessage({ type: "CLEAR_THEME", pageKey })
+  } catch { }
+
+  removeCSS()
+  if (typeof window !== "undefined" && window.globalThemeManager) {
+    window.globalThemeManager.removeTheme()
   }
 }
 
@@ -24,8 +66,15 @@ async function syncThemeForCurrentPage(force = false) {
     const res = await chrome.runtime.sendMessage({ type: "LOAD_THEME", pageKey })
     if (res?.theme?.css) {
       injectCSS(res.theme.css)
+      // Also apply globally using sessionStorage
+      if (typeof window !== 'undefined' && window.globalThemeManager) {
+        window.globalThemeManager.applyTheme(res.theme)
+      }
     } else {
       removeCSS()
+      if (typeof window !== 'undefined' && window.globalThemeManager) {
+        window.globalThemeManager.removeTheme()
+      }
     }
   } catch {
     removeCSS()
@@ -1150,6 +1199,8 @@ let carryComputedSnapshot = null
 let carryModifiedProps = new Set()
 let carryOriginalParent = null
 let carryWasDroppedInNewParent = false
+let dragLastClientX = 0
+let dragLastClientY = 0
 
 function enableDragMode() {
   if (dragModeActive) return
@@ -1637,7 +1688,43 @@ function updateCarriedPosition(clientX, clientY) {
   carriedEl.style.top = top + "px"
 }
 
-function finishCarryAtCurrentPosition(keepInPlace) {
+function findContainerDropTarget(x, y, dragged) {
+  const stack = document.elementsFromPoint(x, y)
+  for (const el of stack) {
+    if (!isValidDragTarget(el)) continue
+    if (el === dragged || dragged.contains(el)) continue
+    if (el.closest && el.closest("#__cksa_drag_handle, #__cksa_panel, #__cksa_overlay, #__cksa_badge, #__cksa_drag_placeholder")) continue
+    if (isContainerDropTarget(el)) return el
+    if (el.parentElement && isContainerDropTarget(el.parentElement)) return el.parentElement
+  }
+  return null
+}
+
+function getContainerInsertReference(container, x, y, dragged) {
+  const children = Array.from(container.children).filter(child => {
+    if (!child || child === dragged) return false
+    if (child.id === "__cksa_drag_placeholder") return false
+    if (child.matches && child.matches("#__cksa_panel, #__cksa_overlay, #__cksa_badge, #__cksa_drag_handle")) return false
+    return true
+  })
+
+  if (!children.length) return null
+
+  const style = window.getComputedStyle(container)
+  const isRowLayout = style.display?.includes("flex") && style.flexDirection?.startsWith("row")
+
+  for (const child of children) {
+    const r = child.getBoundingClientRect()
+    const midpoint = isRowLayout ? (r.left + r.width / 2) : (r.top + r.height / 2)
+    if ((isRowLayout && x < midpoint) || (!isRowLayout && y < midpoint)) {
+      return child
+    }
+  }
+
+  return null
+}
+
+function finishCarryAtCurrentPosition(keepInPlace, dropX, dropY) {
   if (!carryActive || !carriedEl) return
 
   const el = carriedEl
@@ -1649,26 +1736,28 @@ function finishCarryAtCurrentPosition(keepInPlace) {
       ph.parentNode.insertBefore(el, ph)
     }
   } else {
-    // Find drop target at current cursor position
     const rect = el.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 2
-    const dropTarget = findDomDropTarget(centerX, centerY, el)
+    const pointX = Number.isFinite(dropX) ? dropX : (rect.left + rect.width / 2)
+    const pointY = Number.isFinite(dropY) ? dropY : (rect.top + rect.height / 2)
 
-    if (dropTarget && dropTarget.parentElement) {
-      // Insert element relative to drop target
+    const container = findContainerDropTarget(pointX, pointY, el)
+    const dropTarget = findDomDropTarget(pointX, pointY, el)
+
+    if (container) {
+      const refNode = getContainerInsertReference(container, pointX, pointY, el)
+      container.insertBefore(el, refNode)
+      carryWasDroppedInNewParent = container !== carryOriginalParent
+    } else if (dropTarget && dropTarget.parentElement) {
       const targetRect = dropTarget.getBoundingClientRect()
       const targetParent = dropTarget.parentElement
       const parentStyle = window.getComputedStyle(targetParent)
-      
-      // Check layout direction to determine insertion point
       const isRowLayout = parentStyle.display?.includes("flex") && parentStyle.flexDirection?.startsWith("row")
-      const insertBefore = isRowLayout ? centerX < targetRect.left + targetRect.width / 2 : centerY < targetRect.top + targetRect.height / 2
-      
+      const insertBefore = isRowLayout ? pointX < targetRect.left + targetRect.width / 2 : pointY < targetRect.top + targetRect.height / 2
       targetParent.insertBefore(el, insertBefore ? dropTarget : dropTarget.nextSibling)
+      carryWasDroppedInNewParent = targetParent !== carryOriginalParent
     } else if (ph && ph.parentNode) {
-      // Fallback: return to placeholder
       ph.parentNode.insertBefore(el, ph)
+      carryWasDroppedInNewParent = false
     }
   }
 
@@ -1703,6 +1792,7 @@ function finishCarryAtCurrentPosition(keepInPlace) {
   carryComputedSnapshot = null
   carryModifiedProps.clear()
   carryOriginalParent = null
+  carryWasDroppedInNewParent = false
   carryActive = false
   carriedEl = null
   suppressClickUntil = Date.now() + 200
@@ -1728,7 +1818,7 @@ function onDragClickCapture(e) {
   if (carryActive) {
     e.preventDefault()
     e.stopPropagation()
-    finishCarryAtCurrentPosition(false)
+    finishCarryAtCurrentPosition(false, e.clientX, e.clientY)
     return
   }
 
@@ -1837,7 +1927,7 @@ function onDragStart(e) {
 
 function isContainerDropTarget(el) {
   if (!el || !el.tagName) return false
-  return ["DIV","SECTION","ARTICLE","ASIDE","MAIN","NAV","UL","OL","FORM","TABLE"].includes(el.tagName)
+  return ["DIV","SPAN","SECTION","ARTICLE","ASIDE","MAIN","HEADER","FOOTER","NAV","UL","OL","FORM","TABLE","BUTTON"].includes(el.tagName)
 }
 
 function findDomDropTarget(x, y, dragged) {
@@ -1886,120 +1976,55 @@ function onDragMove(e) {
   const deltaX = e.clientX - dragStartX
   const deltaY = e.clientY - dragStartY
   const distance = Math.hypot(deltaX, deltaY)
+  dragLastClientX = e.clientX
+  dragLastClientY = e.clientY
 
   // Don't start dragging until threshold exceeded - allows holding
   if (!isCurrentlyDragging && distance < DRAG_THRESHOLD) {
     return
   }
 
-  // First movement beyond threshold - activate drag
+  // First movement beyond threshold - activate true carry drag.
   if (!isCurrentlyDragging) {
     isCurrentlyDragging = true
     selectedDragElement = draggedEl
 
-    if (!draggedEl.dataset.cksaPrevCursor) draggedEl.dataset.cksaPrevCursor = draggedEl.style.cursor || ""
-    if (!draggedEl.dataset.cksaPrevZIndex) draggedEl.dataset.cksaPrevZIndex = draggedEl.style.zIndex || ""
-    if (!draggedEl.dataset.cksaPrevOpacity) draggedEl.dataset.cksaPrevOpacity = draggedEl.style.opacity || ""
-    if (!draggedEl.dataset.cksaPrevShadow) draggedEl.dataset.cksaPrevShadow = draggedEl.style.boxShadow || ""
-    if (!draggedEl.dataset.cksaPrevWillChange) draggedEl.dataset.cksaPrevWillChange = draggedEl.style.willChange || ""
-
-    draggedEl.style.cursor = "grabbing"
-    draggedEl.style.zIndex = "2147483646"
-    draggedEl.style.opacity = "0.85"
-    draggedEl.style.boxShadow = "0 12px 40px rgba(167, 139, 250, 0.5)"
-    draggedEl.style.willChange = "transform"
-    draggedEl.style.transition = "none"
-
-    if (!dragUndoPushed) {
-      const labelToken = draggedEl.id
-        ? draggedEl.id
-        : (draggedEl.className && typeof draggedEl.className === "string"
-            ? draggedEl.className.trim().split(/\s+/)[0]
-            : draggedEl.tagName.toLowerCase())
-      pushUndo("Move: " + labelToken)
-      dragUndoPushed = true
-    }
-
-    const label = draggedEl.id
-      ? "#" + draggedEl.id
-      : (draggedEl.className && typeof draggedEl.className === "string"
-          ? "." + draggedEl.className.trim().split(/\s+/)[0]
-          : draggedEl.tagName.toLowerCase())
-
-    chrome.runtime.sendMessage({
-      type: "ELEMENT_DRAGGED",
-      tag: draggedEl.tagName.toLowerCase(),
-      label: label.slice(0, 40),
-      ...stackState(),
-    }).catch(() => {})
+    beginCarryMode(draggedEl, e)
+    dragUndoPushed = true
+    lastDraggedElement = draggedEl
+    draggedEl = null
+    return
   }
 
   e.preventDefault()
   e.stopPropagation()
 
-  let moveX = deltaX
-  let moveY = deltaY
-
-  if (e.shiftKey) {
-    if (!dragAxisLock) {
-      dragAxisLock = Math.abs(deltaX) >= Math.abs(deltaY) ? "x" : "y"
-    }
-    if (dragAxisLock === "x") moveY = 0
-    if (dragAxisLock === "y") moveX = 0
-  } else {
-    dragAxisLock = null
+  if (carryActive && carriedEl) {
+    updateCarriedPosition(e.clientX, e.clientY)
   }
-
-  let newX = Math.round(dragOffsetX + moveX)
-  let newY = Math.round(dragOffsetY + moveY)
-  const next = clampPosition(draggedEl, newX, newY)
-  
-  // Smooth drag with fast response (40ms) for real-time feel
-  draggedEl.style.transform = `translate(${next.x}px, ${next.y}px)`
-  draggedEl.style.transition = "transform 40ms linear"
 }
 
 function onDragEnd(e) {
-  if (!draggedEl || !dragModeActive) return
-  
-  if (isCurrentlyDragging) {
+  if (!dragModeActive) return
+
+  if (carryActive && carriedEl) {
     e.preventDefault()
     e.stopPropagation()
 
-    const reordered = attemptDomReorder(draggedEl, e.clientX, e.clientY)
+    const finalX = Number.isFinite(e?.clientX) ? e.clientX : dragLastClientX
+    const finalY = Number.isFinite(e?.clientY) ? e.clientY : dragLastClientY
+    const droppedEl = carriedEl
+    finishCarryAtCurrentPosition(false, finalX, finalY)
 
-    const transform = draggedEl.style.transform
-    const matches = transform.match(/translate(?:3d)?\(([^,]+)px,\s*([^) ,]+)px(?:,\s*0px)?\)/)
-    if (matches) {
-      const finalX = parseFloat(matches[1])
-      const finalY = parseFloat(matches[2])
-      if (reordered) {
-        draggedEl.style.transform = ""
-        draggedEl.removeAttribute("data-cksa-transform")
-      } else {
-        draggedEl.setAttribute("data-cksa-transform", `${finalX},${finalY}`)
-      }
+    if (droppedEl) {
+      lastDraggedElement = droppedEl
+      lastMovedElement = droppedEl
+      selectedDragElement = droppedEl
     }
-    
-    draggedEl.style.cursor = draggedEl.dataset.cksaPrevCursor || ""
-    draggedEl.style.zIndex = draggedEl.dataset.cksaPrevZIndex || ""
-    draggedEl.style.opacity = draggedEl.dataset.cksaPrevOpacity || ""
-    draggedEl.style.boxShadow = draggedEl.dataset.cksaPrevShadow || ""
-    draggedEl.style.willChange = draggedEl.dataset.cksaPrevWillChange || ""
-    delete draggedEl.dataset.cksaPrevCursor
-    delete draggedEl.dataset.cksaPrevZIndex
-    delete draggedEl.dataset.cksaPrevOpacity
-    delete draggedEl.dataset.cksaPrevShadow
-    delete draggedEl.dataset.cksaPrevWillChange
-    draggedEl.classList.remove("cksa-drag-target-outline")
-
-    lastDraggedElement = draggedEl
-    lastMovedElement = draggedEl
-    selectedDragElement = draggedEl
     suppressClickUntil = Date.now() + 220
   }
 
-  draggedEl.style.transition = ""
+  if (draggedEl) draggedEl.style.transition = ""
   isCurrentlyDragging = false
   dragUndoPushed = false
   dragAxisLock = null
@@ -2146,7 +2171,12 @@ ${layoutMarkings.length > 0 ? `console.log('Applied Layout Changes:', ${JSON.str
   }
 }
 
-syncThemeForCurrentPage(true).catch(() => {})
+// Inject global theme manager for cross-site theme persistence
+injectGlobalThemeManager()
+
+clearThemeOnReloadIfNeeded()
+  .then(() => syncThemeForCurrentPage(true).catch(() => {}))
+  .catch(() => syncThemeForCurrentPage(true).catch(() => {}))
 
 let themePageWatchHref = location.href
 setInterval(() => {

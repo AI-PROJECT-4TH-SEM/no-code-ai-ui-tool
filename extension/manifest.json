@@ -36,7 +36,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["welcome.html", "icon/*.png"],
+      "resources": ["welcome.html", "global-theme-manager.js", "icon/*.png"],
       "matches": ["<all_urls>"]
     }
   ],

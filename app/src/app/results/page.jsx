@@ -5,6 +5,8 @@ import Navbar from "@/components/Navbar"
 import AssistantDrawer from "@/components/AssistantDrawer"
 import { useAuth } from "@/context/AuthContext"
 import { themes } from "@/lib/themes.js"
+import { themeManager } from "@/lib/themeManager"
+import { downloadUtils } from "@/lib/downloadUtils"
 
 const STRUCTURAL_IDS = new Set([
   "region", "landmark-one-main", "heading-order", "page-has-heading-one",
@@ -501,6 +503,7 @@ export default function Results() {
     setHtml(next); htmlRef.current = next
   }
 
+  // Enhanced theme injection with wrapper
   function injectTheme(html, theme) {
     if (!theme) return html
     return `<div class="theme-wrapper"><style>${theme.css}
@@ -511,12 +514,58 @@ export default function Results() {
       .theme-wrapper button:hover{transform:scale(1.05)}
     </style>${html}</div>`
   }
+
+  // Download HTML with theme applied
   function downloadHtml() {
     const finalHtml = activeTheme ? injectTheme(html, activeTheme) : html
-    const a = document.createElement("a")
-    a.href = URL.createObjectURL(new Blob([finalHtml], { type: "text/html" }))
-    a.download = "fixed-page.html"; a.click()
+    downloadUtils.downloadSelfContainedHtml(finalHtml, activeTheme, `fixed-page-${new Date().getTime()}.html`)
   }
+
+  // Download complete package with HTML, CSS, and modifications
+  function downloadCompletePackage() {
+    const modificationsCss = themeManager.extractModificationsCss(html)
+    downloadUtils.downloadAllModifications(html, modificationsCss, activeTheme)
+  }
+
+  // Download CSS modifications separately
+  function downloadCssOnly() {
+    const modificationsCss = themeManager.extractModificationsCss(html)
+    const timestamp = new Date().toISOString().slice(0, 10)
+    downloadUtils.downloadCssFile(modificationsCss, `modifications-${timestamp}.css`)
+  }
+
+  // Theme change handler - uses sessionStorage
+  function handleThemeChange(theme) {
+    setActiveTheme(theme)
+    // Save to sessionStorage (cleared on page reload)
+    themeManager.saveActiveTheme(theme)
+  }
+
+  // Remove theme handler
+  function removeTheme() {
+    setActiveTheme(null)
+    themeManager.clearActiveTheme()
+  }
+
+  // Restore theme from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = themeManager.getActiveTheme()
+      if (savedTheme) {
+        const fullTheme = themes.find(t => t.name === savedTheme.name)
+        if (fullTheme) {
+          setActiveTheme(fullTheme)
+        }
+      }
+    }
+  }, [])
+
+  // Clean up theme on component unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup function - sessionStorage will auto-clear on page reload
+    }
+  }, [])
 
  
   function liveUpdate(cssProp, rawValue, unit = "px") {
@@ -784,10 +833,20 @@ export default function Results() {
               )}
               <div className="flex-1"/>
               {saving && <span className="text-xs text-gray-400">Saving...</span>}
-              <button onClick={downloadHtml}
-                className="px-3 py-1 text-xs rounded bg-purple-600 hover:bg-purple-700 transition-colors">
-                Download HTML
-              </button>
+              <div className="flex gap-1.5">
+                <button onClick={downloadHtml}
+                  className="px-2 py-1 text-xs rounded bg-purple-600 hover:bg-purple-700 transition-colors">
+                  💾 HTML
+                </button>
+                <button onClick={downloadCssOnly}
+                  className="px-2 py-1 text-xs rounded border border-purple-500 text-purple-300 hover:bg-purple-900/20 transition-colors">
+                  📄 CSS
+                </button>
+                <button onClick={downloadCompletePackage}
+                  className="px-2 py-1 text-xs rounded border border-green-500 text-green-300 hover:bg-green-900/20 transition-colors">
+                  📦 Package
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 bg-white overflow-hidden relative">
@@ -832,23 +891,48 @@ export default function Results() {
             <h2 className="text-lg font-semibold mb-3">Theme</h2>
             {activeTheme ? (
               <div className="mb-5 p-3 bg-white/5 border border-white/10 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium">{activeTheme.name}</span>
-                  <button onClick={() => setActiveTheme(null)} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Remove</button>
+                  <button onClick={removeTheme} className="text-xs text-gray-500 hover:text-red-400 transition-colors">✕ Remove</button>
                 </div>
-                <button onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
-                  className="w-full py-1.5 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors">
-                  Change Theme
-                </button>
+                <div className="space-y-2 mb-3">
+                  <button onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
+                    className="w-full py-1.5 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors">
+                    Change Theme
+                  </button>
+                  <button onClick={downloadHtml}
+                    className="w-full py-1.5 text-xs bg-purple-600/30 border border-purple-500/30 text-purple-300 rounded hover:bg-purple-600/40 transition-colors">
+                    💾 Download with Theme
+                  </button>
+                </div>
               </div>
             ) : (
               <button onClick={() => router.push(`/themes?sessionId=${sessionId}`)}
                 className="mb-5 w-full py-2 text-sm border border-white/10 rounded hover:bg-white/10 transition-colors">
-                Pick a Theme
+                🎨 Pick a Theme
               </button>
             )}
 
-           
+            <div className="mb-5 border-t border-white/10 pt-4">
+              <h3 className="text-sm font-semibold mb-3">📥 Download Options</h3>
+              <div className="space-y-2">
+                <button onClick={downloadHtml}
+                  className="w-full py-2 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors text-gray-400 hover:text-white">
+                  ✓ HTML + Theme
+                </button>
+                <button onClick={downloadCssOnly}
+                  className="w-full py-2 text-xs border border-white/10 rounded hover:bg-white/10 transition-colors text-gray-400 hover:text-white">
+                  📄 CSS Only
+                </button>
+                <button onClick={downloadCompletePackage}
+                  className="w-full py-2 text-xs bg-green-600/20 border border-green-500/20 text-green-300 rounded hover:bg-green-600/30 transition-colors">
+                  📦 Complete Package
+                </button>
+              </div>
+              <p className="text-xs text-white/30 mt-2 leading-relaxed">
+                Download your modified page with applied theme, CSS modifications, and more.
+              </p>
+            </div>
             <div className="mb-5">
               
               <div className="flex items-center justify-between mb-3">

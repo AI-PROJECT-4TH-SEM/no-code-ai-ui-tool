@@ -56,6 +56,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case "LOAD_THEME":
       loadThemeMongo(msg.pageKey).then(sendResponse)
       return true
+    case "CLEAR_THEME":
+      clearThemeMongo(msg.pageKey).then(sendResponse)
+      return true
     case "EXT_CHAT_SEND":
       sendExtensionChat(msg.payload).then(sendResponse)
       return true
@@ -223,9 +226,11 @@ function normalizePageKey(url) {
   if (!url) return ""
   try {
     const parsed = new URL(url)
-    return `${parsed.origin}${parsed.pathname}`
+    return parsed.origin
   } catch {
-    return String(url).split("#")[0].split("?")[0]
+    const raw = String(url)
+    const match = raw.match(/^https?:\/\/[^/]+/i)
+    return match ? match[0] : raw.split("#")[0].split("?")[0]
   }
 }
 
@@ -236,7 +241,7 @@ async function saveThemeMongo(themeId, pageKey, theme) {
   }
 
   await new Promise(resolve => {
-    chrome.storage.local.get([THEME_PAGE_MAP_KEY], data => {
+    chrome.storage.session.get([THEME_PAGE_MAP_KEY], data => {
       const map = data[THEME_PAGE_MAP_KEY] || {}
       if (theme) {
         map[key] = {
@@ -250,7 +255,7 @@ async function saveThemeMongo(themeId, pageKey, theme) {
       } else {
         delete map[key]
       }
-      chrome.storage.local.set({ [THEME_PAGE_MAP_KEY]: map }, resolve)
+      chrome.storage.session.set({ [THEME_PAGE_MAP_KEY]: map }, resolve)
     })
   })
 
@@ -278,7 +283,7 @@ async function loadThemeMongo(pageKey) {
   }
 
   const localTheme = await new Promise(resolve => {
-    chrome.storage.local.get([THEME_PAGE_MAP_KEY], data => {
+    chrome.storage.session.get([THEME_PAGE_MAP_KEY], data => {
       const map = data[THEME_PAGE_MAP_KEY] || {}
       resolve(map[key] || null)
     })
@@ -289,4 +294,21 @@ async function loadThemeMongo(pageKey) {
   }
 
   return { theme: null, source: "none" }
+}
+
+async function clearThemeMongo(pageKey) {
+  const key = normalizePageKey(pageKey)
+  if (!key) {
+    return { success: false, source: "none", error: "Missing page key" }
+  }
+
+  await new Promise(resolve => {
+    chrome.storage.session.get([THEME_PAGE_MAP_KEY], data => {
+      const map = data[THEME_PAGE_MAP_KEY] || {}
+      delete map[key]
+      chrome.storage.session.set({ [THEME_PAGE_MAP_KEY]: map }, resolve)
+    })
+  })
+
+  return { success: true, source: "session" }
 }
