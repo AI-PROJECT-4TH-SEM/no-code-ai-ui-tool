@@ -194,13 +194,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
 
         const nextText = msg.text == null ? "" : String(msg.text)
-        const mode = msg.mode === "append" ? "append" : "replace"
-        const label = mode === "append" ? "Text append" : "Text replace"
+        const mode = msg.mode === "append" ? "append" : msg.mode === "prepend" ? "prepend" : "replace"
+        const label = mode === "append" ? "Text append" : mode === "prepend" ? "Text prepend" : "Text replace"
         pushUndo(label + ": " + selector.slice(0, 36))
 
         els.forEach(el => {
-          if (mode === "append") el.textContent = (el.textContent || "") + nextText
-          else el.textContent = nextText
+          if (el.tagName === "IMG") {
+            const current = el.getAttribute("alt") || ""
+            const merged = mode === "append" ? current + nextText : mode === "prepend" ? nextText + current : nextText
+            el.setAttribute("alt", merged)
+            el.setAttribute("title", merged)
+            el.setAttribute("aria-label", merged)
+          } else if (mode === "append") {
+            el.appendChild(document.createTextNode(nextText))
+          } else if (mode === "prepend") {
+            el.insertBefore(document.createTextNode(nextText), el.firstChild)
+          } else {
+            el.textContent = nextText
+          }
           const mark = el.id ? "#" + el.id : el.tagName.toLowerCase()
           el.setAttribute("data-cksa-layout", mark + " — text edited")
           glow(el)
@@ -250,6 +261,72 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true
     }
 
+    case "CREATE_TEXT_BLOCK": {
+      try {
+        const text = String(msg.text || "")
+        const html = !!msg.html
+        pushUndo("Create text block")
+
+        const wrap = document.createElement("div")
+        const id = "__cksa_text_" + Date.now()
+        wrap.id = id
+        wrap.setAttribute("data-cksa-text-block", "true")
+        wrap.setAttribute("data-cksa-created", "true")
+        wrap.style.position = "fixed"
+        const safeLeft = Math.max(16, Math.min(window.innerWidth - 120, Math.round(window.innerWidth * 0.25)))
+        const safeTop = Math.max(16, Math.min(window.innerHeight - 100, Math.round(window.innerHeight * 0.25)))
+        wrap.style.left = safeLeft + "px"
+        wrap.style.top = safeTop + "px"
+        wrap.style.zIndex = "2147483644"
+        wrap.style.cursor = "grab"
+        wrap.style.transition = "none"
+        wrap.style.transform = "translate(0px, 0px)"
+        wrap.style.willChange = "transform"
+        wrap.style.padding = (msg.opts && msg.opts.padding ? msg.opts.padding : 8) + "px"
+        wrap.style.background = (msg.opts && msg.opts.background) || "transparent"
+        wrap.style.color = (msg.opts && msg.opts.color) || "#000"
+        wrap.style.borderRadius = "6px"
+        wrap.style.boxShadow = "0 6px 20px rgba(0,0,0,0.12)"
+
+        if (html && text) wrap.innerHTML = text
+        else if (text) {
+          // preserve line breaks
+          const frag = document.createDocumentFragment()
+          text.split(/\r?\n/).forEach((line, idx) => {
+            frag.appendChild(document.createTextNode(line))
+            if (idx < text.split(/\r?\n/).length - 1) frag.appendChild(document.createElement('br'))
+          })
+          wrap.appendChild(frag)
+        } else {
+          wrap.textContent = "New text"
+        }
+
+        document.body.appendChild(wrap)
+
+        // Promote to free placement so it can be moved immediately
+        try { promoteToFreePlacement(wrap) } catch (e) { /* ignore */ }
+
+        selectedDragElement = wrap
+        lastMovedElement = wrap
+        showUndoToast("➕ Text block added (draggable)")
+
+        chrome.runtime.sendMessage({
+          type: "ELEMENT_DRAGGED",
+          tag: "div",
+          label: "text block",
+          canUndo: stackState().canUndo,
+          canRedo: stackState().canRedo,
+          undoLabel: stackState().undoLabel,
+          redoLabel: stackState().redoLabel,
+        }).catch(() => {})
+
+        sendResponse({ success: true, id, ...stackState() })
+      } catch (e) {
+        sendResponse({ success: false, error: e.message, ...stackState() })
+      }
+      return true
+    }
+
     case "RESET_ALL_MOVES":
       resetAllMoves()
       sendResponse({ success: true, ...stackState() }); return true
@@ -257,6 +334,53 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case "RESET_LAST_MOVE": {
       const success = resetLastMovedElement()
       sendResponse({ success, ...stackState() })
+      return true
+    }
+
+    case "DELETE_SELECTED_ELEMENT": {
+      try {
+        const target = getSelectedDragElement()
+        if (!target || !document.contains(target)) {
+          sendResponse({ success: false, error: "No selected element", ...stackState() })
+          return true
+        }
+
+        pushUndo("Delete selected element")
+
+        const label = elementLabel(target)
+        const isSelected = selectedDragElement === target
+        const isLastMoved = lastMovedElement === target
+        const isCarried = carriedEl === target
+
+        if (isCarried) {
+          finishCarryAtCurrentPosition(true)
+        }
+
+        if (dragSelection.has(target)) dragSelection.delete(target)
+        if (hoveredDragElement === target) hoveredDragElement = null
+        if (isSelected) selectedDragElement = null
+        if (isLastMoved) lastMovedElement = null
+        if (dragDirectCandidate?.el === target) dragDirectCandidate = null
+
+        target.remove()
+        clearDragSelection()
+        hideDragHandle()
+        syncDragOverlay()
+        showUndoToast("🗑 Deleted: " + label)
+
+        chrome.runtime.sendMessage({
+          type: "ELEMENT_DELETED",
+          label,
+          canUndo: stackState().canUndo,
+          canRedo: stackState().canRedo,
+          undoLabel: stackState().undoLabel,
+          redoLabel: stackState().redoLabel,
+        }).catch(() => {})
+
+        sendResponse({ success: true, label, ...stackState() })
+      } catch (e) {
+        sendResponse({ success: false, error: e.message, ...stackState() })
+      }
       return true
     }
 
@@ -1168,6 +1292,221 @@ function applyFix(fix) {
       })
       return `✓ setStructuralChange(${action}) on ${modified} element(s)`
     }
+
+    // ===== 🚀 NEW: PRODUCTION-LEVEL STRUCTURAL DOM CHANGES =====
+    
+    case "moveElementStructural": {
+      const sourceEls = resolveElements(fix.selector)
+      if (!sourceEls.length) throw new Error(`Source element not found: ${fix.selector}`)
+      
+      const targetSelector = String(fix.targetSelector || "").trim()
+      if (!targetSelector) throw new Error("Target selector required for moveElementStructural")
+      
+      const targetEls = resolveSelector(targetSelector)
+      if (!targetEls.length) throw new Error(`Target element not found: ${targetSelector}`)
+      
+      const position = String(fix.position || "append").toLowerCase()
+      let moveCount = 0
+      
+      sourceEls.forEach(sourceEl => {
+        targetEls.forEach((targetEl, idx) => {
+          try {
+            // Clone for multiple targets, move only for single target
+            const elToMove = idx === 0 ? sourceEl : sourceEl.cloneNode(true)
+            
+            if (position === "before") {
+              targetEl.parentNode.insertBefore(elToMove, targetEl)
+            } else if (position === "after") {
+              targetEl.parentNode.insertBefore(elToMove, targetEl.nextSibling)
+            } else if (position === "append") {
+              targetEl.appendChild(elToMove)
+            } else if (position === "prepend") {
+              targetEl.insertBefore(elToMove, targetEl.firstChild)
+            } else {
+              targetEl.appendChild(elToMove)
+            }
+            
+            glow(elToMove)
+            moveCount++
+          } catch (e) {
+            console.warn("Move error:", e.message)
+          }
+        })
+      })
+      
+      return `✓ moveElementStructural: moved/copied ${moveCount} element(s) to ${fix.targetSelector} (${position})`
+    }
+
+    case "moveContentStructural": {
+      const sourceEls = resolveElements(fix.selector)
+      if (!sourceEls.length) throw new Error(`Source element not found: ${fix.selector}`)
+
+      const targetSelector = String(fix.targetSelector || "").trim()
+      if (!targetSelector) throw new Error("Target selector required for moveContentStructural")
+
+      const targetEls = resolveElements(targetSelector)
+      if (!targetEls.length) throw new Error(`Target element not found: ${targetSelector}`)
+
+      const position = String(fix.position || "append").toLowerCase()
+      const removeSource = fix.removeSource !== false
+      let moved = 0
+
+      sourceEls.forEach(sourceEl => {
+        const sourceNodes = Array.from(sourceEl.childNodes)
+        if (!sourceNodes.length) return
+
+        targetEls.forEach((targetEl, idx) => {
+          const nodes = idx === 0 ? sourceNodes : sourceNodes.map(node => node.cloneNode(true))
+          const fragment = document.createDocumentFragment()
+
+          nodes.forEach(node => fragment.appendChild(node))
+
+          if (position === "before") {
+            targetEl.parentNode.insertBefore(fragment, targetEl)
+          } else if (position === "after") {
+            targetEl.parentNode.insertBefore(fragment, targetEl.nextSibling)
+          } else if (position === "prepend") {
+            targetEl.insertBefore(fragment, targetEl.firstChild)
+          } else {
+            targetEl.appendChild(fragment)
+          }
+
+          glow(targetEl)
+          moved++
+        })
+
+        if (removeSource) {
+          sourceEl.remove()
+        } else {
+          sourceEl.innerHTML = ""
+        }
+      })
+
+      return `✓ moveContentStructural: moved content from ${sourceEls.length} source element(s) to ${fix.targetSelector} (${position})`
+    }
+
+    case "addTextContent": {
+      const els = resolveElements(fix.selector)
+      const text = String(fix.text || "").trim()
+      const mode = String(fix.mode || "replace").toLowerCase()
+      
+      if (!text) throw new Error("Text content required for addTextContent")
+      
+      let updated = 0
+      els.forEach(el => {
+        try {
+          if (el.tagName === "IMG") {
+            const existingAlt = el.getAttribute("alt") || ""
+            const nextAlt = mode === "append" ? `${existingAlt}${text}` : mode === "prepend" ? `${text}${existingAlt}` : text
+            el.setAttribute("alt", nextAlt)
+            el.setAttribute("title", nextAlt)
+            el.setAttribute("aria-label", nextAlt)
+            el.setAttribute("data-cksa-image-text", nextAlt)
+          } else if (mode === "append") {
+            el.appendChild(document.createTextNode(text))
+          } else if (mode === "prepend") {
+            el.insertBefore(document.createTextNode(text), el.firstChild)
+          } else {
+            el.textContent = text
+          }
+          
+          el.setAttribute("data-cksa-text-edited", "true")
+          glow(el)
+          updated++
+        } catch (e) {
+          console.warn("Text add error:", e.message)
+        }
+      })
+      
+      return `✓ addTextContent on ${updated} element(s) (${mode} mode): "${text.substring(0, 50)}${text.length > 50 ? "..." : ""}"`
+    }
+
+    case "freeFormDomWrite": {
+      const selector = String(fix.selector || "body").trim()
+      const targetEls = resolveSelector(selector)
+      if (!targetEls.length) throw new Error(`Target selector not found: ${selector}`)
+      
+      const html = String(fix.html || "").trim()
+      if (!html) throw new Error("HTML content required for freeFormDomWrite")
+      
+      const mode = String(fix.mode || "append").toLowerCase()
+      let written = 0
+      
+      targetEls.forEach(targetEl => {
+        try {
+          // Create temporary container for safe HTML parsing
+          const temp = document.createElement("div")
+          temp.innerHTML = html
+          
+          const nodes = Array.from(temp.childNodes)
+          
+          if (mode === "replace") {
+            targetEl.innerHTML = html
+          } else if (mode === "append") {
+            nodes.forEach(node => {
+              targetEl.appendChild(node.cloneNode(true))
+            })
+          } else if (mode === "prepend") {
+            const fragment = document.createDocumentFragment()
+            nodes.forEach(node => {
+              fragment.insertBefore(node.cloneNode(true), fragment.firstChild)
+            })
+            targetEl.insertBefore(fragment, targetEl.firstChild)
+          } else if (mode === "before") {
+            const fragment = document.createDocumentFragment()
+            nodes.forEach(node => {
+              fragment.appendChild(node.cloneNode(true))
+            })
+            targetEl.parentNode.insertBefore(fragment, targetEl)
+          } else if (mode === "after") {
+            const fragment = document.createDocumentFragment()
+            nodes.forEach(node => {
+              fragment.appendChild(node.cloneNode(true))
+            })
+            targetEl.parentNode.insertBefore(fragment, targetEl.nextSibling)
+          }
+          
+          glow(targetEl)
+          targetEl.setAttribute("data-cksa-dom-written", "true")
+          written++
+        } catch (e) {
+          console.warn("Free-form DOM write error:", e.message)
+        }
+      })
+      
+      return `✓ freeFormDomWrite: wrote HTML to ${written} element(s) (${mode} mode)`
+    }
+
+    case "wrapElement": {
+      const els = resolveElements(fix.selector)
+      const wrapTag = String(fix.wrapTag || "div").toLowerCase()
+      const classes = Array.isArray(fix.classes) ? fix.classes : []
+      const styles = fix.styles && typeof fix.styles === "object" ? fix.styles : {}
+      
+      let wrapped = 0
+      els.forEach(el => {
+        try {
+          const wrapper = document.createElement(wrapTag)
+          if (classes.length) wrapper.className = classes.join(" ")
+          
+          // Apply inline styles from fix
+          Object.entries(styles).forEach(([prop, val]) => {
+            wrapper.style[prop] = val
+          })
+          
+          el.parentNode.insertBefore(wrapper, el)
+          wrapper.appendChild(el)
+          glow(wrapper)
+          wrapped++
+        } catch (e) {
+          console.warn("Wrap error:", e.message)
+        }
+      })
+      
+      return `✓ wrapElement: wrapped ${wrapped} element(s) in <${wrapTag}>`
+    }
+
+    // ===== END NEW PRODUCTION FEATURES =====
     
     default:
       console.warn("⚠️ Unknown fix type:", fix.type, fix)

@@ -2,6 +2,21 @@
 
 This project is a Next.js app with a Chrome extension. The app lets you paste HTML or fetch a URL, analyze the page, open the results workspace, apply themes, move elements, and download the final output. The extension makes the same theme and drag behavior work on live websites.
 
+## 🚀 NEW: Production-Level AI Chatbot Features (v2.0)
+
+Your AI chatbot now has **THREE POWERFUL NEW CAPABILITIES**:
+
+### 1. 🔄 **Structural DOM Changes**
+Move, reorder, or copy any element on the page with natural language.
+
+### 2. ✍️ **Text Addition & Modification**
+Add, replace, or append text to any element dynamically.
+
+### 3. 🖊️ **Free-Form DOM Writing**
+Write any valid HTML and inject it into selected page locations.
+
+**[View Full Documentation →](./IMPLEMENTATION_SUMMARY.md)** | [Features Guide](./PRODUCTION_FEATURES_GUIDE.md) | [Testing Guide](./QUICK_START_TESTING.md) | [API Examples](./API_EXAMPLES.md)
+
 ## Project Flow
 
 ### Next.js app startup order

@@ -343,6 +343,8 @@ export default function Results() {
   const [layoutMode, setLayoutMode]         = useState(false)
   const [selectedEl, setSelectedEl]         = useState(null)   
   const [pendingStyles, setPendingStyles]   = useState({})
+  const [layoutText, setLayoutText]         = useState("")
+  const [layoutTextMode, setLayoutTextMode]  = useState("replace")
   const [layoutTab, setLayoutTab]           = useState("typography")
   const [layoutApplied, setLayoutApplied]   = useState(false)
 
@@ -376,6 +378,8 @@ export default function Results() {
       if (e.data?.type === "ELEMENT_SELECTED") {
         setSelectedEl(e.data)
         setPendingStyles({ ...e.data.styles })
+        setLayoutText(e.data.text || "")
+        setLayoutTextMode("replace")
         setLayoutApplied(false)
         setLayoutTab("typography")
       }
@@ -553,9 +557,7 @@ export default function Results() {
       const savedTheme = themeManager.getActiveTheme()
       if (savedTheme) {
         const fullTheme = themes.find(t => t.name === savedTheme.name)
-        if (fullTheme) {
-          setActiveTheme(fullTheme)
-        }
+        setActiveTheme(fullTheme || savedTheme)
       }
     }
   }, [])
@@ -640,6 +642,93 @@ export default function Results() {
     setLayoutApplied(true)
   }
 
+  function applyLayoutText() {
+    if (!selectedEl?.selector) return
+    const doc = new DOMParser().parseFromString(htmlRef.current, "text/html")
+    try {
+      const el = doc.querySelector(selectedEl.selector)
+      if (!el) return
+
+      const nextText = String(layoutText || "")
+      const mode = layoutTextMode === "append" ? "append" : layoutTextMode === "prepend" ? "prepend" : "replace"
+
+      if (el.tagName === "IMG") {
+        const existingAlt = el.getAttribute("alt") || ""
+        const current = mode === "append" ? `${existingAlt}${nextText}` : mode === "prepend" ? `${nextText}${existingAlt}` : nextText
+        el.setAttribute("alt", current)
+        el.setAttribute("title", current)
+        el.setAttribute("aria-label", current)
+      } else if (mode === "append") {
+        el.appendChild(doc.createTextNode(nextText))
+      } else if (mode === "prepend") {
+        el.insertBefore(doc.createTextNode(nextText), el.firstChild)
+      } else {
+        el.textContent = nextText
+      }
+
+      const newHtml = doc.documentElement.outerHTML
+      htmlRef.current = newHtml
+      setUndoStack(p => [...p, html])
+      setRedoStack([])
+      setHtml(newHtml)
+      saveToBackend(newHtml, `Layout Text: ${selectedEl.tag}`)
+      setChanges(p => [{
+        _id: Date.now().toString(),
+        themeName: `Layout Text: <${selectedEl.tag}>`,
+        html: newHtml,
+        appliedAt: new Date(),
+      }, ...p])
+      setLayoutApplied(true)
+    } catch {
+      // Keep the editor stable if the selector cannot be resolved.
+    }
+  }
+
+  function createLayoutTextBlock() {
+    try {
+      const doc = new DOMParser().parseFromString(htmlRef.current || "", "text/html")
+      const body = doc.querySelector('body') || doc
+
+      const wrapper = doc.createElement('div')
+      const id = '__cksa_text_' + Date.now()
+      wrapper.id = id
+      wrapper.setAttribute('data-cksa-text-block', 'true')
+      wrapper.setAttribute('data-cksa-created', 'true')
+      // basic inline styles so block is visible in preview/download
+      wrapper.style.position = 'absolute'
+      const safeLeft = Math.max(16, Math.round((doc.documentElement?.clientWidth || 800) * 0.25))
+      const safeTop = Math.max(16, 100)
+      wrapper.style.left = safeLeft + 'px'
+      wrapper.style.top = safeTop + 'px'
+      wrapper.style.zIndex = '2147483644'
+      wrapper.style.padding = '8px'
+      wrapper.style.background = 'transparent'
+      wrapper.style.color = '#000'
+      wrapper.style.borderRadius = '6px'
+      wrapper.style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'
+
+      const content = String(layoutText || 'New text')
+      const lines = content.split(/\r?\n/)
+      lines.forEach((ln, idx) => {
+        wrapper.appendChild(doc.createTextNode(ln))
+        if (idx < lines.length - 1) wrapper.appendChild(doc.createElement('br'))
+      })
+
+      body.appendChild(wrapper)
+
+      const newHtml = doc.documentElement.outerHTML
+      htmlRef.current = newHtml
+      setUndoStack(p => [...p, html])
+      setRedoStack([])
+      setHtml(newHtml)
+      saveToBackend(newHtml, 'Layout: created text block')
+      setChanges(p => [{ _id: Date.now().toString(), themeName: 'Layout: created text block', html: newHtml, appliedAt: new Date() }, ...p])
+      setLayoutApplied(true)
+    } catch (e) {
+      console.error('Create text block failed', e)
+    }
+  }
+
   function resetLayoutStyles() {
     if (!selectedEl) return
     iframeRef.current?.contentWindow?.postMessage({ type: "RESET_STYLE", selector: selectedEl.selector }, "*")
@@ -700,7 +789,7 @@ export default function Results() {
   const scoreColor = safeScore >= 80 ? "text-green-400" : safeScore >= 50 ? "text-yellow-400" : "text-red-400"
   const impactColor = { critical:"text-red-400", serious:"text-orange-400", moderate:"text-yellow-400", minor:"text-blue-400" }
 
-  const LAYOUT_TABS = ["typography","spacing","size","colors"]
+  const LAYOUT_TABS = ["typography","spacing","size","colors","text"]
   const assistantSelection = buildAssistantSelectionContext(html, selectedEl)
 
   return (
@@ -997,7 +1086,7 @@ export default function Results() {
                             ? "text-purple-300 border-purple-500"
                             : "text-white/30 border-transparent hover:text-white/50"
                         }`}>
-                        {tab === "typography" ? "Type" : tab === "spacing" ? "Space" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        {tab === "typography" ? "Type" : tab === "spacing" ? "Space" : tab === "text" ? "Text" : tab.charAt(0).toUpperCase() + tab.slice(1)}
                       </button>
                     ))}
                   </div>
@@ -1082,6 +1171,60 @@ export default function Results() {
           <div className={`mt-2 p-2.5 rounded-lg border text-center transition-all duration-300 ${pass ? "bg-green-900/20 border-green-500/20" : "bg-red-900/20 border-red-500/20"}`}>
             <div className={`text-lg font-black ${pass ? "text-green-400" : "text-red-400"}`}>
               {ratio}:1
+
+                      {layoutTab === "text" && (
+                        <>
+                          <div className="mb-2">
+                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1">Text Editor</div>
+                            <p className="mb-2 text-[11px] text-white/35 leading-relaxed">Write new text here and apply it to the selected element.</p>
+                            <textarea
+                              value={layoutText}
+                              onChange={e => setLayoutText(e.target.value)}
+                              placeholder="Write the new text you want to add here"
+                              className="w-full min-h-24 rounded-lg bg-white/5 border border-white/10 text-white/80 text-sm px-3 py-2 outline-none focus:border-purple-500 resize-y"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 mb-3">
+                            {[
+                              ["replace", "Replace"],
+                              ["append", "Append"],
+                              ["prepend", "Prepend"],
+                            ].map(([mode, label]) => (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setLayoutTextMode(mode)}
+                                className={`py-1.5 text-xs border rounded transition-colors ${
+                                  layoutTextMode === mode
+                                    ? "bg-purple-600/35 border-purple-400/40 text-purple-200"
+                                    : "border-white/10 text-white/50 hover:bg-white/10"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="flex items-center justify-end gap-3 mb-3">
+                            <button
+                              type="button"
+                              onClick={() => createLayoutTextBlock()}
+                              className="py-1.5 px-3 text-sm font-semibold rounded-lg bg-indigo-600/30 border border-indigo-400/30 text-indigo-200 hover:bg-indigo-600/40 transition-colors"
+                            >
+                              ➕ Create Text Block
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={applyLayoutText}
+                            className="w-full py-2 text-sm font-semibold rounded-lg bg-emerald-600/30 border border-emerald-400/30 text-emerald-200 hover:bg-emerald-600/40 transition-colors"
+                          >
+                            Apply Text to Selected Element
+                          </button>
+                        </>
+                      )}
             </div>
             <div className={`text-[10px] font-semibold ${pass ? "text-green-400" : "text-red-400"}`}>
               {pass ? "✓ WCAG AA Pass" : "✗ WCAG AA Fail — min 4.5:1"}

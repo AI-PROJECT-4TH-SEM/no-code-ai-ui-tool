@@ -103,6 +103,7 @@
           <span id="fix-counter" class="fp-count">0 / 0</span>
         </div>
         <div class="fp-track"><div id="fp-bar" class="fp-bar" style="width:0%"></div></div>
+            <button class="li-tab" data-litab="text">✎</button>
       </div>
 
       <div class="action-bar">
@@ -264,6 +265,27 @@
         </div>
       </div>
 
+        <div id="litab-text" class="li-pane hidden">
+          <div class="li-row li-text-edit-wrap">
+            <label class="li-lbl">Text Content</label>
+            <div id="li-current-text" class="li-current-text">Selected text will appear here</div>
+            <textarea id="li-text-input" class="li-text-input" rows="3" placeholder="Write the text you want to add here"></textarea>
+              <div class="li-text-actions">
+              <button id="li-text-replace-btn" class="li-text-btn li-text-btn-primary">Replace</button>
+              <button id="li-text-append-btn" class="li-text-btn">Append</button>
+              <button id="li-text-prepend-btn" class="li-text-btn">Prepend</button>
+              <button id="li-text-clear-btn" class="li-text-btn">Clear</button>
+                <button id="li-text-create-btn" class="li-text-btn li-text-btn-primary">Create Text Block</button>
+            </div>
+              <div class="li-text-opts">
+                <label style="font-size:12px;margin-top:8px;display:flex;align-items:center;gap:8px">
+                  <input type="checkbox" id="li-text-allow-html"> Allow HTML
+                </label>
+              </div>
+            <p class="li-text-note">Write new text directly from the layout panel and apply it to the selected element.</p>
+          </div>
+        </div>
+
       <div class="li-footer">
         <button id="li-copy-css-btn" class="li-foot-btn li-foot-copy">📋 Copy CSS</button>
         <button id="li-apply-btn" class="li-foot-btn li-foot-apply">✓ Apply to HTML</button>
@@ -308,9 +330,19 @@
         <button id="move-add-image-btn" class="move-tool-btn">🖼 Add Image</button>
         <button id="move-click-mode-btn" class="move-tool-btn">🎯 Click Move: OFF</button>
       </div>
+      <div class="move-text-tools mt-3 px-3">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <textarea id="move-text-input" placeholder="Write text to create a new draggable block" rows="2"
+            style="flex:1;resize:vertical;padding:8px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);color:#fff"></textarea>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button id="move-text-create-btn" class="move-tool-btn" style="padding:8px 10px">➕ Create Text Block</button>
+          </div>
+        </div>
+      </div>
       <p class="move-tip">Click Move mode: click an element once to select it, then click destination to place it smoothly.</p>
 
       <div class="move-actions">
+        <button id="move-delete-btn" class="move-reset-btn">🗑 Delete Selected</button>
         <button id="move-reset-last-btn" class="move-reset-btn">↩ Reset Selected</button>
         <button id="move-reset-btn" class="move-reset-btn">↩ Reset All Moves</button>
       </div>
