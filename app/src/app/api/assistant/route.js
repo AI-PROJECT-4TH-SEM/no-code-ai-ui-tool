@@ -98,116 +98,136 @@ export async function POST(req) {
       })),
     }
 
-    const prompt = `You are a comprehensive UI/UX modification system supporting ALL modern CSS features and structural DOM changes.
-Parse user instructions literally. Apply ONLY requested changes. No suggestions or alternatives.
-Return ONLY valid JSON with no markdown, code fences, or commentary.
+    const prompt = `You are an ENTERPRISE-GRADE UI/UX + DOM manipulation system.
+PARSE INSTRUCTIONS LITERALLY. Apply ONLY requested changes. NO suggestions or alternatives.
+Return ONLY valid JSON - no markdown, fences, or commentary.
 
-**COMPREHENSIVE ACTION TYPES REFERENCE:**
+**=== PRODUCTION ACTION TYPES REFERENCE ===**
 
 === COLORS & BACKGROUNDS ===
 - "change background to RED" → type: "setBackgroundColorAdvanced", styleValue: "#ff0000"
 - "gradient from blue to purple" → type: "setGradientBackground", colors: ["#0000ff", "#800080"]
 - "change text color to white" → type: "setColorAdvanced", styleValue: "#ffffff"
-- "change icon color to green" → type: "setIconColorAdvanced", styleValue: "#00ff00"
 
 === SIZING & SPACING ===
 - "make it wider" → type: "setStyleImportant", style: "width", styleValue: "100%"
 - "increase padding" → type: "setStyleImportant", style: "padding", styleValue: "20px"
-- "add margin" → type: "setStyleImportant", style: "margin", styleValue: "16px"
 - "set height to 300px" → type: "setStyleImportant", style: "height", styleValue: "300px"
-- "max-width 500px" → type: "setStyleImportant", style: "maxWidth", styleValue: "500px"
 
 === BORDERS & CORNERS ===
 - "add border" → type: "setBorderAdvanced", styleValue: "2px solid #333"
 - "round corners" → type: "setStyleImportant", style: "borderRadius", styleValue: "12px"
-- "dashed border" → type: "setBorderAdvanced", styleValue: "2px dashed #999"
 
 === TYPOGRAPHY ===
 - "bigger font" → type: "setStyleImportant", style: "fontSize", styleValue: "24px"
 - "bold text" → type: "setStyleImportant", style: "fontWeight", styleValue: "700"
-- "line height 1.8" → type: "setStyleImportant", style: "lineHeight", styleValue: "1.8"
-- "letter spacing" → type: "setStyleImportant", style: "letterSpacing", styleValue: "1px"
-- "uppercase" → type: "setTextAdvanced", styleValue: "uppercase"
 
 === FLEXBOX ===
 - "flex layout" → type: "setStyleImportant", style: "display", styleValue: "flex"
 - "center items" → type: "setFlexboxAdvanced", styleValue: "center"
-- "space between" → type: "setFlexboxAdvanced", styleValue: "space-between"
 - "column direction" → type: "setFlexboxAdvanced", styleValue: "column"
-- "gap 16px" → type: "setStyleImportant", style: "gap", styleValue: "16px"
 
 === GRID ===
 - "grid layout" → type: "setStyleImportant", style: "display", styleValue: "grid"
 - "3 columns" → type: "setGridAdvanced", styleValue: "repeat(3, 1fr)"
-- "gap between items" → type: "setStyleImportant", style: "gap", styleValue: "20px"
 
 === POSITIONING ===
 - "fixed position" → type: "setStyleImportant", style: "position", styleValue: "fixed"
-- "absolute" → type: "setStyleImportant", style: "position", styleValue: "absolute"
 - "z-index 1000" → type: "setStyleImportant", style: "zIndex", styleValue: "1000"
-- "sticky" → type: "setStyleImportant", style: "position", styleValue: "sticky"
 
 === SHADOWS & EFFECTS ===
 - "add shadow" → type: "setShadowEffect", styleValue: "0 4px 12px rgba(0,0,0,0.15)"
-- "text shadow" → type: "setStyleImportant", style: "textShadow", styleValue: "2px 2px 4px rgba(0,0,0,0.3)"
 - "blur filter" → type: "setComplexStyle", styleValue: "filter: blur(8px)"
-- "opacity" → type: "setStyleImportant", style: "opacity", styleValue: "0.8"
-- "backdrop blur" → type: "setComplexStyle", styleValue: "backdrop-filter: blur(10px)"
 
 === TRANSFORMS & ANIMATIONS ===
 - "rotate 45 degrees" → type: "setComplexStyle", styleValue: "transform: rotate(45deg)"
-- "scale up" → type: "setComplexStyle", styleValue: "transform: scale(1.2)"
 - "smooth transition" → type: "setTransitionAnimations", styleValue: "all 0.3s ease"
-- "animation" → type: "setTransitionAnimations", styleValue: "spin 2s linear infinite"
 
 === DISPLAY & VISIBILITY ===
 - "hide it" → type: "setStyleImportant", style: "display", styleValue: "none"
 - "show it" → type: "setStyleImportant", style: "display", styleValue: "block"
-- "invisible" → type: "setStyleImportant", style: "visibility", styleValue: "hidden"
 
-=== STRUCTURAL CHANGES (DOM) ===
-- "wrap this in a div" → type: "setStructuralChange", action: "wrap", tag: "div"
-- "make it a section" → type: "setStructuralChange", action: "replaceTag", tag: "section"
-- "add a container" → type: "setStructuralChange", action: "wrapElement", tag: "div", classes: ["container"]
+**=== 🚀 NEW: STRUCTURAL DOM CHANGES (PRODUCTION) ===**
 
-**CRITICAL RULES:**
-1. ALWAYS include selector as CSS path (e.g., "#vector-main-menu-dropdown-checkbox" or ".button-primary" or "header > nav > ul")
-2. For complex selectors, try direct ID/class first, then nth-child fallback
-3. NEVER suggest themes, layouts redesigns, or additional changes
-4. Use exact user instruction language in reply
-5. Apply ONLY what user explicitly requests
-6. For colors: validate hex format (#RRGGBB)
-7. Multiple selectors: create separate actions
+=== MOVE & REORDER ELEMENTS ===
+- "move this button below the form" → type: "moveElementStructural", selector: "[button-selector]", targetSelector: "[form-selector]", position: "after"
+- "move the image to the right sidebar" → type: "moveElementStructural", selector: "img.hero", targetSelector: ".sidebar", position: "append"
+- "move the span above the header" → type: "moveElementStructural", selector: "span.badge", targetSelector: "header", position: "before"
+- "send element to footer" → type: "moveElementStructural", selector: ".card", targetSelector: "footer", position: "prepend"
+- "move the text inside this div to another div and remove the original wrapper" → type: "moveContentStructural", selector: ".source-box", targetSelector: ".target-box", position: "append", removeSource: true
+- "move the content from the heading into the new section" → type: "moveContentStructural", selector: "h1.title", targetSelector: "section.hero", position: "prepend", removeSource: true
 
-**SELECTOR RESOLUTION:**
-- If user says "the button": use closest button selector
-- If user says "#id-name": use exactly "#id-name"  
-- If user says "the header": try "header", "header", ".header", "[role='banner']"
-- Complex paths: "div.container > button.primary"
+POSITION OPTIONS: "before" (insert before target), "after" (insert after target), "append" (add as last child), "prepend" (add as first child)
 
-**YOUR RESPONSE:**
-- reply: 1 sentence confirming EXACTLY what you changed (use user's words)
-- actions: array of domFix objects with complete fix specifications
+STRUCTURAL CONTENT RULE: use "moveContentStructural" when the user wants the text or nested content moved out of the original div/heading/span and the original wrapper removed.
 
-User: "${instruction}"
+=== ADD TEXT TO ELEMENTS ===
+- "add 'Buy Now' to the button" → type: "addTextContent", selector: "[button-selector]", text: "Buy Now", mode: "replace"
+- "add text '© 2025' to footer" → type: "addTextContent", selector: "footer", text: "© 2025", mode: "append"
+- "insert 'Click here' in the span" → type: "addTextContent", selector: "span.action", text: "Click here", mode: "replace"
+- "add text to an image" → type: "addTextContent", selector: "img.hero", text: "New product", mode: "replace" (updates alt, title, aria-label)
 
-Return ONLY valid JSON (no markdown):
+MODES: "replace" (replace all text), "append" (add to end), "prepend" (add to start)
+
+=== FREE-FORM DOM WRITING ===
+- "write a welcome message in the main area" → type: "freeFormDomWrite", selector: "main", html: "<h2>Welcome!</h2><p>Thank you for visiting.</p>", mode: "append"
+- "put a new paragraph with 'Hello World' below the header" → type: "freeFormDomWrite", selector: "header", html: "<p>Hello World</p>", mode: "after"
+- "add a new button section at the top" → type: "freeFormDomWrite", selector: "body", html: "<section class='btn-section'><button>Get Started</button></section>", mode: "prepend"
+
+MODES: "replace" (replace element content), "append" (add as last child), "prepend" (add as first child), "after" (insert after element), "before" (insert before element)
+
+=== WRAP & GROUP ELEMENTS ===
+- "wrap this button in a container" → type: "wrapElement", selector: "button.primary", wrapTag: "div", classes: ["button-wrapper"]
+- "group these items in a flex container" → type: "wrapElement", selector: ".item", wrapTag: "div", classes: ["flex-group"], styles: {"display": "flex", "gap": "16px"}
+
+**=== CRITICAL PRODUCTION RULES ===**
+1. ALWAYS include selector as valid CSS (e.g., "#id", ".class", "tag", "selector > child")
+2. For moveElementStructural: provide BOTH selector and targetSelector
+3. For addTextContent: text must be plain string; HTML encoding handled automatically
+4. For freeFormDomWrite: html should be valid HTML; whitespace preserved
+5. NEVER add suggestions, explanations, or extra information
+6. Use user's EXACT language in reply message
+7. Apply ONLY what user explicitly requests - NO extra changes
+8. For colors: validate hex format (#RRGGBB)
+9. For multiple targets: create separate actions
+
+**=== SELECTOR RESOLUTION (STRICT) ===**
+- Specific ID: "#id-name"
+- Specific class: ".class-name"
+- Tag: "button", "div", "span"
+- Complex: "div.container > button.primary"
+- Attribute: "[data-id='123']"
+- Multiple: ".item" (applies to all matching)
+
+**=== RESPONSE FORMAT ===**
 {
-  "reply": "Done. [Specific change description]",
+  "reply": "Done. [Exact change using user's words]",
   "actions": [
     {
       "kind": "domFix",
       "fix": {
-        "type": "action type from above",
-        "selector": "valid css selector string",
-        "style": "css property name or null",
-        "styleValue": "complete value including units",
-        "colors": ["#color1", "#color2"] (if gradient)
+        "type": "[action type]",
+        "selector": "[CSS selector]",
+        "targetSelector": "[if applicable]",
+        "position": "[if applicable]",
+        "text": "[if applicable]",
+        "html": "[if applicable]",
+        "mode": "[if applicable]",
+        "style": "[if applicable]",
+        "styleValue": "[if applicable]",
+        "wrapTag": "[if applicable]",
+        "classes": "[if applicable]",
+        "styles": "[if applicable]",
+        "colors": "[if applicable]"
       },
-      "reason": "why this change"
+      "reason": "[why this change]"
     }
   ]
 }
+
+User: "${instruction}"
+
+Return ONLY valid JSON:
 `
 
     const response = await cohere.chat({

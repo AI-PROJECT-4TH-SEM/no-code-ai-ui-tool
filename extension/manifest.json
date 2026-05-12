@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Chai Ke Sath AI",
   "version": "2.2.0",
-  "description": "Accessibility scanner, live fixes, themes, layout inspector.",
+  "description": "Accessibility scanner, live fixes,chatbot, themes, layout inspector.",
   "permissions": [
     "activeTab",
     "storage",

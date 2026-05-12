@@ -2097,6 +2097,14 @@ let fixApplied      = 0
 let inspectorOn     = false
 let dragModeOn      = false
 let clickMoveOn     = false
+let dragEngineOptions = {
+  freePlacement: true,
+  snapToGrid: false,
+  snapToEdges: true,
+  boundary: true,
+  duplicateOnAlt: true,
+  autoScroll: true,
+}
 let undoAvailable   = false
 let redoAvailable   = false
 let fixesApplied    = 0        
@@ -2968,6 +2976,9 @@ function setupGlobalActions() {
       dragChangesExist = true
       updateDownloadBadge()
     }
+    if (msg.type === "DRAG_ENGINE_OPTIONS_UPDATED" && msg.options) {
+      applyDragEngineOptionsToUI(msg.options)
+    }
   })
 }
 
@@ -3480,10 +3491,45 @@ function setupInspector() {
     await applyInspectorTextChange("replace")
   })
 
+  document.getElementById("li-text-append-btn")?.addEventListener("click", async () => {
+    await applyInspectorTextChange("append")
+  })
+
+  document.getElementById("li-text-prepend-btn")?.addEventListener("click", async () => {
+    await applyInspectorTextChange("prepend")
+  })
+
   document.getElementById("li-text-clear-btn")?.addEventListener("click", async () => {
     const input = document.getElementById("li-text-input")
     if (input) input.value = ""
     await applyInspectorTextChange("replace")
+  })
+
+  document.getElementById("li-text-create-btn")?.addEventListener("click", async () => {
+    const input = document.getElementById("li-text-input")
+    const allowHtml = document.getElementById("li-text-allow-html")?.checked
+    const textValue = input ? input.value : ""
+
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      const resp = await chrome.tabs.sendMessage(currentTabId, {
+        type: "CREATE_TEXT_BLOCK",
+        html: !!allowHtml,
+        text: textValue,
+        opts: { padding: 8, background: "transparent", color: "#000" }
+      })
+
+      if (resp?.success) {
+        showToast("➕ Text block created on page", "success")
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      } else {
+        showToast("Could not create text block: " + (resp?.error || "Unknown"), "error")
+      }
+    } catch (e) {
+      console.error("Create text block error:", e)
+      showToast("Could not create text block on page.", "error")
+    }
   })
 
   document.getElementById("li-text-input")?.addEventListener("keydown", async (e) => {
@@ -3526,7 +3572,8 @@ function setupDragMode() {
         updateClickMoveUI(clickMoveOn)
         updateDownloadBadge()
         if (dragModeOn) {
-          showToast("🔀 Drag mode enabled! Double-click any element to pick it, move with cursor, then click to drop.", "success")
+          await syncDragEngineOptions()
+          showToast("🔀 Drag mode enabled! Hover an element, tap ⠿ to select, then use move/resize/rotate handles.", "success")
         } else {
           showToast("🔀 Drag mode disabled", "info")
         }
@@ -3604,6 +3651,12 @@ function setupDragMode() {
     }
   })
 
+  document.querySelectorAll("#move-grid-snap-toggle, #move-edge-snap-toggle, #move-boundary-toggle, #move-duplicate-toggle, #move-autoscroll-toggle").forEach((input) => {
+    input?.addEventListener("change", async () => {
+      await pushDragEngineOptions()
+    })
+  })
+
   document.getElementById("move-reset-last-btn")?.addEventListener("click", async () => {
     try {
       await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
@@ -3622,6 +3675,30 @@ function setupDragMode() {
     }
   })
 
+  document.getElementById("move-delete-btn")?.addEventListener("click", async () => {
+    if (!dragModeOn) {
+      showToast("Enable drag mode first to delete selected elements.", "info")
+      return
+    }
+
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      const resp = await chrome.tabs.sendMessage(currentTabId, { type: "DELETE_SELECTED_ELEMENT" })
+      if (resp?.success) {
+        showToast("🗑 Selected element deleted", "success")
+        const selectedEl = document.getElementById("move-selected-el")
+        if (selectedEl) selectedEl.textContent = "No element selected yet"
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+      } else {
+        showToast("No selected element to delete.", "info")
+      }
+    } catch (err) {
+      console.error("Delete selected error:", err)
+      showToast("Could not delete selected element.", "error")
+    }
+  })
+
   document.getElementById("move-reset-btn")?.addEventListener("click", async () => {
     try {
       await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
@@ -3636,6 +3713,39 @@ function setupDragMode() {
     } catch (err) {
       console.error("Reset error:", err)
       showToast("Could not reset moves on this page.", "error")
+    }
+  })
+
+  // Create text block while in drag mode
+  document.getElementById("move-text-create-btn")?.addEventListener("click", async () => {
+    if (!dragModeOn) {
+      showToast("Enable drag mode first to add text blocks.", "info")
+      return
+    }
+
+    const input = document.getElementById("move-text-input")
+    const textValue = input ? input.value : ""
+
+    try {
+      await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
+      const resp = await chrome.tabs.sendMessage(currentTabId, {
+        type: "CREATE_TEXT_BLOCK",
+        html: true,
+        text: textValue,
+        opts: { padding: 8, background: "transparent", color: "#000" }
+      })
+
+      if (resp?.success) {
+        showToast("➕ Text block created (draggable)", "success")
+        if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
+        updateDownloadBadge()
+        if (input) input.value = ""
+      } else {
+        showToast("Could not create text block: " + (resp?.error || "Unknown"), "error")
+      }
+    } catch (e) {
+      console.error("Create text block error:", e)
+      showToast("Could not create text block on this page.", "error")
     }
   })
 
@@ -3658,6 +3768,7 @@ function setupDragMode() {
 
   updateDragModeUI(dragModeOn)
   updateClickMoveUI(clickMoveOn)
+  syncDragEngineOptions().catch(() => {})
 }
 
 
@@ -3712,6 +3823,52 @@ function updateClickMoveUI(isOn) {
     btn.classList.remove("active")
     btn.textContent = "🎯 Click Move: OFF"
   }
+}
+
+function readDragEngineOptionsFromUI() {
+  return {
+    snapToGrid: !!document.getElementById("move-grid-snap-toggle")?.checked,
+    snapToEdges: !!document.getElementById("move-edge-snap-toggle")?.checked,
+    boundary: !!document.getElementById("move-boundary-toggle")?.checked,
+    duplicateOnAlt: !!document.getElementById("move-duplicate-toggle")?.checked,
+    autoScroll: !!document.getElementById("move-autoscroll-toggle")?.checked,
+  }
+}
+
+function applyDragEngineOptionsToUI(options = {}) {
+  dragEngineOptions = { ...dragEngineOptions, ...options }
+  const mappings = {
+    "move-grid-snap-toggle": !!dragEngineOptions.snapToGrid,
+    "move-edge-snap-toggle": !!dragEngineOptions.snapToEdges,
+    "move-boundary-toggle": !!dragEngineOptions.boundary,
+    "move-duplicate-toggle": !!dragEngineOptions.duplicateOnAlt,
+    "move-autoscroll-toggle": !!dragEngineOptions.autoScroll,
+  }
+
+  Object.entries(mappings).forEach(([id, checked]) => {
+    const input = document.getElementById(id)
+    if (input) input.checked = checked
+  })
+}
+
+async function syncDragEngineOptions() {
+  if (!currentTabId) return
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: currentTabId }, files: ["content.js"] }).catch(() => { })
+    const resp = await chrome.tabs.sendMessage(currentTabId, { type: "GET_DRAG_ENGINE_OPTIONS" })
+    if (resp?.options) {
+      applyDragEngineOptionsToUI(resp.options)
+    }
+  } catch { }
+}
+
+async function pushDragEngineOptions() {
+  if (!currentTabId || !dragModeOn) return
+  const options = readDragEngineOptionsFromUI()
+  dragEngineOptions = { ...dragEngineOptions, ...options }
+  try {
+    await sendToPage({ type: "SET_DRAG_ENGINE_OPTIONS", options })
+  } catch { }
 }
 
 
@@ -3796,8 +3953,12 @@ async function applyInspectorTextChange(mode = "replace") {
   const textValue = input ? input.value : ""
 
   const replaceBtn = document.getElementById("li-text-replace-btn")
+  const appendBtn = document.getElementById("li-text-append-btn")
+  const prependBtn = document.getElementById("li-text-prepend-btn")
   const clearBtn = document.getElementById("li-text-clear-btn")
   if (replaceBtn) replaceBtn.disabled = true
+  if (appendBtn) appendBtn.disabled = true
+  if (prependBtn) prependBtn.disabled = true
   if (clearBtn) clearBtn.disabled = true
 
   try {
@@ -3810,10 +3971,14 @@ async function applyInspectorTextChange(mode = "replace") {
     })
 
     if (resp?.success) {
-      if (currentTextEl) currentTextEl.textContent = textValue || "(empty text)"
+      if (currentTextEl) {
+        if (mode === "append") currentTextEl.textContent = (currentTextEl.textContent || "") + textValue
+        else if (mode === "prepend") currentTextEl.textContent = textValue + (currentTextEl.textContent || "")
+        else currentTextEl.textContent = textValue || "(empty text)"
+      }
       if (resp.canUndo !== undefined) setUndoState(resp.canUndo, resp.canRedo, resp.undoLabel, resp.redoLabel)
       updateDownloadBadge()
-      showToast("✅ Text updated", "success")
+      showToast(`✅ Text ${mode === "append" ? "appended" : mode === "prepend" ? "prepended" : "updated"}`, "success")
     } else {
       showToast("Text update failed: " + (resp?.error || "Unknown"), "error")
     }
@@ -3821,6 +3986,8 @@ async function applyInspectorTextChange(mode = "replace") {
     showToast("Could not update text on page.", "error")
   } finally {
     if (replaceBtn) replaceBtn.disabled = false
+    if (appendBtn) appendBtn.disabled = false
+    if (prependBtn) prependBtn.disabled = false
     if (clearBtn) clearBtn.disabled = false
   }
 }

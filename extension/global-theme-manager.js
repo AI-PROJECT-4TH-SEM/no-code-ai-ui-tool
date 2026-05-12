@@ -142,7 +142,6 @@ window.globalThemeManager = {
   },
 };
 
-// Auto-setup theme listener when script loads
 if (typeof window !== 'undefined') {
   window.globalThemeManager.setupThemeListener();
 
