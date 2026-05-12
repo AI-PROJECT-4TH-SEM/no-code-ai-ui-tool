@@ -2097,6 +2097,14 @@ let fixApplied      = 0
 let inspectorOn     = false
 let dragModeOn      = false
 let clickMoveOn     = false
+let dragEngineOptions = {
+  freePlacement: true,
+  snapToGrid: false,
+  snapToEdges: true,
+  boundary: true,
+  duplicateOnAlt: true,
+  autoScroll: true,
+}
 let undoAvailable   = false
 let redoAvailable   = false
 let fixesApplied    = 0        
@@ -2968,6 +2976,9 @@ function setupGlobalActions() {
       dragChangesExist = true
       updateDownloadBadge()
     }
+    if (msg.type === "DRAG_ENGINE_OPTIONS_UPDATED" && msg.options) {
+      applyDragEngineOptionsToUI(msg.options)
+    }
   })
 }
 
@@ -3526,7 +3537,8 @@ function setupDragMode() {
         updateClickMoveUI(clickMoveOn)
         updateDownloadBadge()
         if (dragModeOn) {
-          showToast("🔀 Drag mode enabled! Double-click any element to pick it, move with cursor, then click to drop.", "success")
+          await syncDragEngineOptions()
+          showToast("🔀 Drag mode enabled! Hover an element, tap ⠿ to select, then use move/resize/rotate handles.", "success")
         } else {
           showToast("🔀 Drag mode disabled", "info")
         }
@@ -3604,6 +3616,12 @@ function setupDragMode() {
     }
   })
 
+  document.querySelectorAll("#move-grid-snap-toggle, #move-edge-snap-toggle, #move-boundary-toggle, #move-duplicate-toggle, #move-autoscroll-toggle").forEach((input) => {
+    input?.addEventListener("change", async () => {
+      await pushDragEngineOptions()
+    })
+  })
+
   document.getElementById("move-reset-last-btn")?.addEventListener("click", async () => {
     try {
       await chrome.scripting.executeScript({ target:{ tabId:currentTabId }, files:["content.js"] }).catch(()=>{})
@@ -3658,6 +3676,7 @@ function setupDragMode() {
 
   updateDragModeUI(dragModeOn)
   updateClickMoveUI(clickMoveOn)
+  syncDragEngineOptions().catch(() => {})
 }
 
 
@@ -3712,6 +3731,52 @@ function updateClickMoveUI(isOn) {
     btn.classList.remove("active")
     btn.textContent = "🎯 Click Move: OFF"
   }
+}
+
+function readDragEngineOptionsFromUI() {
+  return {
+    snapToGrid: !!document.getElementById("move-grid-snap-toggle")?.checked,
+    snapToEdges: !!document.getElementById("move-edge-snap-toggle")?.checked,
+    boundary: !!document.getElementById("move-boundary-toggle")?.checked,
+    duplicateOnAlt: !!document.getElementById("move-duplicate-toggle")?.checked,
+    autoScroll: !!document.getElementById("move-autoscroll-toggle")?.checked,
+  }
+}
+
+function applyDragEngineOptionsToUI(options = {}) {
+  dragEngineOptions = { ...dragEngineOptions, ...options }
+  const mappings = {
+    "move-grid-snap-toggle": !!dragEngineOptions.snapToGrid,
+    "move-edge-snap-toggle": !!dragEngineOptions.snapToEdges,
+    "move-boundary-toggle": !!dragEngineOptions.boundary,
+    "move-duplicate-toggle": !!dragEngineOptions.duplicateOnAlt,
+    "move-autoscroll-toggle": !!dragEngineOptions.autoScroll,
+  }
+
+  Object.entries(mappings).forEach(([id, checked]) => {
+    const input = document.getElementById(id)
+    if (input) input.checked = checked
+  })
+}
+
+async function syncDragEngineOptions() {
+  if (!currentTabId) return
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: currentTabId }, files: ["content.js"] }).catch(() => { })
+    const resp = await chrome.tabs.sendMessage(currentTabId, { type: "GET_DRAG_ENGINE_OPTIONS" })
+    if (resp?.options) {
+      applyDragEngineOptionsToUI(resp.options)
+    }
+  } catch { }
+}
+
+async function pushDragEngineOptions() {
+  if (!currentTabId || !dragModeOn) return
+  const options = readDragEngineOptionsFromUI()
+  dragEngineOptions = { ...dragEngineOptions, ...options }
+  try {
+    await sendToPage({ type: "SET_DRAG_ENGINE_OPTIONS", options })
+  } catch { }
 }
 
 

@@ -236,6 +236,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       clickMoveArmed = false
       sendResponse({ success: true, clickMoveMode, ...stackState() }); return true
 
+    case "GET_DRAG_ENGINE_OPTIONS":
+      sendResponse({ success: true, options: dragEngineOptions, ...stackState() })
+      return true
+
+    case "SET_DRAG_ENGINE_OPTIONS":
+      sendResponse({ success: true, options: setDragEngineOptions(msg.options || {}), ...stackState() })
+      return true
+
     case "ADD_DRAG_IMAGE": {
       const result = addDragImage(msg.dataUrl, msg.name)
       sendResponse({ ...result, ...stackState() })
@@ -1183,6 +1191,7 @@ let dragStartY = 0
 let isCurrentlyDragging = false
 let dragUndoPushed = false
 let suppressClickUntil = 0
+let suppressCarryDropUntil = 0
 let lastDraggedElement = null
 let lastMovedElement = null
 let dragAxisLock = null
@@ -1201,22 +1210,318 @@ let carryOriginalParent = null
 let carryWasDroppedInNewParent = false
 let dragLastClientX = 0
 let dragLastClientY = 0
+const DRAG_ENGINE_STORAGE_KEY = "__cksa_drag_engine_options"
+const DEFAULT_DRAG_ENGINE_OPTIONS = {
+  freePlacement: true,
+  snapToGrid: false,
+  gridSize: 8,
+  snapToEdges: true,
+  boundary: true,
+  duplicateOnAlt: true,
+  autoScroll: true,
+  rotateStep: 5,
+  minSize: 24,
+}
+
+let dragEngineOptions = { ...DEFAULT_DRAG_ENGINE_OPTIONS }
+let dragOverlayEl = null
+let dragOverlayLabelEl = null
+let dragOverlayHandles = null
+let dragHandleOperation = null
+let dragClipboardSnapshot = null
+const dragSelection = new Set()
+let dragA11yLiveRegion = null
+let dragDirectCandidate = null
+
+function ensureDragUiStyles() {
+  if (document.getElementById("__cksa_drag_ui_styles")) return
+  const style = document.createElement("style")
+  style.id = "__cksa_drag_ui_styles"
+  style.textContent = `
+    #__cksa_drag_handle {
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid #fff;
+      background: #0f172a;
+      color: #e2e8f0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      z-index: 2147483647;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+      cursor: pointer;
+      pointer-events: auto;
+      user-select: none;
+      touch-action: none;
+    }
+    .cksa-drag-target-outline {
+      outline: none !important;
+      outline-offset: 0 !important;
+    }
+    .cksa-drag-selected-outline {
+      box-shadow: none !important;
+    }
+    #__cksa_drag_sr_live {
+      position: fixed;
+      width: 1px;
+      height: 1px;
+      left: -9999px;
+      top: -9999px;
+      overflow: hidden;
+    }
+  `
+  document.documentElement.appendChild(style)
+}
+
+function ensureDragA11yRegion() {
+  if (dragA11yLiveRegion && document.contains(dragA11yLiveRegion)) return dragA11yLiveRegion
+  dragA11yLiveRegion = document.getElementById("__cksa_drag_sr_live")
+  if (!dragA11yLiveRegion) {
+    dragA11yLiveRegion = document.createElement("div")
+    dragA11yLiveRegion.id = "__cksa_drag_sr_live"
+    dragA11yLiveRegion.setAttribute("aria-live", "polite")
+    dragA11yLiveRegion.setAttribute("aria-atomic", "true")
+    dragA11yLiveRegion.setAttribute("role", "status")
+    document.documentElement.appendChild(dragA11yLiveRegion)
+  }
+  return dragA11yLiveRegion
+}
+
+function announceDrag(message) {
+  const region = ensureDragA11yRegion()
+  region.textContent = ""
+  setTimeout(() => {
+    region.textContent = String(message || "")
+  }, 10)
+}
+
+function getDragSelectionElements() {
+  return Array.from(dragSelection).filter(el => el && document.contains(el))
+}
+
+function syncDragSelectionVisuals() {
+  document.querySelectorAll(".cksa-drag-selected-outline").forEach(el => el.classList.remove("cksa-drag-selected-outline"))
+  getDragSelectionElements().forEach(el => el.classList.add("cksa-drag-selected-outline"))
+}
+
+function setDragSelection(el, { additive = false, toggle = false } = {}) {
+  if (!el || !document.contains(el)) return
+  if (!additive) dragSelection.clear()
+  if (toggle && dragSelection.has(el)) dragSelection.delete(el)
+  else dragSelection.add(el)
+  selectedDragElement = el
+  lastMovedElement = el
+  syncDragSelectionVisuals()
+}
+
+function clearDragSelection() {
+  dragSelection.clear()
+  syncDragSelectionVisuals()
+}
+
+function onDragPointerDown(e) {
+  if (!dragModeActive) return
+  if (e.button !== 0) return
+  if (clickMoveMode) return
+  if (!(e.target instanceof Element)) return
+  if (e.target.closest("#__cksa_drag_overlay, #__cksa_drag_handle, #__cksa_panel, #__cksa_overlay, #__cksa_badge")) return
+
+  const target = resolveDragTarget(e.target)
+  if (!target) return
+
+  setDragSelection(target, {
+    additive: e.shiftKey || e.ctrlKey || e.metaKey,
+    toggle: e.shiftKey,
+  })
+
+  dragDirectCandidate = {
+    el: target,
+    startX: e.clientX,
+    startY: e.clientY,
+  }
+
+  suppressClickUntil = Date.now() + 120
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+function onDragPointerUpCapture() {
+  dragDirectCandidate = null
+}
+
+function loadDragEngineOptions() {
+  try {
+    chrome.storage.local.get([DRAG_ENGINE_STORAGE_KEY], (data) => {
+      const saved = data?.[DRAG_ENGINE_STORAGE_KEY]
+      if (saved && typeof saved === "object") {
+        dragEngineOptions = { ...DEFAULT_DRAG_ENGINE_OPTIONS, ...saved }
+        syncDragOverlay()
+      }
+    })
+  } catch { }
+}
+
+function persistDragEngineOptions() {
+  try {
+    chrome.storage.local.set({ [DRAG_ENGINE_STORAGE_KEY]: dragEngineOptions })
+  } catch { }
+}
+
+function setDragEngineOptions(nextOptions = {}) {
+  dragEngineOptions = { ...dragEngineOptions, ...nextOptions }
+  persistDragEngineOptions()
+  syncDragOverlay()
+  chrome.runtime.sendMessage({
+    type: "DRAG_ENGINE_OPTIONS_UPDATED",
+    options: dragEngineOptions,
+  }).catch(() => { })
+  return dragEngineOptions
+}
+
+function getSelectedDragElement() {
+  const selectedGroup = getDragSelectionElements()
+  if (selectedGroup.length) {
+    if (selectedDragElement && selectedGroup.includes(selectedDragElement)) return selectedDragElement
+    return selectedGroup[selectedGroup.length - 1]
+  }
+  return (carryActive && carriedEl) || selectedDragElement || lastMovedElement || null
+}
+
+function getElementBoundsForDrag(el) {
+  if (!el || !document.contains(el)) return null
+  return el.getBoundingClientRect()
+}
+
+function getOffsetParentDocumentOrigin(el) {
+  if (!el) return { left: 0, top: 0 }
+  const parent = el.offsetParent
+  if (!parent || parent === document.body || parent === document.documentElement) {
+    return { left: 0, top: 0 }
+  }
+  const rect = parent.getBoundingClientRect()
+  return {
+    left: rect.left + window.scrollX + parent.clientLeft,
+    top: rect.top + window.scrollY + parent.clientTop,
+  }
+}
+
+function getFreePlacementNumber(el, prop, fallback = 0) {
+  const datasetKey = "cksa" + prop.charAt(0).toUpperCase() + prop.slice(1)
+  const raw = el?.dataset?.[datasetKey]
+  if (raw !== undefined) {
+    const parsed = parseFloat(raw)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  const inline = parseFloat(el?.style?.[prop])
+  if (Number.isFinite(inline)) {
+    if (prop === "left" || prop === "top") {
+      const origin = getOffsetParentDocumentOrigin(el)
+      return inline + (prop === "left" ? origin.left : origin.top)
+    }
+    return inline
+  }
+  const rect = getElementBoundsForDrag(el)
+  if (!rect) return fallback
+  if (prop === "left") return rect.left + window.scrollX
+  if (prop === "top") return rect.top + window.scrollY
+  if (prop === "width") return rect.width
+  if (prop === "height") return rect.height
+  return fallback
+}
+
+function setFreePlacementNumber(el, prop, value) {
+  if (!el) return
+  const datasetKey = "cksa" + prop.charAt(0).toUpperCase() + prop.slice(1)
+  const nextValue = Math.round(value)
+  if (prop === "left" || prop === "top") {
+    const origin = getOffsetParentDocumentOrigin(el)
+    const cssValue = nextValue - (prop === "left" ? origin.left : origin.top)
+    el.style[prop] = Math.round(cssValue) + "px"
+    el.dataset[datasetKey] = String(nextValue)
+    return
+  }
+  el.style[prop] = nextValue + "px"
+  el.dataset[datasetKey] = String(nextValue)
+}
+
+function getFreePlacementRotation(el) {
+  const raw = el?.dataset?.cksaRotation
+  const parsed = parseFloat(raw)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function setFreePlacementRotation(el, degrees) {
+  if (!el) return
+  const nextRotation = Math.round(degrees * 10) / 10
+  el.dataset.cksaRotation = String(nextRotation)
+  const baseTransform = el.dataset.cksaBaseTransform || ""
+  el.style.transformOrigin = "center center"
+  el.style.transform = `${baseTransform} rotate(${nextRotation}deg)`.trim()
+}
+
+function promoteToFreePlacement(el) {
+  if (!el || !document.contains(el)) return
+  if (el.dataset.cksaFreePlacement === "true") return
+
+  const rect = el.getBoundingClientRect()
+  const computed = window.getComputedStyle(el)
+
+  el.dataset.cksaFreePlacement = "true"
+  el.dataset.cksaOriginalStyle = el.getAttribute("style") || ""
+  el.dataset.cksaBaseTransform = computed.transform && computed.transform !== "none" ? computed.transform : ""
+
+  // Use document-attached absolute positioning so dropped elements keep position while page scrolls.
+  el.style.position = "absolute"
+  setFreePlacementNumber(el, "left", Math.max(0, rect.left + window.scrollX))
+  setFreePlacementNumber(el, "top", Math.max(0, rect.top + window.scrollY))
+  setFreePlacementNumber(el, "width", Math.max(dragEngineOptions.minSize, rect.width))
+  setFreePlacementNumber(el, "height", Math.max(dragEngineOptions.minSize, rect.height))
+  el.style.margin = "0"
+  el.style.zIndex = "2147483646"
+  el.style.touchAction = "none"
+  el.style.willChange = "transform,left,top,width,height"
+  setFreePlacementRotation(el, getFreePlacementRotation(el))
+}
+
+function restoreOriginalInlineStyle(el) {
+  if (!el) return
+  const originalStyle = el.dataset.cksaOriginalStyle
+  el.removeAttribute("data-cksa-free-placement")
+  el.removeAttribute("data-cksa-original-style")
+  el.removeAttribute("data-cksa-base-transform")
+  el.removeAttribute("data-cksa-rotation")
+  el.removeAttribute("data-cksa-left")
+  el.removeAttribute("data-cksa-top")
+  el.removeAttribute("data-cksa-width")
+  el.removeAttribute("data-cksa-height")
+  if (originalStyle !== undefined) {
+    el.setAttribute("style", originalStyle)
+  }
+}
 
 function enableDragMode() {
   if (dragModeActive) return
   dragModeActive = true
+  ensureDragUiStyles()
+  ensureDragA11yRegion()
   document.body.style.cursor = "grab"
   document.body.style.userSelect = "none"
-  
-  document.addEventListener("mousedown", onDragStart, true)
-  document.addEventListener("mousemove", onDragHoverMove, true)
-  document.addEventListener("mousemove", onDragMove, true)
-  document.addEventListener("mouseup", onDragEnd, true)
-  document.addEventListener("mouseleave", onDragEnd, true)
+  loadDragEngineOptions()
+  ensureDragOverlay()
+  document.addEventListener("pointerdown", onDragPointerDown, true)
+  document.addEventListener("pointermove", onDragHoverMove, true)
+  document.addEventListener("pointerup", onDragPointerUpCapture, true)
   document.addEventListener("click", onDragClickCapture, true)
-  document.addEventListener("dblclick", onDragDoubleClick, true)
   document.addEventListener("keydown", onDragKeyDown, true)
   document.addEventListener("keydown", onDragEscKey, true)
+
+  syncDragOverlay()
+  announceDrag("Drag mode enabled")
+  chrome.runtime.sendMessage({ type: "DRAG_MODE_TOGGLED", active: true, hasChanges: !!lastMovedElement }).catch(() => { })
 }
 
 function disableDragMode() {
@@ -1226,14 +1531,11 @@ function disableDragMode() {
   document.body.style.userSelect = ""
   clickMoveMode = false
   clickMoveArmed = false
-  
-  document.removeEventListener("mousedown", onDragStart, true)
-  document.removeEventListener("mousemove", onDragHoverMove, true)
-  document.removeEventListener("mousemove", onDragMove, true)
-  document.removeEventListener("mouseup", onDragEnd, true)
-  document.removeEventListener("mouseleave", onDragEnd, true)
+  dragDirectCandidate = null
+  document.removeEventListener("pointerdown", onDragPointerDown, true)
+  document.removeEventListener("pointermove", onDragHoverMove, true)
+  document.removeEventListener("pointerup", onDragPointerUpCapture, true)
   document.removeEventListener("click", onDragClickCapture, true)
-  document.removeEventListener("dblclick", onDragDoubleClick, true)
   document.removeEventListener("keydown", onDragKeyDown, true)
   document.removeEventListener("keydown", onDragEscKey, true)
 
@@ -1253,7 +1555,12 @@ function disableDragMode() {
   lastDraggedElement = null
   suppressClickUntil = 0
   dragAxisLock = null
+  clearDragSelection()
   hideDragHandle()
+  clearDragOperation()
+  syncDragOverlay()
+  announceDrag("Drag mode disabled")
+  chrome.runtime.sendMessage({ type: "DRAG_MODE_TOGGLED", active: false, hasChanges: !!lastMovedElement }).catch(() => { })
 }
 
 function addDragImage(dataUrl, name) {
@@ -1332,6 +1639,30 @@ function onDragKeyDown(e) {
   const el = selectedDragElement || lastMovedElement
   if (!el || !document.contains(el)) return
 
+  const key = String(e.key || "").toLowerCase()
+
+  if ((e.metaKey || e.ctrlKey) && key === "c") {
+    e.preventDefault()
+    e.stopPropagation()
+    updateDragClipboardFromSelection()
+    showUndoToast("Copied selected element")
+    return
+  }
+
+  if ((e.metaKey || e.ctrlKey) && key === "v") {
+    e.preventDefault()
+    e.stopPropagation()
+    if (applyClipboardDuplicate()) showUndoToast("Pasted duplicated element")
+    return
+  }
+
+  if ((e.metaKey || e.ctrlKey) && key === "d") {
+    e.preventDefault()
+    e.stopPropagation()
+    if (duplicateSelectedDragElement()) showUndoToast("Duplicated selected element")
+    return
+  }
+
   const step = e.shiftKey ? 10 : 1
   let dx = 0
   let dy = 0
@@ -1340,6 +1671,26 @@ function onDragKeyDown(e) {
   else if (e.key === "ArrowRight") dx = step
   else if (e.key === "ArrowUp") dy = -step
   else if (e.key === "ArrowDown") dy = step
+  else if (key === "[") {
+    e.preventDefault()
+    e.stopPropagation()
+    changeSelectedZIndex(-1)
+    return
+  }
+  else if (key === "]") {
+    e.preventDefault()
+    e.stopPropagation()
+    changeSelectedZIndex(1)
+    return
+  }
+  else if (key === "r") {
+    e.preventDefault()
+    e.stopPropagation()
+    promoteToFreePlacement(el)
+    setFreePlacementRotation(el, getFreePlacementRotation(el) + dragEngineOptions.rotateStep)
+    syncDragOverlay()
+    return
+  }
   else return
 
   e.preventDefault()
@@ -1348,12 +1699,13 @@ function onDragKeyDown(e) {
 }
 
 function ensureDragHandle() {
+  ensureDragUiStyles()
   if (dragHandleEl) return dragHandleEl
   dragHandleEl = document.getElementById("__cksa_drag_handle")
   if (!dragHandleEl) {
     dragHandleEl = document.createElement("div")
     dragHandleEl.id = "__cksa_drag_handle"
-    dragHandleEl.title = "Drag handle"
+    dragHandleEl.title = "Select element"
     dragHandleEl.textContent = "⠿"
     document.documentElement.appendChild(dragHandleEl)
   }
@@ -1364,20 +1716,442 @@ function ensureDragHandle() {
       if (!hoveredDragElement) return
       e.preventDefault()
       e.stopPropagation()
-      onDragStart(e)
+      setDragSelection(hoveredDragElement, {
+        additive: e.shiftKey || e.ctrlKey || e.metaKey,
+        toggle: e.shiftKey,
+      })
+      syncDragOverlay()
+      announceDrag(`Selected ${elementLabel(hoveredDragElement)}`)
     }, true)
   }
   return dragHandleEl
 }
 
 function hideDragHandle() {
-  if (dragHandleEl) dragHandleEl.classList.remove("show")
+  if (dragHandleEl) {
+    dragHandleEl.classList.remove("show")
+    dragHandleEl.style.display = "none"
+  }
   clearTargetOutline()
   hoveredDragElement = null
 }
 
 function clearTargetOutline() {
   document.querySelectorAll(".cksa-drag-target-outline").forEach(el => el.classList.remove("cksa-drag-target-outline"))
+}
+
+function ensureDragOverlay() {
+  if (dragOverlayEl) return dragOverlayEl
+
+  dragOverlayEl = document.createElement("div")
+  dragOverlayEl.id = "__cksa_drag_overlay"
+  dragOverlayEl.setAttribute("aria-hidden", "true")
+  Object.assign(dragOverlayEl.style, {
+    position: "fixed",
+    inset: "0",
+    pointerEvents: "none",
+    zIndex: "2147483647",
+    display: "none",
+  })
+
+  const frame = document.createElement("div")
+  frame.id = "__cksa_drag_frame"
+  Object.assign(frame.style, {
+    position: "fixed",
+    border: "1px solid rgba(124,58,237,0.9)",
+    borderRadius: "10px",
+    boxShadow: "0 0 0 2px rgba(167,139,250,0.12)",
+    pointerEvents: "none",
+    display: "none",
+  })
+
+  dragOverlayLabelEl = document.createElement("div")
+  dragOverlayLabelEl.id = "__cksa_drag_label"
+  Object.assign(dragOverlayLabelEl.style, {
+    position: "fixed",
+    pointerEvents: "none",
+    background: "rgba(15,23,42,0.96)",
+    color: "#e2e8f0",
+    fontSize: "10px",
+    fontWeight: "700",
+    padding: "4px 8px",
+    borderRadius: "999px",
+    letterSpacing: "0.02em",
+    whiteSpace: "nowrap",
+    display: "none",
+  })
+
+  dragOverlayHandles = {}
+  const handleSpecs = [
+    ["move", "move"],
+    ["nw", "nwse-resize"], ["n", "ns-resize"], ["ne", "nesw-resize"],
+    ["e", "ew-resize"], ["se", "nwse-resize"], ["s", "ns-resize"],
+    ["sw", "nesw-resize"], ["w", "ew-resize"], ["rotate", "grab"],
+  ]
+
+  handleSpecs.forEach(([name, cursor]) => {
+    const handle = document.createElement("button")
+    handle.type = "button"
+    handle.dataset.dragHandle = name
+    handle.setAttribute("aria-label", name === "rotate" ? "Rotate element" : name === "move" ? "Move element" : `Resize ${name}`)
+    handle.tabIndex = -1
+    Object.assign(handle.style, {
+      position: "fixed",
+      width: name === "rotate" || name === "move" ? "18px" : "12px",
+      height: name === "rotate" || name === "move" ? "18px" : "12px",
+      borderRadius: name === "rotate" || name === "move" ? "50%" : "3px",
+      border: "1px solid #fff",
+      background: name === "rotate" ? "#7c3aed" : name === "move" ? "#475569" : "#a78bfa",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+      pointerEvents: "auto",
+      cursor,
+      padding: "0",
+      display: "none",
+      color: "#fff",
+      fontSize: "9px",
+      fontWeight: "800",
+      lineHeight: "1",
+      alignItems: "center",
+      justifyContent: "center",
+      userSelect: "none",
+      touchAction: "none",
+    })
+    handle.textContent = name === "rotate" ? "⟳" : name === "move" ? "↔" : ""
+    handle.addEventListener("pointerdown", onDragHandlePointerDown, true)
+    dragOverlayHandles[name] = handle
+    dragOverlayEl.appendChild(handle)
+  })
+
+  dragOverlayEl.appendChild(frame)
+  dragOverlayEl.appendChild(dragOverlayLabelEl)
+  document.documentElement.appendChild(dragOverlayEl)
+  return dragOverlayEl
+}
+
+function syncDragOverlay() {
+  if (!dragOverlayEl) return
+  const el = getSelectedDragElement()
+  const frame = dragOverlayEl.querySelector("#__cksa_drag_frame")
+  if (!el || !dragModeActive || !document.contains(el)) {
+    dragOverlayEl.style.display = "none"
+    if (frame) frame.style.display = "none"
+    if (dragOverlayLabelEl) dragOverlayLabelEl.style.display = "none"
+    Object.values(dragOverlayHandles || {}).forEach(handle => { handle.style.display = "none" })
+    return
+  }
+
+  const rect = el.getBoundingClientRect()
+  const pad = 8
+  dragOverlayEl.style.display = "block"
+  if (frame) {
+    frame.style.display = "none"
+  }
+
+  if (dragOverlayLabelEl) {
+    dragOverlayLabelEl.style.display = "none"
+  }
+
+  const handlePositions = {
+    move: [Math.max(4, rect.left - 28), Math.max(4, rect.top - 28)],
+    nw: [rect.left - 4, rect.top - 4],
+    n: [rect.left + rect.width / 2 - 6, rect.top - 4],
+    ne: [rect.right - 8, rect.top - 4],
+    e: [rect.right - 8, rect.top + rect.height / 2 - 6],
+    se: [rect.right - 8, rect.bottom - 8],
+    s: [rect.left + rect.width / 2 - 6, rect.bottom - 8],
+    sw: [rect.left - 4, rect.bottom - 8],
+    w: [rect.left - 4, rect.top + rect.height / 2 - 6],
+    rotate: [rect.left + rect.width / 2 - 9, rect.top - 28],
+  }
+
+  Object.entries(dragOverlayHandles || {}).forEach(([name, handle]) => {
+    handle.style.display = "none"
+  })
+}
+
+function clearDragOperation() {
+  if (!dragHandleOperation) return
+  document.removeEventListener("pointermove", onDragHandlePointerMove, true)
+  document.removeEventListener("pointerup", onDragHandlePointerUp, true)
+  isCurrentlyDragging = false
+  dragHandleOperation = null
+}
+
+function applyDragConstraints(el, nextLeft, nextTop, nextWidth, nextHeight) {
+  const width = Math.max(dragEngineOptions.minSize, nextWidth)
+  const height = Math.max(dragEngineOptions.minSize, nextHeight)
+  let left = nextLeft
+  let top = nextTop
+  const docEl = document.documentElement
+  const docWidth = Math.max(docEl.scrollWidth, docEl.clientWidth, window.innerWidth)
+  const docHeight = Math.max(docEl.scrollHeight, docEl.clientHeight, window.innerHeight)
+  const viewLeft = window.scrollX
+  const viewTop = window.scrollY
+  const viewRight = viewLeft + window.innerWidth
+  const viewBottom = viewTop + window.innerHeight
+
+  if (dragEngineOptions.snapToGrid) {
+    const grid = Math.max(1, Number(dragEngineOptions.gridSize) || 8)
+    left = Math.round(left / grid) * grid
+    top = Math.round(top / grid) * grid
+  }
+
+  if (dragEngineOptions.snapToEdges) {
+    const margin = 8
+    if (Math.abs(left - margin) <= 6) left = margin
+    if (Math.abs(top - margin) <= 6) top = margin
+    if (Math.abs((left + width) - (viewRight - margin)) <= 6) left = viewRight - width - margin
+    if (Math.abs((top + height) - (viewBottom - margin)) <= 6) top = viewBottom - height - margin
+  }
+
+  if (dragEngineOptions.boundary) {
+    left = Math.max(0, Math.min(docWidth - width, left))
+    top = Math.max(0, Math.min(docHeight - height, top))
+  }
+
+  return {
+    left: Math.round(left),
+    top: Math.round(top),
+    width: Math.round(width),
+    height: Math.round(height),
+  }
+}
+
+function beginFreeDragOperation(el, event, kind = "move", handleName = null) {
+  if (!el || !document.contains(el)) return
+  const selectedGroup = kind === "move" ? getDragSelectionElements() : [el]
+  const allowGroupedMove = kind === "move" && selectedGroup.length > 1 && !!(event.shiftKey || event.ctrlKey || event.metaKey)
+  const targets = allowGroupedMove ? selectedGroup : [el]
+  targets.forEach(promoteToFreePlacement)
+  clearDragOperation()
+  dragHandleOperation = {
+    el,
+    targets,
+    kind,
+    handleName,
+    startX: event.clientX,
+    startY: event.clientY,
+    startScrollX: window.scrollX,
+    startScrollY: window.scrollY,
+    lastClientX: event.clientX,
+    lastClientY: event.clientY,
+    startLeft: getFreePlacementNumber(el, "left", el.getBoundingClientRect().left + window.scrollX),
+    startTop: getFreePlacementNumber(el, "top", el.getBoundingClientRect().top + window.scrollY),
+    startWidth: getFreePlacementNumber(el, "width", el.getBoundingClientRect().width),
+    startHeight: getFreePlacementNumber(el, "height", el.getBoundingClientRect().height),
+    startRotation: getFreePlacementRotation(el),
+    startsByElement: targets.map((target) => ({
+      el: target,
+      left: getFreePlacementNumber(target, "left", target.getBoundingClientRect().left + window.scrollX),
+      top: getFreePlacementNumber(target, "top", target.getBoundingClientRect().top + window.scrollY),
+      width: getFreePlacementNumber(target, "width", target.getBoundingClientRect().width),
+      height: getFreePlacementNumber(target, "height", target.getBoundingClientRect().height),
+    })),
+    moved: false,
+  }
+
+  pushUndo(`${kind === "resize" ? "Resize" : kind === "rotate" ? "Rotate" : "Move"}: ${elementLabel(el)}`)
+  isCurrentlyDragging = true
+  document.body.style.cursor = kind === "move" ? "grabbing" : kind === "rotate" ? "crosshair" : "nwse-resize"
+  document.addEventListener("pointermove", onDragHandlePointerMove, true)
+  document.addEventListener("pointerup", onDragHandlePointerUp, true)
+}
+
+function onDragHandlePointerDown(e) {
+  if (!dragModeActive) return
+  if (!(e.target instanceof Element)) return
+  const handleName = e.target.dataset.dragHandle
+  if (!handleName) return
+  const el = getSelectedDragElement()
+  if (!el) return
+
+  e.preventDefault()
+  e.stopPropagation()
+  setDragSelection(el, { additive: false })
+  promoteToFreePlacement(el)
+  beginFreeDragOperation(el, e, handleName === "rotate" ? "rotate" : handleName === "move" ? "move" : "resize", handleName)
+}
+
+function onDragHandlePointerMove(e) {
+  if (!dragHandleOperation?.el) return
+  const op = dragHandleOperation
+  const el = op.el
+  op.lastClientX = e.clientX
+  op.lastClientY = e.clientY
+  const dx = (e.clientX - op.startX) + (window.scrollX - op.startScrollX)
+  const dy = (e.clientY - op.startY) + (window.scrollY - op.startScrollY)
+
+  if (dragEngineOptions.autoScroll) {
+    const edge = 32
+    const scrollStep = 18
+    if (e.clientY < edge) window.scrollBy(0, -scrollStep)
+    if (e.clientY > window.innerHeight - edge) window.scrollBy(0, scrollStep)
+    if (e.clientX < edge) window.scrollBy(-scrollStep, 0)
+    if (e.clientX > window.innerWidth - edge) window.scrollBy(scrollStep, 0)
+  }
+
+  if (op.kind === "rotate") {
+    const nextRotation = op.startRotation + ((dx + dy) * 0.7)
+    setFreePlacementRotation(el, nextRotation)
+    op.moved = true
+    syncDragOverlay()
+    return
+  }
+
+  if (op.kind === "resize") {
+    let nextLeft = op.startLeft
+    let nextTop = op.startTop
+    let nextWidth = op.startWidth
+    let nextHeight = op.startHeight
+
+    const dir = op.handleName || "se"
+    if (dir.includes("e")) nextWidth = op.startWidth + dx
+    if (dir.includes("s")) nextHeight = op.startHeight + dy
+    if (dir.includes("w")) {
+      nextWidth = op.startWidth - dx
+      nextLeft = op.startLeft + dx
+    }
+    if (dir.includes("n")) {
+      nextHeight = op.startHeight - dy
+      nextTop = op.startTop + dy
+    }
+
+    if (e.shiftKey) {
+      const ratio = op.startWidth / Math.max(1, op.startHeight)
+      if (Math.abs(dx) > Math.abs(dy)) {
+        nextHeight = nextWidth / ratio
+      } else {
+        nextWidth = nextHeight * ratio
+      }
+    }
+
+    const constrained = applyDragConstraints(el, nextLeft, nextTop, nextWidth, nextHeight)
+    setFreePlacementNumber(el, "left", constrained.left)
+    setFreePlacementNumber(el, "top", constrained.top)
+    setFreePlacementNumber(el, "width", constrained.width)
+    setFreePlacementNumber(el, "height", constrained.height)
+    op.moved = true
+    selectedDragElement = el
+    lastMovedElement = el
+    lastDraggedElement = el
+    syncDragOverlay()
+    return
+  }
+
+  const constrained = applyDragConstraints(
+    el,
+    op.startLeft + dx,
+    op.startTop + dy,
+    op.startWidth,
+    op.startHeight,
+  )
+  op.startsByElement.forEach((entry) => {
+    const groupConstrained = applyDragConstraints(
+      entry.el,
+      entry.left + dx,
+      entry.top + dy,
+      entry.width,
+      entry.height,
+    )
+    setFreePlacementNumber(entry.el, "left", groupConstrained.left)
+    setFreePlacementNumber(entry.el, "top", groupConstrained.top)
+    setFreePlacementNumber(entry.el, "width", groupConstrained.width)
+    setFreePlacementNumber(entry.el, "height", groupConstrained.height)
+  })
+  op.moved = true
+  selectedDragElement = el
+  lastMovedElement = el
+  lastDraggedElement = el
+  syncDragOverlay()
+}
+
+function onDragHandlePointerUp() {
+  if (!dragHandleOperation?.el) return
+  const op = dragHandleOperation
+  const el = op.el
+  const movedCount = op.targets?.length || 1
+
+  clearDragOperation()
+  document.body.style.cursor = "grab"
+  isCurrentlyDragging = false
+  selectedDragElement = el
+  lastMovedElement = el
+  lastDraggedElement = el
+  suppressClickUntil = Date.now() + 220
+  syncDragOverlay()
+  announceDrag(`Moved ${movedCount} element${movedCount > 1 ? "s" : ""}`)
+  chrome.runtime.sendMessage({
+    type: "ELEMENT_DRAGGED",
+    tag: el.tagName.toLowerCase(),
+    label: elementLabel(el).slice(0, 40),
+    canUndo: stackState().canUndo,
+    canRedo: stackState().canRedo,
+    undoLabel: stackState().undoLabel,
+    redoLabel: stackState().redoLabel,
+  }).catch(() => { })
+}
+
+function duplicateSelectedDragElement() {
+  const el = getSelectedDragElement()
+  if (!el || !document.contains(el)) return false
+
+  pushUndo("Duplicate: " + elementLabel(el))
+  const clone = el.cloneNode(true)
+  if (clone.id) clone.id = `${clone.id}__cksa_dup_${Date.now()}`
+  promoteToFreePlacement(clone)
+  const left = getFreePlacementNumber(el, "left", el.getBoundingClientRect().left) + 16
+  const top = getFreePlacementNumber(el, "top", el.getBoundingClientRect().top) + 16
+  setFreePlacementNumber(clone, "left", left)
+  setFreePlacementNumber(clone, "top", top)
+  setFreePlacementRotation(clone, getFreePlacementRotation(el))
+  clone.style.zIndex = String(Number(el.style.zIndex || 2147483646) + 1)
+  el.after(clone)
+  setDragSelection(clone)
+  selectedDragElement = clone
+  lastMovedElement = clone
+  lastDraggedElement = clone
+  syncDragOverlay()
+  return true
+}
+
+function changeSelectedZIndex(delta) {
+  const el = getSelectedDragElement()
+  if (!el || !document.contains(el)) return false
+  promoteToFreePlacement(el)
+  const current = parseInt(el.style.zIndex || "2147483646", 10)
+  el.style.zIndex = String((Number.isFinite(current) ? current : 2147483646) + delta)
+  setDragSelection(el)
+  selectedDragElement = el
+  syncDragOverlay()
+  return true
+}
+
+function applyClipboardDuplicate() {
+  if (!dragClipboardSnapshot) return false
+  pushUndo("Paste element")
+  const clone = dragClipboardSnapshot.cloneNode(true)
+  if (clone.id) clone.id = `${clone.id}__cksa_paste_${Date.now()}`
+  promoteToFreePlacement(clone)
+  const base = getSelectedDragElement() || lastMovedElement || clone
+  const left = getFreePlacementNumber(base, "left", base.getBoundingClientRect().left) + 20
+  const top = getFreePlacementNumber(base, "top", base.getBoundingClientRect().top) + 20
+  setFreePlacementNumber(clone, "left", left)
+  setFreePlacementNumber(clone, "top", top)
+  clone.style.zIndex = "2147483647"
+  document.body.appendChild(clone)
+  setDragSelection(clone)
+  selectedDragElement = clone
+  lastMovedElement = clone
+  lastDraggedElement = clone
+  syncDragOverlay()
+  return true
+}
+
+function updateDragClipboardFromSelection() {
+  const el = getSelectedDragElement()
+  if (!el || !document.contains(el)) return false
+  dragClipboardSnapshot = el.cloneNode(true)
+  return true
 }
 
 function isValidDragTarget(el) {
@@ -1390,11 +2164,30 @@ function isValidDragTarget(el) {
 
 function onDragHoverMove(e) {
   if (!dragModeActive || isCurrentlyDragging) return
+  const x = Number.isFinite(e.clientX) ? e.clientX : dragLastClientX
+  const y = Number.isFinite(e.clientY) ? e.clientY : dragLastClientY
+  dragLastClientX = x
+  dragLastClientY = y
+
+  if (dragDirectCandidate && !dragHandleOperation) {
+    const dx = x - dragDirectCandidate.startX
+    const dy = y - dragDirectCandidate.startY
+    const distance = Math.hypot(dx, dy)
+    if (distance >= DRAG_THRESHOLD) {
+      const target = dragDirectCandidate.el
+      dragDirectCandidate = null
+      if (target && document.contains(target)) {
+        beginFreeDragOperation(target, e, "move", "move")
+      }
+      return
+    }
+  }
+
   if (carryActive && carriedEl) {
-    updateCarriedPosition(e.clientX, e.clientY)
+    updateCarriedPosition(x, y)
     return
   }
-  const els = document.elementsFromPoint(e.clientX, e.clientY)
+  const els = document.elementsFromPoint(x, y)
   const candidate = els.find(isValidDragTarget)
   if (!candidate) {
     hoveredDragElement = null
@@ -1403,14 +2196,10 @@ function onDragHoverMove(e) {
   }
 
   hoveredDragElement = candidate
-  const rect = candidate.getBoundingClientRect()
   const handle = ensureDragHandle()
-  handle.style.left = Math.max(4, rect.left - 10) + "px"
-  handle.style.top = Math.max(4, rect.top - 10) + "px"
-  handle.classList.add("show")
-
+  handle.style.display = "none"
+  handle.classList.remove("show")
   clearTargetOutline()
-  candidate.classList.add("cksa-drag-target-outline")
 }
 
 function elementLabel(el) {
@@ -1421,6 +2210,13 @@ function elementLabel(el) {
 }
 
 function getPositionState(el) {
+  if (!el) return { x: 0, y: 0 }
+  if (el.dataset.cksaFreePlacement === "true") {
+    return {
+      x: getFreePlacementNumber(el, "left", 0),
+      y: getFreePlacementNumber(el, "top", 0),
+    }
+  }
   const transform = el.getAttribute("data-cksa-transform") || "0,0"
   const [x, y] = transform.split(",").map(Number)
   return { x: Number.isFinite(x) ? x : 0, y: Number.isFinite(y) ? y : 0 }
@@ -1443,6 +2239,12 @@ function clampPosition(el, x, y) {
 }
 
 function applyElementPosition(el, x, y) {
+  if (el.dataset.cksaFreePlacement === "true") {
+    setFreePlacementNumber(el, "left", x)
+    setFreePlacementNumber(el, "top", y)
+    syncDragOverlay()
+    return
+  }
   el.style.transform = `translate(${x}px, ${y}px)`
   el.setAttribute("data-cksa-transform", `${x},${y}`)
 }
@@ -1450,13 +2252,15 @@ function applyElementPosition(el, x, y) {
 function moveElementBy(el, dx, dy, pushHistory = false) {
   if (!el || !document.contains(el)) return false
 
+  promoteToFreePlacement(el)
   const state = getPositionState(el)
   const next = clampPosition(el, Math.round(state.x + dx), Math.round(state.y + dy))
 
   if (pushHistory) pushUndo("Move: " + elementLabel(el))
-  el.style.transition = "transform 120ms ease-out"
+  el.style.transition = "left 120ms ease-out, top 120ms ease-out, transform 120ms ease-out"
   applyElementPosition(el, next.x, next.y)
 
+  setDragSelection(el)
   selectedDragElement = el
   lastMovedElement = el
   lastDraggedElement = el
@@ -1475,6 +2279,7 @@ function moveElementBy(el, dx, dy, pushHistory = false) {
 
 function moveSelectedToPoint(el, clientX, clientY, pushHistory = true) {
   if (!el || !document.contains(el)) return false
+  promoteToFreePlacement(el)
   const rect = el.getBoundingClientRect()
   const state = getPositionState(el)
   const targetX = state.x + (clientX - (rect.left + rect.width / 2))
@@ -1482,9 +2287,10 @@ function moveSelectedToPoint(el, clientX, clientY, pushHistory = true) {
   const next = clampPosition(el, targetX, targetY)
 
   if (pushHistory) pushUndo("Move: " + elementLabel(el))
-  el.style.transition = "transform 140ms cubic-bezier(.22,.61,.36,1)"
+  el.style.transition = "left 140ms cubic-bezier(.22,.61,.36,1), top 140ms cubic-bezier(.22,.61,.36,1), transform 140ms cubic-bezier(.22,.61,.36,1)"
   applyElementPosition(el, next.x, next.y)
 
+  setDragSelection(el)
   selectedDragElement = el
   lastMovedElement = el
   lastDraggedElement = el
@@ -1549,6 +2355,7 @@ function onDragDoubleClick(e) {
   if (carryActive) {
     finishCarryAtCurrentPosition(false)
   }
+  suppressCarryDropUntil = Date.now() + 220
   beginCarryMode(target, e)
 }
 
@@ -1616,8 +2423,6 @@ function beginCarryMode(el, event) {
   carryOffsetX = Math.max(0, Math.min(rect.width, event.clientX - rect.left))
   carryOffsetY = Math.max(0, Math.min(rect.height, event.clientY - rect.top))
 
-  document.body.appendChild(el)
-  
   // Apply carry styles while preserving visual appearance
   const propMap = {
     position: "fixed",
@@ -1637,6 +2442,14 @@ function beginCarryMode(el, event) {
     el.style[prop] = val
     carryModifiedProps.add(prop)
   })
+
+  el.dataset.cksaFreePlacement = "true"
+  el.dataset.cksaOriginalStyle = carryOriginalInlineStyle
+  el.dataset.cksaLeft = String(rect.left)
+  el.dataset.cksaTop = String(rect.top)
+  el.dataset.cksaWidth = String(rect.width)
+  el.dataset.cksaHeight = String(rect.height)
+  el.dataset.cksaBaseTransform = computed.transform && computed.transform !== "none" ? computed.transform : ""
 
   // Preserve visual properties from computed style
   if (computed.filter !== "none") el.style.filter = computed.filter
@@ -1676,16 +2489,23 @@ function beginCarryMode(el, event) {
     undoLabel: stackState().undoLabel,
     redoLabel: stackState().redoLabel,
   }).catch(() => {})
+  syncDragOverlay()
 }
 
 function updateCarriedPosition(clientX, clientY) {
   if (!carryActive || !carriedEl) return
   const w = carriedEl.offsetWidth || 0
   const h = carriedEl.offsetHeight || 0
-  const left = Math.max(4, Math.min(window.innerWidth - w - 4, clientX - carryOffsetX))
-  const top = Math.max(4, Math.min(window.innerHeight - h - 4, clientY - carryOffsetY))
+  let left = clientX - carryOffsetX
+  let top = clientY - carryOffsetY
+  const constrained = applyDragConstraints(carriedEl, left, top, w, h)
+  left = constrained.left
+  top = constrained.top
   carriedEl.style.left = left + "px"
   carriedEl.style.top = top + "px"
+  carriedEl.dataset.cksaLeft = String(left)
+  carriedEl.dataset.cksaTop = String(top)
+  syncDragOverlay()
 }
 
 function findContainerDropTarget(x, y, dragged) {
@@ -1730,38 +2550,26 @@ function finishCarryAtCurrentPosition(keepInPlace, dropX, dropY) {
   const el = carriedEl
   const ph = carryPlaceholder
 
+  // CAPTURE THE ACTUAL DRAGGED POSITION BEFORE ANY DOM CHANGES
+  const draggedLeft = parseFloat(el.style.left)
+  const draggedTop = parseFloat(el.style.top)
+  const draggedWidth = parseFloat(el.style.width)
+  const draggedHeight = parseFloat(el.style.height)
+
   if (keepInPlace) {
     // Return to original placeholder location
     if (ph && ph.parentNode) {
       ph.parentNode.insertBefore(el, ph)
     }
   } else {
-    const rect = el.getBoundingClientRect()
-    const pointX = Number.isFinite(dropX) ? dropX : (rect.left + rect.width / 2)
-    const pointY = Number.isFinite(dropY) ? dropY : (rect.top + rect.height / 2)
-
-    const container = findContainerDropTarget(pointX, pointY, el)
-    const dropTarget = findDomDropTarget(pointX, pointY, el)
-
-    if (container) {
-      const refNode = getContainerInsertReference(container, pointX, pointY, el)
-      container.insertBefore(el, refNode)
-      carryWasDroppedInNewParent = container !== carryOriginalParent
-    } else if (dropTarget && dropTarget.parentElement) {
-      const targetRect = dropTarget.getBoundingClientRect()
-      const targetParent = dropTarget.parentElement
-      const parentStyle = window.getComputedStyle(targetParent)
-      const isRowLayout = parentStyle.display?.includes("flex") && parentStyle.flexDirection?.startsWith("row")
-      const insertBefore = isRowLayout ? pointX < targetRect.left + targetRect.width / 2 : pointY < targetRect.top + targetRect.height / 2
-      targetParent.insertBefore(el, insertBefore ? dropTarget : dropTarget.nextSibling)
-      carryWasDroppedInNewParent = targetParent !== carryOriginalParent
-    } else if (ph && ph.parentNode) {
+    if (ph && ph.parentNode) {
       ph.parentNode.insertBefore(el, ph)
       carryWasDroppedInNewParent = false
     }
   }
 
-  // Restore element to its normal state - clear all temporary styles
+  // Always restore element to original state - this keeps it functional and in document flow
+  // Clean up all temporary carry/drag styles
   el.style.position = ""
   el.style.left = ""
   el.style.top = ""
@@ -1772,6 +2580,7 @@ function finishCarryAtCurrentPosition(keepInPlace, dropX, dropY) {
   el.style.maxHeight = ""
   el.style.zIndex = ""
   el.style.pointerEvents = ""
+  el.style.touchAction = ""
   el.style.boxShadow = ""
   el.style.transition = ""
   el.style.opacity = ""
@@ -1779,11 +2588,22 @@ function finishCarryAtCurrentPosition(keepInPlace, dropX, dropY) {
   el.style.transform = ""
   el.style.background = ""
   el.style.backgroundColor = ""
+  el.style.willChange = ""
 
-  // Restore original inline styles
+  // Restore original inline styles to keep all element properties intact
   if (carryOriginalInlineStyle) {
     el.setAttribute("style", carryOriginalInlineStyle)
   }
+
+  // Clear all drag-related data attributes
+  el.removeAttribute("data-cksa-free-placement")
+  el.removeAttribute("data-cksa-original-style")
+  el.removeAttribute("data-cksa-left")
+  el.removeAttribute("data-cksa-top")
+  el.removeAttribute("data-cksa-width")
+  el.removeAttribute("data-cksa-height")
+  el.removeAttribute("data-cksa-rotation")
+  el.removeAttribute("data-cksa-base-transform")
 
   // Clean up temporary states
   ph?.remove()
@@ -1796,6 +2616,12 @@ function finishCarryAtCurrentPosition(keepInPlace, dropX, dropY) {
   carryActive = false
   carriedEl = null
   suppressClickUntil = Date.now() + 200
+  setDragSelection(el)
+  selectedDragElement = el
+  lastMovedElement = el
+  lastDraggedElement = el
+  syncDragOverlay()
+  announceDrag(`Dropped ${elementLabel(el)}`)
 
   // Notify popup of the change
   chrome.runtime.sendMessage({
@@ -1816,6 +2642,11 @@ function onDragClickCapture(e) {
   if (!(t instanceof Element)) return
 
   if (carryActive) {
+    if (Date.now() < suppressCarryDropUntil) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
     finishCarryAtCurrentPosition(false, e.clientX, e.clientY)
@@ -1827,11 +2658,13 @@ function onDragClickCapture(e) {
 
     if (!selectedDragElement || !document.contains(selectedDragElement)) {
       if (!target) return
+      setDragSelection(target)
       selectedDragElement = target
       lastMovedElement = target
       clickMoveArmed = true
       suppressClickUntil = Date.now() + 120
       glow(target)
+      announceDrag(`Selected ${elementLabel(target)}`)
       chrome.runtime.sendMessage({
         type: "ELEMENT_DRAGGED",
         tag: target.tagName.toLowerCase(),
@@ -1847,11 +2680,13 @@ function onDragClickCapture(e) {
     }
 
     if (!clickMoveArmed && target && target !== selectedDragElement) {
+      setDragSelection(target)
       selectedDragElement = target
       lastMovedElement = target
       clickMoveArmed = true
       suppressClickUntil = Date.now() + 120
       glow(target)
+      announceDrag(`Selected ${elementLabel(target)}`)
       chrome.runtime.sendMessage({
         type: "ELEMENT_DRAGGED",
         tag: target.tagName.toLowerCase(),
@@ -1971,7 +2806,20 @@ function attemptDomReorder(el, clientX, clientY) {
 }
 
 function onDragMove(e) {
-  if (!draggedEl || !dragModeActive) return
+  if (!dragModeActive) return
+
+  // If already in carry mode (e.g., from double-click), continue updating position
+  if (carryActive && carriedEl) {
+    dragLastClientX = e.clientX
+    dragLastClientY = e.clientY
+    e.preventDefault()
+    e.stopPropagation()
+    updateCarriedPosition(e.clientX, e.clientY)
+    return
+  }
+
+  // Normal drag flow from mousedown
+  if (!draggedEl) return
 
   const deltaX = e.clientX - dragStartX
   const deltaY = e.clientY - dragStartY
@@ -1987,6 +2835,12 @@ function onDragMove(e) {
   // First movement beyond threshold - activate true carry drag.
   if (!isCurrentlyDragging) {
     isCurrentlyDragging = true
+    if (e.altKey && dragEngineOptions.duplicateOnAlt && draggedEl) {
+      const duplicate = draggedEl.cloneNode(true)
+      if (duplicate.id) duplicate.id = `${duplicate.id}__cksa_alt_${Date.now()}`
+      draggedEl.after(duplicate)
+      draggedEl = duplicate
+    }
     selectedDragElement = draggedEl
 
     beginCarryMode(draggedEl, e)
@@ -2031,12 +2885,14 @@ function onDragEnd(e) {
   draggedEl = null
   document.body.style.cursor = "grab"
   hideDragHandle()
+  syncDragOverlay()
 }
 
 function resetLastMovedElement() {
   if (!lastMovedElement || !document.contains(lastMovedElement)) return false
 
   pushUndo("Reset selected move")
+  restoreOriginalInlineStyle(lastMovedElement)
   lastMovedElement.style.transform = "translate(0px, 0px)"
   lastMovedElement.removeAttribute("data-cksa-transform")
   lastMovedElement.style.cursor = ""
@@ -2046,6 +2902,7 @@ function resetLastMovedElement() {
   lastMovedElement.style.willChange = ""
   showUndoToast("↩ Selected move reset")
   selectedDragElement = lastMovedElement
+  syncDragOverlay()
   return true
 }
 
@@ -2062,8 +2919,23 @@ function resetAllMoves() {
     el.style.willChange = ""
   })
 
+  document.querySelectorAll("[data-cksa-free-placement='true']").forEach(el => {
+    restoreOriginalInlineStyle(el)
+    el.style.position = ""
+    el.style.left = ""
+    el.style.top = ""
+    el.style.width = ""
+    el.style.height = ""
+    el.style.margin = ""
+    el.style.zIndex = ""
+    el.style.pointerEvents = ""
+    el.style.touchAction = ""
+    el.style.willChange = ""
+  })
+
   lastMovedElement = null
   selectedDragElement = null
+  syncDragOverlay()
   
   showUndoToast("🔀 All moves reset")
 }
