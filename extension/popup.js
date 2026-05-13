@@ -4506,9 +4506,28 @@ function buildAIThemePrompt({ score, violations, suggestions, url }) {
     : ""
   const pageSignature = buildPageThemeSeed(url, score, suggestions)
   const pageProfile = buildPageThemeProfile({ url, score, suggestions })
+  const requiredFeatures = [
+    "header",
+    "navbar",
+    "footer",
+    "hero section",
+    "search section",
+    "search bar",
+    "scroll left button",
+    "scroll right button",
+    "scroll to top button",
+    "marquee",
+    "padding",
+    "height",
+    "margin",
+    "outline",
+    "inline display",
+    "inline-block display",
+    "block display",
+  ]
 
   return [
-    `Generate themes for the scanned webpage.`,
+    `Generate runtime-only themes for the scanned webpage.`,
     `URL: ${url || "unknown"}`,
     `Accessibility score: ${score}/100`,
     `Violations found: ${violations}`,
@@ -4517,6 +4536,9 @@ function buildAIThemePrompt({ score, violations, suggestions, url }) {
     `Page intent: ${pageProfile.intent}`,
     `Prefer directions: ${pageProfile.directions.join(', ')}`,
     `Avoid: ${pageProfile.avoid.join(', ')}`,
+    `Required features: ${requiredFeatures.join(', ')}`,
+    `Use APIVerve-generated color palettes as the color source for the final CSS.`,
+    `Every regenerated response must be different when the random seed changes.`,
     issues ? `Key issues: ${issues}` : "",
   ].filter(Boolean).join(" ")
 }
@@ -4562,43 +4584,17 @@ async function generateAIThemes({ score, violations, suggestions, url }) {
     showToast(`✨ Generated ${data.count || data.themes.length} AI themes using APIVerve palettes`, "success")
   } catch (error) {
     console.error("AI theme generation failed:", error)
-    const fallback = buildFallbackAIThemes({ score, violations, suggestions })
-    renderAIThemeSuggestions(fallback)
-    showToast("AI theme generation fell back to local suggestions", "info")
+    const grid = document.getElementById("ai-theme-reco-grid")
+    const wrap = document.getElementById("ai-theme-reco-wrap")
+    if (grid) {
+      grid.innerHTML = `<div class="ai-theme-error">Live AI generation failed: ${esc(error.message || "unknown error")}</div>`
+    }
+    if (wrap) wrap.classList.remove("hidden")
+    showToast("AI theme generation failed. Check APIVerve/Cohere keys.", "error")
   } finally {
     loading.classList.add("hidden")
     if (refreshBtn) refreshBtn.disabled = false
   }
-}
-
-function buildFallbackAIThemes({ score, violations, suggestions }) {
-  const highContrast = score < 50 || (suggestions || []).some(s => ["critical", "serious"].includes(String(s.impact || "").toLowerCase()))
-  const palettes = highContrast
-    ? [
-        ["#0b0f19", "#6366f1", "#f8fafc"],
-        ["#020617", "#38bdf8", "#e2e8f0"],
-        ["#111827", "#f97316", "#fef3c7"],
-        ["#050816", "#22c55e", "#dcfce7"],
-        ["#1a1026", "#ec4899", "#f5d0fe"],
-        ["#0f172a", "#facc15", "#eff6ff"],
-      ]
-    : [
-        ["#f8fafc", "#6366f1", "#111827"],
-        ["#fff7ed", "#f97316", "#431407"],
-        ["#f0fdf4", "#22c55e", "#14532d"],
-        ["#fff1f2", "#db2777", "#4a044e"],
-        ["#ecfeff", "#0ea5e9", "#082f49"],
-        ["#f5f3ff", "#8b5cf6", "#1e1b4b"],
-      ]
-
-  return palettes.map((preview, index) => ({
-    id: `fallback-ai-${index}`,
-    name: `Runtime Theme ${index + 1}`,
-    mood: highContrast ? "High contrast runtime theme" : "Modern runtime theme",
-    description: `Generated locally as a safety fallback for scan score ${score}.`,
-    preview,
-    css: `:root{--bg:${preview[0]};--primary:${preview[1]};--text:${preview[2]}}body{background:${preview[0]}!important;color:${preview[2]}!important}`,
-  }))
 }
 
 function renderAIThemeSuggestions(themes) {

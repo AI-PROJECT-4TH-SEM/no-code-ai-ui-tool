@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
+import { CohereClient } from 'cohere-ai'
+import { jsonrepair } from 'jsonrepair'
 
 const COHERE_API_URL = 'https://api.cohere.com/v1/chat'
 
 const AI_SYSTEM_PROMPT = [
   'You are a world-class principal UI/UX designer and design systems architect.',
-  'Generate elite, production-grade themes for real applications.',
-  'Every theme must be visually strong and obviously different from a neutral default UI.',
-  'Output valid JSON only. No markdown. No prose outside JSON.',
+  'Generate elite, production-grade runtime themes for real applications.',
+  'Every theme must be visually strong, highly differentiated, and suitable for live use on many page types.',
+  'Include practical UI treatment for header, navbar, footer, hero section, search section, search bar, marquee, scroll buttons, spacing, height, margin, outline, and inline display states.',
+  'Output ONLY valid JSON. No markdown formatting, no code blocks, no backticks, no explanations. Return raw JSON only.',
 ].join(' ')
 
 const COLOR_PALETTE_SYSTEM_PROMPT = [
@@ -30,13 +33,25 @@ export async function POST(request) {
       )
     }
 
+    const cohereKey = process.env.COHERE_KEY
+    if (!cohereKey) {
+      return NextResponse.json(
+        { error: 'Cohere API key is missing' },
+        { status: 500 }
+      )
+    }
+
     const pageProfile = buildPageDesignProfile({ userInput, scanResults, url })
     const pageSeed = buildPageSeed({ userInput, scanResults, url, randomize })
 
-    // Step 1: Generate professional color palettes using APIVerve/Cohere
+    // Step 1: Generate professional color palettes using APIVerve
     const colorPalettes = await generateColorPalettesWithCohere(userInput, scanResults, url, pageProfile, Boolean(randomize), pageSeed)
-    
-    const violations = scanResults?.violations || 0
+    if (!Array.isArray(colorPalettes) || colorPalettes.length === 0) {
+      return NextResponse.json(
+        { error: 'APIVerve did not return any color palettes' },
+        { status: 502 }
+      )
+    }
     const score = scanResults?.score || 0
     const suggestions = scanResults?.suggestions || []
     
@@ -57,234 +72,184 @@ export async function POST(request) {
     }
 
     const persona = pageProfile?.name || 'general'
+    const requiredFeatures = [
+      'header',
+      'navbar',
+      'footer',
+      'hero section',
+      'search section',
+      'search bar',
+      'scroll left button',
+      'scroll right button',
+      'scroll to top button',
+      'marquee or ticker treatment',
+      'padding',
+      'height',
+      'margin',
+      'outline',
+      'inline display',
+      'inline-block display',
+      'block display',
+      'cards',
+      'forms',
+      'buttons',
+      'inputs',
+    ]
 
-    const prompt = `You are a world-class UI/UX designer and design system expert.
-
-Your task is to generate multiple high-quality, production-ready UI themes based on a user query and page scan results.
+    const prompt = `Generate 2 professional UI themes using these APIVerve color palettes.
 
 USER QUERY: "${userInput}"
+PAGE SCORE: ${score}/100
+PALETTES:
+${colorPalettes.slice(0, 3).map((p, i) => `${i + 1}. ${p.name}: BG=${p.colors.background}, Primary=${p.colors.primary}, Secondary=${p.colors.secondary}, Accent=${p.colors.accent}, Text=${p.colors.text}`).join('\n')}
 
-PAGE ANALYSIS:
-- URL: ${url || 'Unknown'}
-- Accessibility Score: ${score}/100
-- Page Persona: ${persona}
-- Violations Found: ${violations}
-- Page Context: ${pageContext}
-- Page Intent: ${pageProfile.intent}
-- Preferred Palette Modes: ${pageProfile.paletteModes.join(', ')}
-- Preferred Visual Directions: ${pageProfile.directions.join(', ')}
-- Avoid These Styles: ${pageProfile.avoid.join(', ')}
+Each theme must include comprehensive styling for these UI components:
+- background: overall page background
+- navbar: navigation bar styling
+- search: search section and search bar
+- hero: hero section
+- header: page header
+- footer: page footer
+- scroll: scroll buttons (left, right, top)
+- marquee: marquee or ticker HTML/CSS if applicable
 
-RECOMMENDED COLOR PALETTES (use these as PRIMARY COLOR SOURCES):
-${colorPalettes.map((p, i) => `
-${i + 1}. ${p.name} (${p.harmonyType})
-   - Mood: ${p.mood}
-   - BG: ${p.colors.background}
-   - Primary: ${p.colors.primary}
-   - Secondary: ${p.colors.secondary}
-   - Accent: ${p.colors.accent}
-   - Text: ${p.colors.text}
-`).join('')}
+Return ONLY valid JSON array with 2 themes. Each theme object must have:
+- themeName: string
+- description: string
+- mood: string
+- preview: object with {background, primary, secondary, accent, text} colors
+- cssVariables: object with CSS custom properties
+- components: object with keys for each component above, each containing CSS properties as objects
+- globalCss: string under 500 characters
 
-Generate EXACTLY 6 unique themes using these professional, harmonious color palettes. Map each palette to a premium theme design.
+Use only the provided palette colors. Ensure themes are production-ready and visually strong.
 
-Each theme must:
-- Use ONE of the recommended color palettes above
-- Match the page persona and intent
-- Have a distinct personality (luxury, modern, vibrant, calm, professional, elegant, institutional, scientific, educational, editorial)
-- Follow modern UI/UX standards (like Figma/Canva)
-- Be suitable for real applications
-- Maintain excellent accessibility (WCAG AA+)
-- Prefer highly differentiated visual systems across themes
-- Make the most suitable theme for this page immediately obvious
+DO NOT include any markdown formatting, code blocks, or backticks. Return only the raw JSON array.`
 
-OUTPUT FORMAT (STRICT JSON ONLY):
-
-[
-  {
-    "themeName": "",
-    "description": "",
-    "mood": "",
-    "preview": {
-      "background": "",
-      "primary": "",
-      "secondary": "",
-      "accent": "",
-      "text": ""
-    },
-    "cssVariables": {
-      "--bg": "",
-      "--bg-secondary": "",
-      "--text": "",
-      "--primary": "",
-      "--secondary": "",
-      "--accent": "",
-      "--border": "",
-      "--shadow": ""
-    },
-    "components": {
-      "buttonPrimary": "",
-      "buttonSecondary": "",
-      "card": "",
-      "navbar": "",
-      "input": ""
-    }
-  }
-]
-
-DESIGN RULES:
-- Use ONLY the palette colors provided above
-- Create professional, polished themes
-- Include sophisticated typography
-- Add depth with gradients and shadows
-- Ensure proper contrast for readability
-- Use the recommended colors for buttons, cards, forms
-
-IMPORTANT:
-- Map themes to the provided palettes
-- Do NOT invent random colors - use recommended palettes only
-- Make each theme feel premium and distinct
-- Ensure accessibility (minimum 4.5:1 contrast for text)
-- Do NOT include explanations
-- Do NOT include markdown
-- Return ONLY valid JSON`
-
-    // Call Cohere Chat API
-    const cohereKey = process.env.COHERE_KEY1
-    if (!cohereKey) {
-      return NextResponse.json(
-        {
-          success: true,
-          themes: buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize)).slice(0, 6),
-          count: Math.min(6, colorPalettes.length)
-        }
-      )
-    }
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 18000)
-    let response
-    try {
-      response = await fetch(COHERE_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${cohereKey}`
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: 'command-a-03-2025',
-          preamble: AI_SYSTEM_PROMPT,
-          message: prompt,
-          messages: [
-            {
-              role: 'system',
-              content: AI_SYSTEM_PROMPT
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 4000
-        })
-      })
-    } catch (cohereRequestError) {
-      console.error('Cohere request failed, using palette fallback:', cohereRequestError)
-      return NextResponse.json({
-        success: true,
-        themes: buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize)).slice(0, 6),
-        count: Math.min(6, colorPalettes.length)
-      })
-    } finally {
-      clearTimeout(timeoutId)
-    }
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error('Cohere API error:', response.status, errorData)
-      return NextResponse.json({
-        success: true,
-        themes: buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize)).slice(0, 6),
-        count: Math.min(6, colorPalettes.length)
-      })
-    }
-
-    const data = await response.json()
-    const generatedText = data.message?.content?.[0]?.text?.trim() || data.generations?.[0]?.text?.trim()
-
-    if (!generatedText) {
-      return NextResponse.json({
-        success: true,
-        themes: buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize)).slice(0, 6),
-        count: Math.min(6, colorPalettes.length)
-      })
-    }
-
-    // Parse the JSON response
     let themes = []
     try {
-      // Try to extract JSON from the response
-      const jsonMatch = generatedText.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        themes = JSON.parse(jsonMatch[0])
-      } else {
-        // Try parsing the whole response
-        themes = JSON.parse(generatedText)
-      }
-    } catch (parseError) {
-      console.error('Failed to parse themes JSON:', parseError)
-      // Try to find JSON array in the response
-      const jsonStart = generatedText.indexOf('[')
-      const jsonEnd = generatedText.lastIndexOf(']') + 1
-      if (jsonStart !== -1 && jsonEnd > jsonStart) {
-        try {
-          themes = JSON.parse(generatedText.substring(jsonStart, jsonEnd))
-        } catch {
-          return NextResponse.json({
-            success: true,
-            themes: buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize)).slice(0, 6),
-            count: Math.min(6, colorPalettes.length)
-          })
-        }
-      } else {
-        return NextResponse.json({
-          success: true,
-          themes: buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize)).slice(0, 6),
-          count: Math.min(6, colorPalettes.length)
-        })
-      }
-    }
+      const cohereClient = new CohereClient({ token: cohereKey })
+      const timeoutMs = 90000
+      console.log('Calling Cohere with prompt length:', prompt.length)
+      const cohereResponse = await Promise.race([
+        cohereClient.chat({
+          model: 'command-r-plus',
+          message: prompt,
+          temperature: randomize ? 0.8 : 0.6,
+          max_tokens: 1200,
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Cohere request timed out')), timeoutMs))
+      ])
 
-    if (!Array.isArray(themes) || themes.length === 0) {
+      const generatedText = String(
+        cohereResponse?.text ||
+        cohereResponse?.message?.content?.[0]?.text ||
+        cohereResponse?.generations?.[0]?.text ||
+        cohereResponse?.output?.[0]?.content?.[0]?.text ||
+        cohereResponse?.output_text ||
+        ''
+      ).replace(/```json\s*/g, '').replace(/```\s*$/g, '').replace(/`/g, '').trim()
+
+      if (!generatedText) {
+        console.error('Cohere raw response:', JSON.stringify(cohereResponse))
+        throw new Error('Cohere returned an empty theme response')
+      }
+
+      // Parse the JSON response with better error handling
+      let themes = []
+      try {
+        // Extract JSON array by finding the first '[' and last ']'
+        const startIndex = generatedText.indexOf('[')
+        const endIndex = generatedText.lastIndexOf(']')
+        if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+          const jsonText = generatedText.substring(startIndex, endIndex + 1)
+          themes = JSON.parse(jsonText)
+        } else {
+          // Try parsing the entire text as JSON
+          themes = JSON.parse(generatedText)
+        }
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError.message, 'Raw text:', generatedText.substring(0, 500))
+        // Try to salvage by removing problematic characters
+        try {
+          const cleanedText = generatedText
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+            .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+            .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Quote unquoted keys
+
+          const startIndex = cleanedText.indexOf('[')
+          const endIndex = cleanedText.lastIndexOf(']')
+          if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+            const jsonText = cleanedText.substring(startIndex, endIndex + 1)
+            themes = JSON.parse(jsonText)
+          } else {
+            themes = JSON.parse(cleanedText)
+          }
+        } catch (secondParseError) {
+          console.error('Second parse attempt failed:', secondParseError.message)
+          // Third attempt: Use jsonrepair to fix common JSON issues
+          try {
+            const repairedText = jsonrepair(cleanedText)
+            const startIndex = repairedText.indexOf('[')
+            const endIndex = repairedText.lastIndexOf(']')
+            if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+              const jsonText = repairedText.substring(startIndex, endIndex + 1)
+              themes = JSON.parse(jsonText)
+            } else {
+              themes = JSON.parse(repairedText)
+            }
+          } catch (thirdParseError) {
+            console.error('Third parse attempt with jsonrepair failed:', thirdParseError.message)
+            throw new Error('Cohere returned invalid JSON format')
+          }
+        }
+      }
+
+      if (!Array.isArray(themes) || themes.length === 0) {
+        throw new Error('Cohere returned no themes')
+      }
+    } catch (cohereError) {
+      console.error('Cohere theme generation failed:', cohereError)
+      const fallbackThemes = buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize), pageSeed).slice(0, 6)
       return NextResponse.json({
         success: true,
-        themes: buildThemesFromPalettes(colorPalettes, pageProfile, Boolean(randomize)).slice(0, 6),
-        count: Math.min(6, colorPalettes.length)
+        themes: fallbackThemes.map(t => ({
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          mood: t.mood,
+          preview: t.preview,
+          css: t.css,
+          components: t.components,
+          featureCoverage: t.featureCoverage,
+        })),
+        count: fallbackThemes.length,
+        source: 'local-fallback',
+        warning: 'Cohere timed out or failed; generated themes locally from APIVerve palettes.'
       })
     }
 
     const templateOrder = getTemplateOrderForPersona(pageProfile, Boolean(randomize))
 
-    // Validate and transform themes to include CSS
-    const candidateThemes = themes.slice(0, 12).map((theme, index) => {
+    // Validate and transform themes to include CSS (simplified)
+    const candidateThemes = themes.slice(0, 2).map((theme, index) => {
       const preview = theme.preview || {}
       const cssVars = theme.cssVariables || {}
       const themed = { ...theme, _templateIndex: templateOrder[index % templateOrder.length] }
-      
-      const css = typeof theme.globalCss === 'string' && theme.globalCss.trim().length > 40
+
+      // Use provided globalCss or generate minimal fallback
+      const css = typeof theme.globalCss === 'string' && theme.globalCss.trim().length > 10
         ? theme.globalCss.trim()
-        : generateCSS(themed, cssVars, pageProfile, Boolean(randomize))
+        : generateMinimalCSS(themed, cssVars, colorPalettes[index % colorPalettes.length])
 
       const normalizedPreview = [
-        preview.background || cssVars['--bg'] || '#1a1a1a',
-        preview.primary || cssVars['--primary'] || '#6366f1',
-        preview.secondary || cssVars['--secondary'] || '#ffffff',
-        preview.accent || cssVars['--accent'] || '#ff6b35',
-        preview.text || cssVars['--text'] || '#e5e7eb',
+        preview.background || cssVars['--bg'] || colorPalettes[index % colorPalettes.length]?.colors?.background || '#1a1a1a',
+        preview.primary || cssVars['--primary'] || colorPalettes[index % colorPalettes.length]?.colors?.primary || '#6366f1',
+        preview.secondary || cssVars['--secondary'] || colorPalettes[index % colorPalettes.length]?.colors?.secondary || '#ffffff',
+        preview.accent || cssVars['--accent'] || colorPalettes[index % colorPalettes.length]?.colors?.accent || '#ff6b35',
+        preview.text || cssVars['--text'] || colorPalettes[index % colorPalettes.length]?.colors?.text || '#e5e7eb',
       ]
-      
+
       return {
         id: `ai-generated-${Date.now()}-${index}`,
         name: themed.themeName || `AI Theme ${index + 1}`,
@@ -292,7 +257,9 @@ IMPORTANT:
         mood: themed.mood || '',
         preview: normalizedPreview.slice(0, 3),
         palette: normalizedPreview,
-        css: css
+        css: css,
+        components: themed.components || {},
+        featureCoverage: Array.isArray(themed.featureCoverage) ? themed.featureCoverage : []
       }
     })
 
@@ -307,8 +274,11 @@ IMPORTANT:
         mood: t.mood,
         preview: t.preview,
         css: t.css,
+        components: t.components,
+        featureCoverage: t.featureCoverage,
       })),
-      count: selectedThemes.length
+      count: selectedThemes.length,
+      source: 'cohere-ai'
     })
 
   } catch (error) {
@@ -322,7 +292,8 @@ IMPORTANT:
 
 function buildThemesFromPalettes(colorPalettes = [], pageProfile = null, randomize = false, pageSeed = 0) {
   const palettes = (Array.isArray(colorPalettes) ? colorPalettes : []).slice(0, 6)
-  const source = palettes.length ? palettes : generateFallbackPalettes(pageProfile, randomize, pageSeed)
+  const source = palettes
+  if (!source.length) return []
   const templateOrder = getTemplateOrderForPersona(pageProfile, randomize, pageSeed)
   const familyOrder = getThemeFamilyOrder(pageProfile, randomize, pageSeed)
 
@@ -560,6 +531,93 @@ function generateCSS(theme, cssVars, pageProfile = null, randomize = false) {
   const css = templateGenerators[templateIndex]({ bg, bgSecondary, text, primary, secondary, accent, border, shadow, buttonPrimary, buttonSecondary })
 
   return css
+}
+
+function augmentRuntimeThemeCss(css, theme, pageProfile = null, randomize = false) {
+  const accent = theme?.cssVariables?.['--accent'] || theme?.preview?.accent || '#ff6b35'
+  const primary = theme?.cssVariables?.['--primary'] || theme?.preview?.primary || '#6366f1'
+  const text = theme?.cssVariables?.['--text'] || theme?.preview?.text || '#e5e7eb'
+  const bg = theme?.cssVariables?.['--bg'] || theme?.preview?.background || '#0f172a'
+  const bgSecondary = theme?.cssVariables?.['--bg-secondary'] || bg
+  const border = theme?.cssVariables?.['--border'] || primary
+
+  const featureLayer = `
+/* Runtime affordance layer: common page structures */
+:where(header, nav, footer, [class*="header" i], [class*="nav" i], [class*="footer" i]) {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(18px) saturate(1.25);
+  background: color-mix(in srgb, ${bg} 88%, transparent) !important;
+  border-color: color-mix(in srgb, ${border} 68%, transparent) !important;
+}
+
+:where([class*="hero" i], [class*="banner" i], main > section:first-of-type, section:first-of-type) {
+  padding: clamp(2rem, 5vw, 5rem) !important;
+  min-height: clamp(22rem, 55vh, 42rem);
+  display: grid;
+  align-items: center;
+  gap: 1rem;
+  background: linear-gradient(135deg, color-mix(in srgb, ${primary} 82%, ${bg} 18%), color-mix(in srgb, ${accent} 72%, ${bgSecondary} 28%)) !important;
+}
+
+:where(form[role="search"], [class*="search" i] form, [class*="searchbar" i], [class*="search-bar" i], input[type="search"]) {
+  border-color: color-mix(in srgb, ${border} 72%, transparent) !important;
+  box-shadow: 0 16px 40px color-mix(in srgb, ${bg} 52%, transparent) !important;
+}
+
+:where(input[type="search"], input[placeholder*="search" i], [class*="search" i] input, [class*="search" i] button) {
+  min-height: 2.75rem;
+}
+
+:where([class*="scroll-top" i], [aria-label*="top" i], button[data-scroll-top], .scroll-to-top) {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1100;
+  border-radius: 999px !important;
+  box-shadow: 0 14px 30px color-mix(in srgb, ${accent} 38%, transparent) !important;
+}
+
+:where([class*="scroll-left" i], [data-scroll-left], [aria-label*="left" i], .scroll-left) {
+  position: relative;
+}
+
+:where([class*="scroll-right" i], [data-scroll-right], [aria-label*="right" i], .scroll-right) {
+  position: relative;
+}
+
+:where([class*="marquee" i], marquee) {
+  overflow: hidden;
+  white-space: nowrap;
+  display: block;
+  animation: theme-marquee ${randomize ? '14s' : '18s'} linear infinite;
+}
+
+:where([class*="inline-block" i]) { display: inline-block !important; }
+:where([class*="inline" i]) { display: inline !important; }
+:where([class*="block" i]) { display: block !important; }
+
+@keyframes theme-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-12%); }
+}
+`
+
+  const personaLayer = pageProfile?.name
+    ? `
+/* Persona tuning for ${pageProfile.name} */
+:where(main, section, article, aside) {
+  scroll-margin-top: 5rem;
+}
+
+:where(button, [role="button"], a.button, .btn) {
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, color 180ms ease;
+}
+`
+    : ""
+
+  return `${css}\n${featureLayer}\n${personaLayer}`
 }
 
 // Helper: Hash color string to number
@@ -810,142 +868,22 @@ async function generateColorPalettesWithCohere(userInput, scanResults, url, page
       ? Math.floor(Math.random() * 1000000000)
       : Math.abs(hashColor(deterministicSeedSource)) % 100000)
 
-    // Step 1: Get professional palettes from APIVerve (prefer) and pass seed param
-    const apiVerveKey = process.env.COLOR_PALETTES_KEY
-    if (apiVerveKey) {
-      const vervepalettes = await fetchAPIVervePalettes(userInput, scanResults, pageProfile, computedPageSeed)
-      if (vervepalettes && vervepalettes.length > 0) {
-        return vervepalettes
-      }
+    // Step 1: Get professional palettes from APIVerve
+    const apiVerveKey = process.env.APIVERVE_API_KEY
+    if (!apiVerveKey) {
+      throw new Error('APIVerve color palettes key is missing')
     }
 
-    // Fallback: Use Cohere if APIVerve fails
-    const cohereKey = process.env.COHERE_KEY1
-    if (!cohereKey) {
-      console.warn('Both APIs unavailable, using fallback palettes')
-      return generateFallbackPalettes(pageProfile, randomize, computedPageSeed)
+    const apiVervePalettes = await fetchAPIVervePalettes(userInput, scanResults, pageProfile, computedPageSeed)
+    if (apiVervePalettes && apiVervePalettes.length > 0) {
+      return apiVervePalettes
     }
 
-    // Cohere-based generation
-    const score = scanResults?.score || 0
-    const accessibility = score < 50 ? 'high-contrast' : score < 80 ? 'balanced' : 'aesthetic'
-    const persona = pageProfile?.name || 'general'
-
-    const colorPrompt = `You are Canva's professional color palette AI. Generate 6 premium, harmonious color palettes.
-
-  PAGE_SIGNATURE: ${computedPageSeed}
-
-USER REQUEST: "${userInput}"
-ACCESSIBILITY LEVEL: ${accessibility}
-PAGE SCORE: ${score}/100
-
-For each palette, apply ONE of these color harmony principles:
-1. Complementary (opposite on color wheel) - bold, high-energy
-2. Analogous (adjacent colors) - harmonious, cohesive
-3. Triadic (three colors equally spaced) - vibrant, balanced
-4. Tetradic (four colors) - rich, complex
-5. Monochromatic (single hue, varying tones) - elegant, professional
-6. Split-Complementary (complementary + adjacent) - modern, sophisticated
-
-Each palette must have 5 colors: background, primary, secondary, accent, text
-
-WCAG AA Requirements:
-- Text on background: minimum 4.5:1 contrast
-- Large text on accent: minimum 3:1 contrast
-- UI elements: minimum 3:1 contrast
-
-OUTPUT (STRICT JSON ONLY):
-[
-  {
-    "harmonyType": "complementary|analogous|triadic|tetradic|monochromatic|split-complementary",
-    "name": "palette name",
-    "mood": "professional/vibrant/calm/luxury/modern/etc",
-    "colors": {
-      "background": "#RRGGBB",
-      "primary": "#RRGGBB",
-      "secondary": "#RRGGBB",
-      "accent": "#RRGGBB",
-      "text": "#RRGGBB"
-    }
-  }
-]
-
-Generate palettes that are:
-- Accessible and WCAG compliant
-- Suitable for professional UI design
-- Distinct from each other
-- Matching the user's mood request
-- Matching the page persona and use case
-- No explanations, JSON only`
-
-    const response = await fetch(COHERE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${cohereKey}`
-      },
-      body: JSON.stringify({
-        model: 'command-a-03-2025',
-        preamble: COLOR_PALETTE_SYSTEM_PROMPT,
-        message: colorPrompt,
-        messages: [
-          {
-            role: 'system',
-            content: COLOR_PALETTE_SYSTEM_PROMPT
-          },
-          {
-            role: 'user',
-            content: colorPrompt
-          }
-        ],
-        temperature: 0.92,
-        max_tokens: 2000
-      })
-    })
-
-    if (!response.ok) {
-      console.error('Cohere palette generation failed:', response.status)
-      return generateFallbackPalettes(pageProfile, randomize, pageSeed)
-    }
-
-    const data = await response.json()
-    const generatedText = data.message?.content?.[0]?.text?.trim() || ''
-
-    if (!generatedText) {
-      return generateFallbackPalettes(pageProfile, randomize, pageSeed)
-    }
-
-    let palettes = []
-    try {
-      const jsonMatch = generatedText.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        palettes = JSON.parse(jsonMatch[0])
-      } else {
-        palettes = JSON.parse(generatedText)
-      }
-    } catch (err) {
-      console.error('Failed to parse color palettes:', err)
-      return generateFallbackPalettes(pageProfile, randomize, pageSeed)
-    }
-
-    // Validate and enhance palettes
-    return palettes.slice(0, 6).map((p, i) => ({
-      id: `palette-${Date.now()}-${i}`,
-      harmonyType: p.harmonyType || 'complementary',
-      name: p.name || `Generated Palette ${i + 1}`,
-      mood: p.mood || 'modern',
-      colors: {
-        background: validateHex(p.colors?.background) || '#0f172a',
-        primary: validateHex(p.colors?.primary) || '#7c3aed',
-        secondary: validateHex(p.colors?.secondary) || '#f8fafc',
-        accent: validateHex(p.colors?.accent) || '#f97316',
-        text: validateHex(p.colors?.text) || '#e5e7eb',
-      },
-      contrast: computeAccessibilityScore(p.colors)
-    }))
+    console.warn('APIVerve returned no palettes — falling back to built-in palettes')
+    return getFallbackPalettes()
   } catch (error) {
     console.error('Color palette generation error:', error)
-    return generateFallbackPalettes(pageProfile, randomize, pageSeed)
+    return null
   }
 }
 
@@ -953,124 +891,267 @@ Generate palettes that are:
 
 async function fetchAPIVervePalettes(userInput, scanResults, pageProfile = null, seed = null) {
   try {
-    const apiKey = process.env.COLOR_PALETTES_KEY
-    if (!apiKey) {
+    const apiVerveKey = process.env.APIVERVE_API_KEY
+    if (!apiVerveKey) {
       return null
     }
 
     const score = scanResults?.score || 0
-    const mode = score < 50 ? 'high-contrast' : score < 80 ? 'balanced' : 'vibrant'
-    
-    // Determine mood from user input
-    let mood = pageProfile?.mood || 'contemporary'
-    const input = userInput.toLowerCase()
-    if (input.includes('luxury') || input.includes('premium')) mood = 'luxury'
-    else if (input.includes('modern') || input.includes('clean')) mood = 'modern'
-    else if (input.includes('vibrant') || input.includes('energy')) mood = 'vibrant'
-    else if (input.includes('calm') || input.includes('smooth')) mood = 'calm'
-    else if (input.includes('professional') || input.includes('business')) mood = 'professional'
-    else if (pageProfile?.mood) mood = pageProfile.mood
-    else if (pageProfile?.mood) mood = pageProfile.mood
+    const mood = pageProfile?.mood || 'contemporary'
 
-    // Call APIVerve Color Palettes API
-    const apiVerveUrl = 'https://api.apiverve.com/v1/colors?'
+    const apiVerveUrl = 'https://api.apiverve.com/v1/colorpalette'
+    const baseColor = buildAPIVerveBaseColor({ userInput, scanResults, pageProfile, seed })
+    const scheme = buildAPIVerveSchemeOrder(score, randomizeFromSeed(seed))[0] || 'triade'
+    const variation = buildAPIVerveVariation(score, 0)
     const params = new URLSearchParams({
-      apikey: apiKey,
-      count: '6',
-      mode: mode,
-      mood: mood,
-      type: 'palette'
+      color: baseColor.replace('#', ''),
+      scheme,
+      variation,
+      count: '5',
+      distance: '0.5',
+      addComplement: String(scheme === 'analogic'),
+      webSafe: 'false',
     })
-    if (seed) params.set('seed', String(seed))
 
-    const response = await fetch(apiVerveUrl + params.toString(), {
+    const response = await fetch(`${apiVerveUrl}?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-API-Key': apiVerveKey,
       }
     })
 
     if (!response.ok) {
-      console.warn('APIVerve request failed:', response.status)
+      const errorBody = await response.text().catch(() => '')
+      console.warn('APIVerve request failed:', response.status, errorBody)
       return null
     }
 
     const data = await response.json()
-    
-    if (!data.result || !data.result.palettes) {
-      console.warn('No palettes in APIVerve response')
-      return null
-    }
+    console.warn('APIVerve response status:', response.status)
+    const apiPalette = mapAPIVerveResponseToPalette(data, mood, 0)
+    if (!apiPalette) return null
 
-    // Transform APIVerve response to our format
-    return data.result.palettes.slice(0, 6).map((palette, i) => {
-      const colors = palette.colors || palette
-      const bgHex = validateHex(colors[0]) || '#0f172a'
-      const primaryHex = validateHex(colors[1]) || '#7c3aed'
-      const secondaryHex = validateHex(colors[2]) || '#f8fafc'
-      const accentHex = validateHex(colors[3] || colors[4]) || '#f97316'
-      const textHex = validateHex(colors[4] || colors[0]) || '#e5e7eb'
-
-      return {
-        id: `apiverve-palette-${Date.now()}-${i}`,
-        harmonyType: palette.harmonyType || palette.scheme || 'complementary',
-        name: palette.name || palette.title || `APIVerve Palette ${i + 1}`,
-        mood: palette.mood || mood,
-        colors: {
-          background: bgHex,
-          primary: primaryHex,
-          secondary: secondaryHex,
-          accent: accentHex,
-          text: textHex
-        },
-        contrast: computeAccessibilityScore({
-          background: bgHex,
-          primary: primaryHex,
-          secondary: secondaryHex,
-          accent: accentHex,
-          text: textHex
-        }),
-        source: 'apiverve'
-      }
-    })
+    return buildPaletteVariantsFromAPIVervePalette(apiPalette, score, pageProfile, seed)
   } catch (error) {
     console.error('APIVerve fetch error:', error)
     return null
   }
 }
 
-function generateFallbackPalettes(pageProfile = null, randomize = false, pageSeed = 0) {
-  const pool = getThemeFamilies().map((family, index) => ({
-    id: `fallback-${index + 1}`,
-    harmonyType: family.harmonyType,
-    name: family.name,
-    mood: family.mood,
-    colors: { ...family.colors }
-  }))
+function randomizeFromSeed(seed) {
+  return Boolean(seed && String(seed).length > 0)
+}
 
-  const prioritized = pool
-    .map(palette => ({ palette, score: scoreFamilyForPersona(palette, pageProfile) }))
-    .sort((a, b) => b.score - a.score)
-    .map(item => item.palette)
+function buildAPIVerveSchemeOrder(score, randomize) {
+  const safeOrder = score < 50
+    ? ['contrast', 'triade', 'analogic', 'tetrade', 'mono']
+    : score < 80
+      ? ['analogic', 'triade', 'tetrade', 'contrast', 'mono']
+      : ['mono', 'analogic', 'triade', 'tetrade', 'contrast']
 
-  const ordered = randomize ? seededShuffle(prioritized, pageSeed || Date.now()) : prioritized
+  return randomize ? seededShuffle([...safeOrder], score || Date.now()) : safeOrder
+}
 
-  return ordered.slice(0, 6).map((palette, index) => {
-    const offset = (pageSeed || 1) + index * 17
+function buildAPIVerveVariation(score, index) {
+  const variations = score < 50
+    ? ['soft', 'light', 'default', 'pastel', 'hard', 'soft']
+    : score < 80
+      ? ['default', 'soft', 'light', 'pastel', 'hard', 'default']
+      : ['light', 'default', 'soft', 'pastel', 'hard', 'light']
+
+  return variations[index % variations.length]
+}
+
+function mapAPIVerveResponseToPalette(data, mood, index) {
+  const payload = data?.data || data?.result || data
+  const paletteColors = Array.isArray(payload?.colorPalette)
+    ? payload.colorPalette
+    : Array.isArray(payload?.colors)
+      ? payload.colors
+      : Array.isArray(payload?.palette)
+        ? payload.palette
+        : Array.isArray(payload?.palettes)
+          ? payload.palettes.flatMap(extractPaletteColors)
+      : Array.isArray(payload?.colorPaletteRaw)
+        ? payload.colorPaletteRaw.map(hex => ({ hex: `#${String(hex).replace('#', '')}` }))
+        : extractPaletteColors(payload)
+
+  if (!paletteColors.length) return null
+
+  const normalized = paletteColors.slice(0, 5).map(item => {
+    const hex = typeof item === 'string' ? item : item?.hex
+    return validateHex(hex)
+  }).filter(Boolean)
+
+  if (!normalized.length) return null
+
+  const fallback = [
+    '#0f172a',
+    '#7c3aed',
+    '#f8fafc',
+    '#f97316',
+    '#e5e7eb',
+  ]
+
+  const colors = [...normalized, ...fallback].slice(0, 5)
+  const bgHex = colors[0]
+  const primaryHex = colors[1]
+  const secondaryHex = colors[2]
+  const accentHex = colors[3]
+  const textHex = colors[4]
+
+  return {
+    id: `apiverve-palette-${Date.now()}-${index}`,
+    harmonyType: payload?.scheme || payload?.harmonyType || 'triade',
+    name: payload?.sourceName || payload?.name || `APIVerve Palette ${index + 1}`,
+    mood,
+    colors: {
+      background: bgHex,
+      primary: primaryHex,
+      secondary: secondaryHex,
+      accent: accentHex,
+      text: textHex,
+    },
+    contrast: computeAccessibilityScore({
+      background: bgHex,
+      primary: primaryHex,
+      secondary: secondaryHex,
+      accent: accentHex,
+      text: textHex,
+    }),
+    source: 'apiverve',
+    sourceColor: payload?.source || null,
+    paletteMeta: {
+      scheme: payload?.scheme || null,
+      variation: payload?.variation || null,
+      distance: payload?.distance ?? null,
+      colorCount: payload?.colorCount ?? null,
+    }
+  }
+}
+
+function buildPaletteVariantsFromAPIVervePalette(apiPalette, score, pageProfile = null, seed = null) {
+  const baseColors = [
+    apiPalette.colors.background,
+    apiPalette.colors.primary,
+    apiPalette.colors.secondary,
+    apiPalette.colors.accent,
+    apiPalette.colors.text,
+  ]
+
+  const variantOrder = score < 50
+    ? [
+        [0, 1, 2, 3, 4],
+        [0, 3, 1, 2, 4],
+        [0, 2, 1, 4, 3],
+        [0, 4, 1, 2, 3],
+        [0, 1, 3, 2, 4],
+        [0, 2, 4, 1, 3],
+      ]
+    : [
+        [0, 1, 2, 3, 4],
+        [0, 2, 1, 3, 4],
+        [0, 3, 2, 1, 4],
+        [0, 4, 1, 3, 2],
+        [0, 1, 4, 2, 3],
+        [0, 2, 3, 4, 1],
+      ]
+
+  const themePaletteProfiles = getThemePaletteProfiles(pageProfile, seed)
+
+  return variantOrder.map((order, index) => {
+    const colors = order.map(colorIndex => baseColors[colorIndex] || baseColors[0])
+    const profile = themePaletteProfiles[index % themePaletteProfiles.length]
+
     return {
-      ...palette,
-      id: `${palette.id}-${offset}`,
-      name: buildThemeName(palette, pageProfile, randomize, index, pageSeed),
-      mood: palette.mood,
+      id: `${apiPalette.id}-variant-${index}`,
+      harmonyType: apiPalette.harmonyType,
+      name: `${apiPalette.name} ${profile.suffix}`,
+      mood: profile.mood || apiPalette.mood,
       colors: {
-        background: mutateColor(palette.colors.background, offset + 1),
-        primary: mutateColor(palette.colors.primary, offset + 3),
-        secondary: mutateColor(palette.colors.secondary, offset + 5),
-        accent: mutateColor(palette.colors.accent, offset + 7),
-        text: mutateColor(palette.colors.text, offset + 9),
-      }
+        background: colors[0],
+        primary: colors[1],
+        secondary: colors[2],
+        accent: colors[3],
+        text: colors[4],
+      },
+      contrast: computeAccessibilityScore({
+        background: colors[0],
+        primary: colors[1],
+        secondary: colors[2],
+        accent: colors[3],
+        text: colors[4],
+      }),
+      source: apiPalette.source,
+      sourceColor: apiPalette.sourceColor,
+      paletteMeta: apiPalette.paletteMeta,
     }
   })
+}
+
+function getThemePaletteProfiles(pageProfile = null, seed = null) {
+  const suffixes = ['Nova', 'Atlas', 'Pulse', 'Drift', 'Prime', 'Aura']
+  const moods = pageProfile?.paletteModes?.length
+    ? pageProfile.paletteModes
+    : ['balanced', 'vibrant', 'soft', 'high-contrast']
+
+  const shuffledSuffixes = randomizeFromSeed(seed)
+    ? seededShuffle([...suffixes], Math.abs(hashColor(String(seed || 'theme'))))
+    : suffixes
+
+  return shuffledSuffixes.map((suffix, index) => ({
+    suffix,
+    mood: moods[index % moods.length],
+  }))
+}
+
+function buildAPIVerveBaseColor({ userInput, scanResults, pageProfile, seed }) {
+  const source = [
+    String(userInput || ''),
+    String(pageProfile?.name || ''),
+    String(pageProfile?.intent || ''),
+    String(pageProfile?.mood || ''),
+    String(scanResults?.score || 0),
+    String((scanResults?.suggestions || []).length),
+    String(seed || ''),
+  ].join('|')
+
+  const hash = Math.abs(hashColor(source))
+  const colors = [
+    'ff5733', '22c55e', '3b82f6', 'a855f7', 'f97316',
+    '14b8a6', 'e11d48', '0ea5e9', 'f59e0b', '8b5cf6'
+  ]
+
+  return `#${colors[hash % colors.length]}`
+}
+
+function extractPaletteColors(palette) {
+  if (Array.isArray(palette)) return palette
+  if (Array.isArray(palette?.colors)) return palette.colors
+  if (Array.isArray(palette?.palette)) return palette.palette
+
+  const candidates = []
+  const seen = new Set()
+
+  function walk(value) {
+    if (!value || seen.has(value)) return
+    if (typeof value === 'string') {
+      if (/^#?[0-9a-fA-F]{6}$/.test(value)) candidates.push(value)
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach(walk)
+      return
+    }
+    if (typeof value === 'object') {
+      seen.add(value)
+      Object.values(value).forEach(walk)
+    }
+  }
+
+  walk(palette)
+  return candidates
 }
 
 function validateHex(color) {
@@ -1145,4 +1226,33 @@ function buildPageSeed({ userInput, scanResults, url, randomize = false }) {
     seed = (seed * 31 + seedText.charCodeAt(i)) % 2147483647
   }
   return seed
+}
+
+function generateMinimalCSS(theme, cssVars, palette) {
+  const bg = cssVars['--bg'] || palette?.colors?.background || '#1a1a1a'
+  const primary = cssVars['--primary'] || palette?.colors?.primary || '#6366f1'
+  const secondary = cssVars['--secondary'] || palette?.colors?.secondary || '#ffffff'
+  const accent = cssVars['--accent'] || palette?.colors?.accent || '#ff6b35'
+  const text = cssVars['--text'] || palette?.colors?.text || '#e5e7eb'
+  const border = cssVars['--border'] || text
+  const shadow = cssVars['--shadow'] || 'rgba(0,0,0,0.3)'
+
+  return `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+* { box-sizing: border-box; }
+html, body { background: ${bg}; color: ${text}; font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+.card { background: rgba(255,255,255,0.05); border: 1px solid ${border}; border-radius: 8px; padding: 16px; box-shadow: 0 4px 12px ${shadow}; }
+button { background: ${primary}; color: ${secondary}; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+button:hover { background: ${accent}; }
+input { background: rgba(255,255,255,0.1); border: 1px solid ${border}; color: ${text}; padding: 8px; border-radius: 4px; }`
+}
+
+function getFallbackPalettes() {
+  return [
+    { harmonyType: 'complementary', name: 'Royal Velvet', mood: 'luxury', colors: { background: '#1a0d2e', primary: '#9b59b6', secondary: '#e8d5f5', accent: '#ffd700', text: '#f0e6f8' } },
+    { harmonyType: 'analogous', name: 'Ocean Depths', mood: 'calm', colors: { background: '#061428', primary: '#00d4ff', secondary: '#7ecfff', accent: '#00a3cc', text: '#b8d8f8' } },
+    { harmonyType: 'triadic', name: 'Vibrant Energy', mood: 'vibrant', colors: { background: '#0d0d0d', primary: '#00ff88', secondary: '#00ccff', accent: '#ff0055', text: '#00ff88' } },
+    { harmonyType: 'monochromatic', name: 'Warm Editorial', mood: 'professional', colors: { background: '#faf6f0', primary: '#c0392b', secondary: '#d4a574', accent: '#922b21', text: '#1a1510' } },
+    { harmonyType: 'split-complementary', name: 'Sakura Spring', mood: 'elegant', colors: { background: '#fff5f7', primary: '#e91e8c', secondary: '#f0a0c8', accent: '#4a8a6f', text: '#4a1942' } },
+    { harmonyType: 'tetradic', name: 'Modern Minimal', mood: 'contemporary', colors: { background: '#0b0f19', primary: '#6366f1', secondary: '#e5e7eb', accent: '#f97316', text: '#e5e7eb' } },
+  ]
 }

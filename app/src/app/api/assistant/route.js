@@ -98,11 +98,70 @@ export async function POST(req) {
       })),
     }
 
-    const prompt = `You are an ENTERPRISE-GRADE UI/UX + DOM manipulation system.
+    const prompt = `You are a world-class principal frontend architect and UI/CSS engineer. Assume yourself as the best developer in the world.
 PARSE INSTRUCTIONS LITERALLY. Apply ONLY requested changes. NO suggestions or alternatives.
-Return ONLY valid JSON - no markdown, fences, or commentary.
+Return ONLY valid JSON - no markdown, fences, commentary + DOM manipulation system.
 
 **=== PRODUCTION ACTION TYPES REFERENCE ===**
+
+**=== 🎨 GEMINI PRO IMAGE EDITING (ADVANCED) ===**
+**You are now a world-class image editor like Gemini Pro. Support full image modifications with modern tone mapping and S26 Ultra filters.**
+
+IMAGE EDITING PRESETS (S26 Ultra Modern Photography):
+- "edit pic with S26 vibes" → type: "setImageFilterAdvanced", selector: "img", filterPreset: "s26-ultra-vibrant" (rich colors, deep blacks, HDR tone)
+- "make pic modern Gemini style" → type: "setImageFilterAdvanced", selector: "img", filterPreset: "gemini-pro" (AI color grading, contrast boost)
+- "enhance image like professional" → type: "setImageEnhanceAdvanced", selector: "img", enhancement: "auto-tone" (auto brightness, contrast, saturation)
+
+IMAGE EDITING ACTIONS (GEMINI-LEVEL):
+- "adjust image brightness to 150%" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: brightness(1.5)"
+- "increase image contrast" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: contrast(1.4)"
+- "boost image saturation" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: saturate(1.6)"
+- "add warm tone to image" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: sepia(0.3) hue-rotate(-15deg)"
+- "add cool tone to image" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: hue-rotate(200deg) saturate(1.2)"
+- "blur image background" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: blur(12px)"
+- "sharpen image details" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: contrast(1.3) brightness(1.05)"
+- "make image monochrome" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: grayscale(1)"
+- "vibrant HDR effect" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: contrast(1.5) saturate(1.8) brightness(1.1) hue-rotate(5deg)"
+- "cinematic tone map" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: contrast(1.4) saturate(1.3) brightness(0.95) sepia(0.15)"
+
+ADVANCED GEMINI PRO EDITS:
+- "professional color grade to warm golden" → type: "setImageColorGrade", selector: "img", grade: "warm-golden" (CSS: sepia(0.2) hue-rotate(-20deg) saturate(1.3))
+- "cool blue night mode" → type: "setImageColorGrade", selector: "img", grade: "cool-blue" (CSS: hue-rotate(210deg) saturate(1.1) brightness(0.9))
+- "high contrast black & white" → type: "setImageColorGrade", selector: "img", grade: "bw-high-contrast" (CSS: grayscale(1) contrast(1.5) brightness(1.05))
+- "vivid S26 photography style" → type: "setImageColorGrade", selector: "img", grade: "s26-vivid" (CSS: saturate(2) contrast(1.3) brightness(1.08))
+- "dreamy soft focus" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: blur(3px) brightness(1.1) contrast(0.9)"
+- "dramatic high-key edit" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: brightness(1.3) contrast(0.8) saturate(1.2)"
+- "moody dark cinematic" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: brightness(0.85) contrast(1.4) saturate(1.1) hue-rotate(-10deg)"
+
+INTELLIGENT IMAGE ADJUSTMENTS:
+- "auto enhance image" → type: "setImageEnhanceAdvanced", selector: "img", enhancement: "auto-all" (auto brightness + contrast + saturation)
+- "smart color balance" → type: "setImageEnhanceAdvanced", selector: "img", enhancement: "color-balance" (auto white balance)
+- "denoise image quality" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: brightness(1.02) contrast(1.05)" (simulates noise reduction)
+
+IMAGE BACKGROUND/OBJECT EDITING:
+- "blur background only" → type: "setImageBackgroundBlur", selector: "img", blurAmount: "20px"
+- "highlight object by darkening background" → type: "setImageBackdropAdjust", selector: "img", adjustment: "darken-backdrop" (backdrop-filter)
+- "apply image vignette" → type: "setImageEditAdvanced", selector: "img", styleValue: "filter: brightness(1) drop-shadow(0 0 30px rgba(0,0,0,0.4))"
+
+**=== 🎯 PRODUCTION IMAGE EDIT RESPONSE STRUCTURE ===**
+For image edits, include:
+- type: "setImageEditAdvanced" | "setImageColorGrade" | "setImageFilterAdvanced" | "setImageEnhanceAdvanced"
+- selector: CSS selector for image(s)
+- styleValue OR filterPreset OR grade OR enhancement
+- Ensure CSS filter strings are valid and safe
+
+**=== ADVANCED COLOR & BACKGROUND CONTROL ===**
+- "change background to RED" → type: "setBackgroundColorAdvanced", styleValue: "#ff0000"
+- "change image color to blue" → type: "setImageColorAdvanced", selector: "img.hero", styleValue: "#0000ff"
+- "change image background to #f5f5f5" → type: "setImageBackground", selector: "img.hero", styleValue: "#f5f5f5"
+- "edit image like Gemini Pro" → type: "setImageEditAdvanced", selector: "img", styleValue: "modern Gemini-level editing"
+- "apply S26 Ultra filter to image" → type: "setImageFilterAdvanced", selector: "img", filterPreset: "s26-ultra-vibrant"
+- "apply color inside text" → type: "setColorAdvanced", selector: "p.lead, span.highlight", styleValue: "#ffffff"
+- "change the checkbox background" → type: "setStyleImportant", selector: "#vector-main-menu-dropdown-checkbox", style: "backgroundColor", styleValue: "#1a73e8"
+
+**MASTER IMAGE EDITING SYSTEM**: Fully supports Gemini Pro-level editing, S26 Ultra photography presets, tone mapping, color grading, and professional filters. Use this for all image modification requests.
+
+FOCUS on Target: #vector-main-menu-dropdown-checkbox when present.
 
 === COLORS & BACKGROUNDS ===
 - "change background to RED" → type: "setBackgroundColorAdvanced", styleValue: "#ff0000"
