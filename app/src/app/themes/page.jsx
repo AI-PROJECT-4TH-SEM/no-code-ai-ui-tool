@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { themes } from "@/lib/themes.js"
 import { themeManager } from "@/lib/themeManager"
 import Navbar from "@/components/Navbar"
@@ -10,73 +10,7 @@ export default function Themes() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("sessionId")
-  const [liveThemes, setLiveThemes] = useState([])
-  const [loadingThemes, setLoadingThemes] = useState(false)
-  const [themeError, setThemeError] = useState("")
-  const [scanSummary, setScanSummary] = useState(null)
-
-  const fallbackThemes = useMemo(() => themes.slice(0, 12), [])
-
-  async function loadLiveThemes({ randomize = true } = {}) {
-    const token = localStorage.getItem("token")
-    if (!token || !sessionId) {
-      setLiveThemes(fallbackThemes)
-      return
-    }
-
-    setLoadingThemes(true)
-    setThemeError("")
-
-    try {
-      const sessionRes = await fetch(`/api/session/${sessionId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const sessionData = await sessionRes.json()
-      if (!sessionRes.ok) throw new Error(sessionData.error || "Failed to load session")
-
-      const html = sessionData.currentHtml || sessionData.originalHtml || ""
-      const url = sessionData.url || ""
-
-      const analysisRes = await fetch("/api/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html, url }),
-      })
-      const analysisData = await analysisRes.json()
-      if (!analysisRes.ok) throw new Error(analysisData.error || "Failed to analyse page")
-
-      setScanSummary({
-        score: analysisData.score ?? 0,
-        violations: analysisData.violations ?? 0,
-        suggestionCount: (analysisData.suggestions || []).length,
-      })
-
-      const themeRes = await fetch("/api/ai-themes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userInput: "Generate the best live theme for this scanned page.",
-          scanResults: analysisData,
-          url,
-          randomize,
-        }),
-      })
-      const themeData = await themeRes.json()
-      if (!themeRes.ok) throw new Error(themeData.error || "Failed to generate live themes")
-
-      setLiveThemes(Array.isArray(themeData.themes) && themeData.themes.length ? themeData.themes : fallbackThemes)
-    } catch (err) {
-      console.error("Live theme generation failed:", err)
-      setThemeError(err.message || "Could not generate live themes")
-      setLiveThemes(fallbackThemes)
-    } finally {
-      setLoadingThemes(false)
-    }
-  }
-
-  useEffect(() => {
-    loadLiveThemes({ randomize: true })
-  }, [sessionId])
+  const availableThemes = useMemo(() => themes.slice(0, 12), [])
 
   function handleMouseMove(e) {
     const card = e.currentTarget
@@ -98,15 +32,6 @@ export default function Themes() {
 
   async function handleSelect(theme) {
     console.log("CLICKED:", theme)
-
-    if (theme?.css) {
-      const existing = document.getElementById("live-theme-preview-style")
-      if (existing) existing.remove()
-      const styleEl = document.createElement("style")
-      styleEl.id = "live-theme-preview-style"
-      styleEl.textContent = theme.css
-      document.head.appendChild(styleEl)
-    }
 
     themeManager.saveActiveTheme(theme)
 
@@ -144,36 +69,15 @@ export default function Themes() {
       <div className="flex-1 p-6">
         <div className="flex items-center justify-between mb-5 gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Live AI Themes</h1>
+            <h1 className="text-2xl font-semibold">Themes</h1>
             <p className="text-sm text-white/50">
-              Themes are generated from the current scan. Refresh to get a different runtime result.
+              Select a theme to apply on the fetched page in Results. Your dashboard UI will not be themed.
             </p>
-            {scanSummary && (
-              <p className="mt-1 text-xs text-white/35">
-                Score {scanSummary.score}/100 · {scanSummary.violations} violations · {scanSummary.suggestionCount} suggestions
-              </p>
-            )}
           </div>
-          <button
-            onClick={() => loadLiveThemes({ randomize: true })}
-            className="px-4 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-sm"
-          >
-            🔄 Regenerate
-          </button>
         </div>
 
-        {themeError && (
-          <div className="mb-4 p-3 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-200 text-sm">
-            {themeError}
-          </div>
-        )}
-
-        {loadingThemes ? (
-          <div className="p-8 text-center text-white/50">Generating live palettes and CSS for this page...</div>
-        ) : null}
-
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {liveThemes.map((theme) => (
+          {availableThemes.map((theme) => (
             <div
               key={theme.id || theme.name}
               onClick={() => handleSelect(theme)}
@@ -188,7 +92,7 @@ export default function Themes() {
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">{theme.name}</span>
                 <span className="text-xs text-(--primary)">
-                  Apply →
+                  Use In Results →
                 </span>
               </div>
               {theme.description && (
