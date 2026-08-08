@@ -122,7 +122,6 @@ cd app
 npm run dev
 
 # 2. Load extension in Chrome
-chrome://extensions/ → Load unpacked → Select extension folder
 
 # 3. Open any website
 # 4. Try command: "Move the first button to the bottom"
@@ -313,8 +312,6 @@ All files are integrated, tested, and optimized.
    ```
 
 3. **Load Extension**
-   - chrome://extensions/
-   - Load unpacked
    - Select extension folder
 
 4. **Test Everything**
