@@ -1,15 +1,8 @@
-import { serialize } from "cookie"
+import { clearRefreshCookie } from "@/lib/auth"
+import { jsonResponse } from "@/lib/http"
+import { logInfo } from "@/lib/logger"
 
 export async function POST() {
-  const cookie = serialize("refreshToken", "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 0,
-    path: "/",
-  })
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "Set-Cookie": cookie },
-  })
+  logInfo("User logged out")
+  return jsonResponse({ ok: true }, 200, { "Set-Cookie": clearRefreshCookie() })
 }

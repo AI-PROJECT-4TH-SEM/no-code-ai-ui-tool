@@ -5,7 +5,6 @@ import { themes } from "@/lib/themes"
 import ThemeGrid from "@/components/ThemeGrid"
 import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
-import AddChromeExtension from '@/components/AddChromeExtension'
 
 export default function Home() {
   const [html, setHtml] = useState("")
@@ -15,7 +14,6 @@ export default function Home() {
   const [fetchMethod, setFetchMethod] = useState("")
   const router = useRouter()
   const { accessToken } = useAuth()
-  const [label, setLabel] = useState("")
 
   async function saveHtml(content) {
     if (!accessToken) return
@@ -128,21 +126,20 @@ export default function Home() {
               AI powered UI transformation
             </div>
             <h1 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">
-              Transform Your Website's UI
+              Transform Your Website&apos;s UI
               <br />
               <span className="bg-gradient-to-r from-pink-400 to-purple-500 bg-clip-text text-transparent">
                 within Seconds
               </span>
             </h1>
             <p className="text-gray-400 text-base md:text-lg max-w-xl mx-auto">
-              Paste your HTML, pick a theme, and let AI suggest design improvements — no coding Headache.
+              Paste your HTML, pick a theme, and let AI suggest design improvements — no coding headache.
             </p>
           </div>
         </div>
 
         <div className="relative z-10">
           ...
-          <AddChromeExtension />
         </div>
 
         <div className="flex flex-col md:grid md:grid-cols-2 flex-1 md:overflow-hidden">

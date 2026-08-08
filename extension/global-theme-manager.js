@@ -126,20 +126,6 @@ window.globalThemeManager = {
     link.click();
     URL.revokeObjectURL(url);
   },
-
-  /**
-   * Export current modifications as CSS file
-   */
-  downloadModificationsCss: (filename = 'modifications.css') => {
-    const css = window.globalThemeManager.getModificationsCss();
-    const blob = new Blob([css], { type: 'text/css;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  },
 };
 
 if (typeof window !== 'undefined') {

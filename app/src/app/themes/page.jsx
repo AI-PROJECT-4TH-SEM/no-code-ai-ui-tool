@@ -1,15 +1,19 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
 import { useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { themes } from "@/lib/themes.js"
 import { themeManager } from "@/lib/themeManager"
 import Navbar from "@/components/Navbar"
+import { useAuth } from "@/context/AuthContext"
 
 export default function Themes() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const sessionId = searchParams.get("sessionId")
+  const { accessToken } = useAuth()
+  const sessionId = useMemo(() => {
+    if (typeof window === "undefined") return null
+    return new URLSearchParams(window.location.search).get("sessionId") || null
+  }, [])
   const availableThemes = useMemo(() => themes.slice(0, 12), [])
 
   function handleMouseMove(e) {
@@ -31,31 +35,21 @@ export default function Themes() {
   }
 
   async function handleSelect(theme) {
-    console.log("CLICKED:", theme)
-
     themeManager.saveActiveTheme(theme)
 
-    const token = localStorage.getItem("token")
-    console.log("TOKEN:", token)
-
-    if (token) {
+    if (accessToken) {
       try {
-        const res = await fetch("/api/theme", {
+        await fetch("/api/theme", {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ themeName: theme.name }),
         })
-
-        const data = await res.json()
-        console.log("API RESPONSE:", data)
-      } catch (err) {
-        console.error("MongoDB save failed:", err)
+      } catch {
+        // Silent fallback: local theme selection still works for anonymous users
       }
-    } else {
-      console.warn("No token → only localStorage used")
     }
 
     router.push(`/results?sessionId=${sessionId}&theme=${encodeURIComponent(theme.name)}`)
@@ -71,7 +65,7 @@ export default function Themes() {
           <div>
             <h1 className="text-2xl font-semibold">Themes</h1>
             <p className="text-sm text-white/50">
-              Select a theme to apply on the fetched page in Results. Your dashboard UI will not be themed.
+            
             </p>
           </div>
         </div>
@@ -80,7 +74,14 @@ export default function Themes() {
           {availableThemes.map((theme) => (
             <div
               key={theme.id || theme.name}
+              role="button"
+              tabIndex={0}
               onClick={() => handleSelect(theme)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  handleSelect(theme)
+                }
+              }}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               className="card cursor-pointer"

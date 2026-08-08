@@ -1,35 +1,32 @@
 import connectDB from "@/lib/db"
 import User from "@/lib/models/User"
-import jwt from "jsonwebtoken"
-
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET
+import { getAuthenticatedUserId } from "@/lib/auth"
+import { jsonResponse } from "@/lib/http"
+import { logError, logWarn } from "@/lib/logger"
 
 export async function POST(req) {
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) {
+    logWarn("User update endpoint denied: missing auth")
+    return jsonResponse({ error: "Unauthorized" }, 401)
+  }
+
   try {
-    const token = req.headers.get("authorization")?.split(" ")[1]
-
-    if (!token) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const decoded = jwt.verify(token, ACCESS_SECRET)
-
-    const { name} = await req.json()
-
-    const firstName = name.split(" ")[0]
-    const lastName = name.split(" ").slice(1).join(" ")
+    const { name } = await req.json().catch(() => ({}))
+    const firstName = String(name || "").split(" ")[0] || ""
+    const lastName = String(name || "").split(" ").slice(1).join(" ") || ""
 
     await connectDB()
 
     const user = await User.findByIdAndUpdate(
-      decoded.id, 
-      { firstName, lastName },
+      userId,
+      { firstName: firstName.trim(), lastName: lastName.trim() },
       { new: true }
     )
 
-    return Response.json({ success: true, user })
-
-  } catch (err) {
-    return Response.json({ error: "Update failed" }, { status: 500 })
+    return jsonResponse({ success: true, user })
+  } catch (error) {
+    logError("User update endpoint failed", { userId, error })
+    return jsonResponse({ error: "Update failed" }, 500)
   }
 }

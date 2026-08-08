@@ -100,7 +100,6 @@ Updated with new features section and links to documentation
 cd app && npm run dev
 
 # Load extension in Chrome
-chrome://extensions/ → Load unpacked → Select extension folder
 
 # Open any website, then in extension type:
 "Move the first button to the bottom"

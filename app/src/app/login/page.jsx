@@ -1,14 +1,16 @@
 "use client"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/context/AuthContext"
 
-export default function Login() {
+function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectBack = searchParams.get("redirectBack")
   const { login } = useAuth()
 
   async function handleLogin(e) {
@@ -16,7 +18,21 @@ export default function Login() {
     setLoading(true)
     const result = await login(email, password)
     if (result.ok) {
-      router.push("/")
+      if (window.opener && window.opener.postMessage) {
+        try {
+          window.opener.postMessage({ type: "EXTENSION_LOGIN_SUCCESS" }, "*")
+        } catch {
+          // ignore
+        }
+        window.open("/", "_blank")
+        window.close()
+        return
+      }
+      if (redirectBack) {
+        window.location.href = redirectBack
+      } else {
+        router.push("/")
+      }
     } else {
       alert(result.error)
     }
@@ -53,7 +69,7 @@ export default function Login() {
           </button>
           <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
           <p className="text-gray-500 text-sm mb-8">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <button onClick={() => router.push("/signup")} className="text-pink-400 hover:text-pink-300 transition">Sign up free</button>
           </p>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -81,5 +97,13 @@ export default function Login() {
       </div>
 
     </div>
+  )
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#080810] text-white">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }

@@ -1,4 +1,6 @@
 import puppeteer from "puppeteer"
+import { isValidUrl } from "@/lib/validation"
+import { rateLimit } from "@/lib/rateLimit"
 
 // detect JS heavy
 function isJsHeavySite(html) {
@@ -28,21 +30,28 @@ function ensureFullHTML(html, url) {
 }
 
 export async function POST(request) {
-  const { url } = await request.json()
+  const ip = request.headers.get("x-forwarded-for") || "local";
+  const rateCheck = rateLimit({ key: `fetch-url:${ip}`, limit: 20, windowMs: 60_000 });
+  if (!rateCheck.allowed) {
+    return Response.json({ error: "Too many requests" }, { status: 429 });
+  }
 
-  if (!url) {
-    return Response.json({ error: "URL is required" }, { status: 400 })
+  const body = await request.json().catch(() => ({}))
+  const url = typeof body.url === "string" ? body.url.trim() : ""
+
+  if (!isValidUrl(url)) {
+    return Response.json({ error: "A valid http(s) URL is required" }, { status: 400 })
   }
 
   try {
     const simpleRes = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      redirect: 'follow'
     })
 
     const simpleHtml = await simpleRes.text()
 
     if (isJsHeavySite(simpleHtml)) {
-      console.log("JS heavy site detected, using Puppeteer...")
 
       const html = await fetchWithPuppeteer(url)
       const safeHtml = ensureFullHTML(html, url) 
@@ -61,7 +70,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.log("Simple fetch failed, trying Puppeteer...")
 
     try {
       const html = await fetchWithPuppeteer(url)
@@ -73,7 +81,6 @@ export async function POST(request) {
       })
 
     } catch (puppeteerError) {
-      console.log("Puppeteer failed:", puppeteerError.message)
 
       return Response.json({
         error: "Could not fetch website",
@@ -110,7 +117,7 @@ async function fetchWithPuppeteer(url) {
         timeout: 30000
       })
     } catch {
-      console.log("Goto failed, continuing anyway...")
+      // continue with partial content if the page remains responsive
     }
 
     

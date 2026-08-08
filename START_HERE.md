@@ -97,8 +97,6 @@ npm run dev
 
 ### Step 2: Load Extension
 ```
-1. chrome://extensions/
-2. Load unpacked
 3. Select extension folder
 ```
 

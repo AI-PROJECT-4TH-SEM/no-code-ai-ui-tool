@@ -7,12 +7,14 @@ const changeSchema = new mongoose.Schema({
 })
 
 const sessionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  label: { type: String, required: true },
-  originalHtml: { type: String, required: true },
-  currentHtml: { type: String, required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  label: { type: String, required: true, trim: true, maxlength: 200 },
+  originalHtml: { type: String, required: true, maxlength: 2000000 },
+  currentHtml: { type: String, required: true, maxlength: 2000000 },
   changes: [changeSchema],
   suppressedIds: { type: [String], default: [] }
 }, { timestamps: true })
+
+sessionSchema.index({ userId: 1, createdAt: -1 })
 
 export default mongoose.models.Session || mongoose.model("Session", sessionSchema)

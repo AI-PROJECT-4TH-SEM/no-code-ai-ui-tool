@@ -21,8 +21,14 @@ export default function Navbar() {
   }, [])
 
   useEffect(() => {
-    setMenuOpen(false)
-  }, [pathname])
+    if (!menuOpen) return
+
+    const timeoutId = window.setTimeout(() => {
+      setMenuOpen(false)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [menuOpen, pathname])
 
   const navigate = (path) => {
     router.push(path)

@@ -1,61 +1,57 @@
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
-import jwt from "jsonwebtoken";
-
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
+import { getAuthenticatedUserId } from "@/lib/auth";
+import { jsonResponse } from "@/lib/http";
+import { logError, logWarn } from "@/lib/logger";
 
 export async function GET(req) {
   await connectDB();
 
-  const authHeader = req.headers.get("authorization"); // "Bearer <token>"
-  if (!authHeader) return new Response(JSON.stringify({ error: "No token" }), { status: 401 });
+  const userId = getAuthenticatedUserId(req);
+  if (!userId) {
+    logWarn("User fetch denied: missing auth");
+    return jsonResponse({ error: "No token" }, 401);
+  }
 
-  const token = authHeader.split(" ")[1];
   try {
-    const payload = jwt.verify(token, ACCESS_SECRET);
-    const user = await User.findById(payload.userId).select("-password -refreshToken");
-    if (!user) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
+    const user = await User.findById(userId).select("-password -refreshToken");
+    if (!user) return jsonResponse({ error: "User not found" }, 404);
 
-    return new Response(JSON.stringify({ user }), { status: 200 });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: "Invalid or expired token" }), { status: 403 });
+    return jsonResponse({ user }, 200);
+  } catch (error) {
+    logError("User fetch failed", { userId, error });
+    return jsonResponse({ error: "Invalid or expired token" }, 403);
   }
 }
 
 export async function PATCH(req) {
   await connectDB();
 
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader) return new Response(JSON.stringify({ error: "No token" }), { status: 401 });
-
-  const token = authHeader.split(" ")[1];
-  let payload;
-  try {
-    payload = jwt.verify(token, ACCESS_SECRET);
-  } catch (err) {
-    return new Response(JSON.stringify({ error: "Invalid or expired token" }), { status: 403 });
-  }
-
-  const body = await req.json();
-  const { firstName, lastName, email } = body;
-
-  if (!firstName || !lastName) {
-    return new Response(JSON.stringify({ error: "All fields are required" }), { status: 400 });
+  const userId = getAuthenticatedUserId(req);
+  if (!userId) {
+    logWarn("User update denied: missing auth");
+    return jsonResponse({ error: "No token" }, 401);
   }
 
   try {
-    const user = await User.findById(payload.userId);
-    if (!user) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
+    const body = await req.json().catch(() => ({}));
+    const { firstName, lastName } = body;
 
-    user.firstName = firstName;
-    user.lastName = lastName;
-    
+    if (!firstName || !lastName) {
+      return jsonResponse({ error: "All fields are required" }, 400);
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return jsonResponse({ error: "User not found" }, 404);
+
+    user.firstName = String(firstName).trim().slice(0, 80);
+    user.lastName = String(lastName).trim().slice(0, 80);
 
     await user.save();
 
-    return new Response(JSON.stringify({ user }), { status: 200 });
-  } catch (err) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
+    return jsonResponse({ user }, 200);
+  } catch (error) {
+    logError("User update failed", { userId, error });
+    return jsonResponse({ error: "Server error" }, 500);
   }
 }

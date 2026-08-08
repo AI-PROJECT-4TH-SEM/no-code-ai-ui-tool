@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Navbar from "@/components/Navbar"
 import { useAuth } from "@/context/AuthContext"
@@ -11,6 +11,7 @@ export default function Settings() {
   const [showPopup, setShowPopup] = useState(false)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const sessionsRef = useRef(null)
   const { accessToken, logout } = useAuth()
   const router = useRouter()
 
@@ -18,32 +19,70 @@ export default function Settings() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase()
   }
 
+  function formatJoinedDate(createdAt) {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(createdAt))
+  }
+
+  function formatSessionDate(createdAt) {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    }).format(new Date(createdAt))
+  }
+
   useEffect(() => {
     if (!accessToken) {
-      setLoggedIn(false)
-      setShowPopup(true)
-      return
+      const timeoutId = window.setTimeout(() => {
+        setLoggedIn(false)
+        setShowPopup(true)
+      }, 0)
+
+      return () => window.clearTimeout(timeoutId)
     }
+
+    let isMounted = true
 
     const fetchUser = async () => {
       try {
         const res = await fetch("/api/user", {
           headers: { Authorization: `Bearer ${accessToken}` },
         })
-        if (!res.ok) { setLoggedIn(false); setShowPopup(true); return }
+        if (!res.ok) {
+          if (isMounted) {
+            setUser(null)
+            setLoggedIn(false)
+            setShowPopup(true)
+          }
+          return
+        }
         const data = await res.json()
-        if (data?.user) {
-          setUser(data.user)
-          setLoggedIn(true)
-          setName(data.user.firstName + " " + data.user.lastName)
-          setEmail(data.user.email)
-        } else {
+        if (isMounted) {
+          if (data?.user) {
+            setUser(data.user)
+            setLoggedIn(true)
+            setName(data.user.firstName + " " + data.user.lastName)
+            setEmail(data.user.email)
+          } else {
+            setUser(null)
+            setLoggedIn(false)
+            setShowPopup(true)
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setUser(null)
           setLoggedIn(false)
           setShowPopup(true)
         }
-      } catch {
-        setLoggedIn(false)
-        setShowPopup(true)
       }
     }
 
@@ -53,7 +92,9 @@ export default function Settings() {
           headers: { Authorization: `Bearer ${accessToken}` },
         })
         const data = await res.json()
-        setSessions(data)
+        if (isMounted) {
+          setSessions(data)
+        }
       } catch {
         console.log("Failed to load sessions")
       }
@@ -61,6 +102,10 @@ export default function Settings() {
 
     fetchUser()
     loadSessions()
+
+    return () => {
+      isMounted = false
+    }
   }, [accessToken])
 
   async function handleSave() {
@@ -100,6 +145,12 @@ export default function Settings() {
     } catch {
       console.log("Delete failed")
     }
+  }
+
+  const scrollSessions = (direction) => {
+    const el = sessionsRef.current
+    if (!el) return
+    el.scrollBy({ top: direction === 'up' ? -150 : 150, behavior: 'smooth' })
   }
 
   return (
@@ -142,7 +193,7 @@ export default function Settings() {
                       <h2 className="text-lg font-semibold">{name}</h2>
                       <p className="text-gray-500 text-sm">{email}</p>
                       <p className="text-gray-600 text-xs mt-1">
-                        Joined {new Date(user.createdAt).toLocaleString("default", { month: "long", year: "numeric" })}
+                        Joined {formatJoinedDate(user.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -200,12 +251,13 @@ export default function Settings() {
               <div className="flex flex-col gap-6">
                 <div className="bg-black/30 backdrop-blur-sm border border-white/10 rounded-2xl p-6 flex-1">
 
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base font-semibold">Past Sessions</h3>
-                    <span className="text-xs text-gray-600 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+                  <div className="flex items-center justify-between mb-3">
+               <h3 className="text-base font-semibold">Past Sessions</h3>
+
+             <span className="text-xs text-gray-600 bg-white/5 px-3 py-1 rounded-full border border-white/10">
                       {sessions.length} sessions
-                    </span>
-                  </div>
+          </span>
+                </div>
 
                   {sessions.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -218,32 +270,35 @@ export default function Settings() {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2">
-                      {sessions.map((session) => (
-                        <div
-                          key={session._id}
-                          onClick={() => router.push(`/results?sessionId=${session._id}`)}
-                          className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm flex items-center justify-between group cursor-pointer hover:border-pink-400 transition"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-white font-medium truncate">{session.label}</p>
-                            <p className="text-gray-500 text-xs mt-1">
-                              {new Date(session.createdAt).toLocaleString()}
-                            </p>
+                    <div className="flex flex-col gap-4">
+                      
+                      <div ref={sessionsRef} className="flex flex-col gap-2 max-h-[640px] overflow-y-auto pr-1">
+                        {sessions.map((session) => (
+                          <div
+                            key={session._id}
+                            onClick={() => router.push(`/results?sessionId=${session._id}`)}
+                            className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm flex items-center justify-between group cursor-pointer hover:border-pink-400 transition"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium truncate">{session.label}</p>
+                              <p className="text-gray-500 text-xs mt-1">
+                                {formatSessionDate(session.createdAt)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-xs text-gray-500 group-hover:text-pink-400 transition">
+                                view →
+                              </span>
+                              <span
+                                onClick={(e) => deleteSession(e, session._id)}
+                                className="text-xs text-red-500 hover:text-red-400 cursor-pointer opacity-0 group-hover:opacity-100 transition"
+                              >
+                                delete ✕
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="text-xs text-gray-500 group-hover:text-pink-400 transition">
-                              view →
-                            </span>
-                            <span
-                              onClick={(e) => deleteSession(e, session._id)}
-                              className="text-xs text-red-500 hover:text-red-400 cursor-pointer opacity-0 group-hover:opacity-100 transition"
-                            >
-                              delete ✕
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
 

@@ -1,6 +1,6 @@
 "use client"
-import { useState, useEffect, useCallback, useRef } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import Navbar from "@/components/Navbar"
 import AssistantDrawer from "@/components/AssistantDrawer"
 import { useAuth } from "@/context/AuthContext"
@@ -335,16 +335,31 @@ export default function Results() {
   const [redoStack, setRedoStack]           = useState([])
   const [error, setError]                   = useState(null)
   const [openId, setOpenId]                 = useState(null)
-  const [iframeKey, setIframeKey]           = useState(0)
   const [saving, setSaving]                 = useState(false)
+
+  const router       = useRouter()
+  const searchParams = typeof window === "undefined" ? null : new URLSearchParams(window.location.search)
+  const sessionId    = searchParams?.get("sessionId") || null
+  const themeParam   = searchParams?.get("theme") || null
+  const { accessToken } = useAuth()
+  const pageUrl = session?.url || ""
+
   const [suppressedIds, setSuppressedIds]   = useState(new Set())
-  const [activeTheme, setActiveTheme]       = useState(null)
+  const [activeTheme, setActiveTheme]       = useState(() => {
+    if (typeof window === "undefined") return null
+    if (themeParam) {
+      return themes.find(t => t.name === decodeURIComponent(themeParam)) || null
+    }
+    const savedTheme = themeManager.getActiveTheme()
+    return savedTheme ? themes.find(t => t.name === savedTheme.name) || savedTheme : null
+  })
+  const iframeKey = useMemo(() => `${html.length}-${activeTheme?.id ?? "none"}`, [html, activeTheme])
 
   const [layoutMode, setLayoutMode]         = useState(false)
-  const [selectedEl, setSelectedEl]         = useState(null)   
+  const [selectedEl, setSelectedEl]         = useState(null)
   const [pendingStyles, setPendingStyles]   = useState({})
   const [layoutText, setLayoutText]         = useState("")
-  const [layoutTextMode, setLayoutTextMode]  = useState("replace")
+  const [layoutTextMode, setLayoutTextMode] = useState("replace")
   const [layoutTab, setLayoutTab]           = useState("typography")
   const [layoutApplied, setLayoutApplied]   = useState(false)
 
@@ -354,24 +369,10 @@ export default function Results() {
   const activeThemeRef   = useRef(null)
   const iframeRef        = useRef(null)
 
-  const searchParams = useSearchParams()
-  const router       = useRouter()
-  const sessionId    = searchParams.get("sessionId")
-  const themeParam   = searchParams.get("theme")
-  const { accessToken } = useAuth()
-
   useEffect(() => { suppressedIdsRef.current = suppressedIds }, [suppressedIds])
   useEffect(() => { htmlRef.current = html },           [html])
   useEffect(() => { sessionRef.current = session },     [session])
   useEffect(() => { activeThemeRef.current = activeTheme }, [activeTheme])
-  useEffect(() => { setIframeKey(prev => prev + 1) },   [html, activeTheme])
-
-  useEffect(() => {
-    if (themeParam) {
-      const found = themes.find(t => t.name === decodeURIComponent(themeParam))
-      if (found) setActiveTheme(found)
-    }
-  }, [themeParam])
 
   useEffect(() => {
     function onMsg(e) {
@@ -392,8 +393,7 @@ export default function Results() {
     const iframe = iframeRef.current
     if (!iframe?.contentWindow) return
     iframe.contentWindow.postMessage({ type: layoutMode ? "INSPECTOR_ON" : "INSPECTOR_OFF" }, "*")
-    if (!layoutMode) setSelectedEl(null)
-  }, [layoutMode, iframeKey]) 
+  }, [layoutMode, iframeKey])
 
   useEffect(() => {
     if (!accessToken || !sessionId) return
@@ -550,17 +550,6 @@ export default function Results() {
     setActiveTheme(null)
     themeManager.clearActiveTheme()
   }
-
-  // Restore theme from sessionStorage on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = themeManager.getActiveTheme()
-      if (savedTheme) {
-        const fullTheme = themes.find(t => t.name === savedTheme.name)
-        setActiveTheme(fullTheme || savedTheme)
-      }
-    }
-  }, [])
 
   // Clean up theme on component unmount
   useEffect(() => {
@@ -1027,7 +1016,10 @@ export default function Results() {
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold"> Layout</h2>
                 <button
-                  onClick={() => setLayoutMode(m => !m)}
+                  onClick={() => setLayoutMode(m => {
+                    if (m) setSelectedEl(null)
+                    return !m
+                  })}
                   className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
                     layoutMode
                       ? "bg-purple-600/20 border-purple-500/50 text-purple-300"
@@ -1155,119 +1147,120 @@ export default function Results() {
                     )}
 
                     {layoutTab === "colors" && (
-  <>
-    <ColorRow label="Text Color"  propKey="color"           value={pendingStyles.color           || "#000000"} onChange={handleColor} />
-    <ColorRow label="Background"  propKey="backgroundColor" value={pendingStyles.backgroundColor || "#ffffff"} onChange={handleColor} />
-    
-    {(() => {
-      const fg = pendingStyles.color?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [0,0,0]
-      const bg = pendingStyles.backgroundColor?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h,16)) || [255,255,255]
-      const lum = ([r,g,b]) => [r,g,b].reduce((s,v,i)=>{ v/=255; v=v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4); return s+v*[0.2126,0.7152,0.0722][i] },0)
-      const ratio = ((Math.max(lum(fg),lum(bg))+0.05)/(Math.min(lum(fg),lum(bg))+0.05)).toFixed(2)
-      const pass  = parseFloat(ratio) >= 4.5
+                      <>
+                        <ColorRow label="Text Color" propKey="color" value={pendingStyles.color || "#000000"} onChange={handleColor} />
+                        <ColorRow label="Background" propKey="backgroundColor" value={pendingStyles.backgroundColor || "#ffffff"} onChange={handleColor} />
 
-      return (
-        <>
-          <div className={`mt-2 p-2.5 rounded-lg border text-center transition-all duration-300 ${pass ? "bg-green-900/20 border-green-500/20" : "bg-red-900/20 border-red-500/20"}`}>
-            <div className={`text-lg font-black ${pass ? "text-green-400" : "text-red-400"}`}>
-              {ratio}:1
+                        {(() => {
+                          const fg = pendingStyles.color?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h, 16)) || [0, 0, 0]
+                          const bg = pendingStyles.backgroundColor?.match(/[\da-f]{2}/gi)?.map(h => parseInt(h, 16)) || [255, 255, 255]
+                          const lum = ([r, g, b]) => [r, g, b].reduce((s, v, i) => {
+                            v /= 255
+                            v = v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+                            return s + v * [0.2126, 0.7152, 0.0722][i]
+                          }, 0)
+                          const ratio = ((Math.max(lum(fg), lum(bg)) + 0.05) / (Math.min(lum(fg), lum(bg)) + 0.05)).toFixed(2)
+                          const pass = parseFloat(ratio) >= 4.5
 
-                      {layoutTab === "text" && (
-                        <>
-                          <div className="mb-2">
-                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1">Text Editor</div>
-                            <p className="mb-2 text-[11px] text-white/35 leading-relaxed">Write new text here and apply it to the selected element.</p>
-                            <textarea
-                              value={layoutText}
-                              onChange={e => setLayoutText(e.target.value)}
-                              placeholder="Write the new text you want to add here"
-                              className="w-full min-h-24 rounded-lg bg-white/5 border border-white/10 text-white/80 text-sm px-3 py-2 outline-none focus:border-purple-500 resize-y"
-                            />
-                          </div>
+                          return (
+                            <div className={`mt-2 p-2.5 rounded-lg border text-center transition-all duration-300 ${pass ? "bg-green-900/20 border-green-500/20" : "bg-red-900/20 border-red-500/20"}`}>
+                              <div className={`text-lg font-black ${pass ? "text-green-400" : "text-red-400"}`}>
+                                {ratio}:1
+                              </div>
+                              <div className={`text-[10px] font-semibold ${pass ? "text-green-400" : "text-red-400"}`}>
+                                {pass ? "✓ WCAG AA Pass" : "✗ WCAG AA Fail — min 4.5:1"}
+                              </div>
+                            </div>
+                          )
+                        })()}
+                      </>
+                    )}
 
-                          <div className="grid grid-cols-3 gap-2 mb-3">
-                            {[
-                              ["replace", "Replace"],
-                              ["append", "Append"],
-                              ["prepend", "Prepend"],
-                            ].map(([mode, label]) => (
-                              <button
-                                key={mode}
-                                type="button"
-                                onClick={() => setLayoutTextMode(mode)}
-                                className={`py-1.5 text-xs border rounded transition-colors ${
-                                  layoutTextMode === mode
-                                    ? "bg-purple-600/35 border-purple-400/40 text-purple-200"
-                                    : "border-white/10 text-white/50 hover:bg-white/10"
-                                }`}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
+                    {layoutTab === "text" && (
+                      <>
+                        <div className="mb-2">
+                          <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1">Text Editor</div>
+                          <p className="mb-2 text-[11px] text-white/35 leading-relaxed">Write new text here and apply it to the selected element.</p>
+                          <textarea
+                            value={layoutText}
+                            onChange={e => setLayoutText(e.target.value)}
+                            placeholder="Write the new text you want to add here"
+                            className="w-full min-h-24 rounded-lg bg-white/5 border border-white/10 text-white/80 text-sm px-3 py-2 outline-none focus:border-purple-500 resize-y"
+                          />
+                        </div>
 
-                          <div className="flex items-center justify-end gap-3 mb-3">
+                        <div className="grid grid-cols-3 gap-2 mb-3">
+                          {[
+                            ["replace", "Replace"],
+                            ["append", "Append"],
+                            ["prepend", "Prepend"],
+                          ].map(([mode, label]) => (
                             <button
+                              key={mode}
                               type="button"
-                              onClick={() => createLayoutTextBlock()}
-                              className="py-1.5 px-3 text-sm font-semibold rounded-lg bg-indigo-600/30 border border-indigo-400/30 text-indigo-200 hover:bg-indigo-600/40 transition-colors"
-                            >
-                              ➕ Create Text Block
+                              onClick={() => setLayoutTextMode(mode)}
+                              className={`py-1.5 text-xs border rounded transition-colors ${
+                                layoutTextMode === mode
+                                  ? "bg-purple-600/35 border-purple-400/40 text-purple-200"
+                                  : "border-white/10 text-white/50 hover:bg-white/10"
+                              }`}>
+                              {label}
                             </button>
-                          </div>
+                          ))}
+                        </div>
 
+                        <div className="flex items-center justify-end gap-3 mb-3">
                           <button
                             type="button"
-                            onClick={applyLayoutText}
-                            className="w-full py-2 text-sm font-semibold rounded-lg bg-emerald-600/30 border border-emerald-400/30 text-emerald-200 hover:bg-emerald-600/40 transition-colors"
+                            onClick={() => createLayoutTextBlock()}
+                            className="py-1.5 px-3 text-sm font-semibold rounded-lg bg-indigo-600/30 border border-indigo-400/30 text-indigo-200 hover:bg-indigo-600/40 transition-colors"
                           >
-                            Apply Text to Selected Element
+                            ➕ Create Text Block
                           </button>
-                        </>
-                      )}
-            </div>
-            <div className={`text-[10px] font-semibold ${pass ? "text-green-400" : "text-red-400"}`}>
-              {pass ? "✓ WCAG AA Pass" : "✗ WCAG AA Fail — min 4.5:1"}
-            </div>
-          </div>
+                        </div>
 
-          <AssistantDrawer
-            html={html}
-            pageUrl={sessionRef.current?.url || session?.url || ""}
-            sessionId={sessionId}
-            selectedEl={assistantSelection}
-            activeTheme={activeTheme}
-            themeOptions={themes}
-            onApplyPlan={applyAssistantPlan}
-            onSessionId={() => {}}
-            onApplyTheme={(theme) => {
-              const nextTheme = themes.find(
-                item =>
-                  item.id === theme?.id ||
-                  item.name === theme?.name ||
-                  item.id === theme?.themeId ||
-                  item.name === theme?.themeId
-              )
+                        <button
+                          type="button"
+                          onClick={applyLayoutText}
+                          className="w-full py-2 text-sm font-semibold rounded-lg bg-emerald-600/30 border border-emerald-400/30 text-emerald-200 hover:bg-emerald-600/40 transition-colors"
+                        >
+                          Apply Text to Selected Element
+                        </button>
+                      </>
+                    )}
 
-              if (nextTheme) {
-                setActiveTheme(nextTheme)
-                setChanges(prev => [
-                  {
-                    _id: Date.now().toString(),
-                    themeName: `AI Theme: ${nextTheme.name}`,
-                    html: htmlRef?.current || html,
-                    appliedAt: new Date(),
-                  },
-                  ...prev
-                ])
-              }
-            }}
-          />
-        </>
-      )
-    })()}
-  </>
-)}
+                    <AssistantDrawer
+                      html={html}
+                      pageUrl={pageUrl}
+                      sessionId={sessionId}
+                      selectedEl={assistantSelection}
+                      activeTheme={activeTheme}
+                      themeOptions={themes}
+                      onApplyPlan={applyAssistantPlan}
+                      onSessionId={() => {}}
+                      onApplyTheme={(theme) => {
+                        const nextTheme = themes.find(
+                          item =>
+                            item.id === theme?.id ||
+                            item.name === theme?.name ||
+                            item.id === theme?.themeId ||
+                            item.name === theme?.themeId
+                        )
+
+                        if (nextTheme) {
+                          setActiveTheme(nextTheme)
+                          setChanges(prev => [
+                            {
+                              _id: Date.now().toString(),
+                              themeName: `AI Theme: ${nextTheme.name}`,
+                              html: htmlRef?.current || html,
+                              appliedAt: new Date(),
+                            },
+                            ...prev
+                          ])
+                        }
+                      }}
+                    />
 
 
                    </div>

@@ -1,69 +1,78 @@
 import connectDB from "@/lib/db"
 import Session from "@/lib/models/Session"
-import jwt from "jsonwebtoken"
-
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET
-
-function getUserId(req) {
-  const auth = req.headers.get("authorization")
-  if (!auth) return null
-  const token = auth.replace("Bearer ", "")
-  try {
-    const payload = jwt.verify(token, ACCESS_SECRET)
-    return payload.userId
-  } catch {
-    return null
-  }
-}
+import { getAuthenticatedUserId } from "@/lib/auth"
+import { jsonResponse } from "@/lib/http"
+import { logError, logWarn } from "@/lib/logger"
 
 export async function GET(req, context) {
   await connectDB()
-  const userId = getUserId(req)
-  if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) return jsonResponse({ error: "Unauthorized" }, 401)
 
   const { id } = await context.params
 
-  const session = await Session.findOne({ _id: id, userId })
-  if (!session) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
+  try {
+    const session = await Session.findOne({ _id: id, userId })
+    if (!session) return jsonResponse({ error: "Not found" }, 404)
 
-  return Response.json(session)
+    return jsonResponse(session, 200)
+  } catch (error) {
+    logError("Failed to fetch session", { userId, sessionId: id, error })
+    return jsonResponse({ error: "Failed to fetch session" }, 500)
+  }
 }
 
 export async function PATCH(req, context) {
   await connectDB()
-  const userId = getUserId(req)
-  if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) return jsonResponse({ error: "Unauthorized" }, 401)
 
   const { id } = await context.params
-  const { themeName, html, suppressedIds } = await req.json()
+  const body = await req.json().catch(() => ({}))
+  const { themeName, html, suppressedIds } = body
 
-  const session = await Session.findOneAndUpdate(
-    { _id: id, userId },
-    {
-      currentHtml: html,
-      suppressedIds: suppressedIds ?? [],
-      $push: {
-        changes: {
-          $each: [{ themeName, html, appliedAt: new Date() }],
-          $position: 0
+  if (!html) {
+    logWarn("Session update rejected because HTML was missing", { userId, sessionId: id })
+    return jsonResponse({ error: "Missing html" }, 400)
+  }
+
+  try {
+    const session = await Session.findOneAndUpdate(
+      { _id: id, userId },
+      {
+        currentHtml: String(html).slice(0, 2000000),
+        suppressedIds: suppressedIds ?? [],
+        $push: {
+          changes: {
+            $each: [{ themeName, html: String(html).slice(0, 2000000), appliedAt: new Date() }],
+            $position: 0
+          }
         }
-      }
-    },
-    { returnDocument: "after" }
-  )
+      },
+      { returnDocument: "after" }
+    )
 
-  if (!session) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
+    if (!session) return jsonResponse({ error: "Not found" }, 404)
 
-  return Response.json({ success: true })
+    return jsonResponse({ success: true }, 200)
+  } catch (error) {
+    logError("Failed to update session", { userId, sessionId: id, error })
+    return jsonResponse({ error: "Failed to update session" }, 500)
+  }
 }
 
 export async function DELETE(req, context) {
   await connectDB()
-  const userId = getUserId(req)
-  if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) return jsonResponse({ error: "Unauthorized" }, 401)
 
   const { id } = await context.params
 
-  await Session.findOneAndDelete({ _id: id, userId })
-  return Response.json({ success: true })
+  try {
+    await Session.findOneAndDelete({ _id: id, userId })
+    return jsonResponse({ success: true }, 200)
+  } catch (error) {
+    logError("Failed to delete session", { userId, sessionId: id, error })
+    return jsonResponse({ error: "Failed to delete session" }, 500)
+  }
 }

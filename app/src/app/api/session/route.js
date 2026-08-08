@@ -1,50 +1,55 @@
 import connectDB from "@/lib/db"
 import Session from "@/lib/models/Session"
 import User from "@/lib/models/User"
-import jwt from "jsonwebtoken"
-
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET
-
-function getUserId(req) {
-  const auth = req.headers.get("authorization")
-  if (!auth) return null
-  const token = auth.replace("Bearer ", "")
-  try {
-    const payload = jwt.verify(token, ACCESS_SECRET)
-    return payload.userId
-  } catch {
-    return null
-  }
-}
+import { getAuthenticatedUserId } from "@/lib/auth"
+import { jsonResponse } from "@/lib/http"
+import { logError, logWarn } from "@/lib/logger"
 
 export async function GET(req) {
   await connectDB()
-  const userId = getUserId(req)
-  if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) {
+    logWarn("Session list denied: missing auth")
+    return jsonResponse({ error: "Unauthorized" }, 401)
+  }
 
-  const sessions = await Session.find({ userId })
-    .sort({ createdAt: -1 })
-    .select("-originalHtml -currentHtml -changes")
-  return Response.json(sessions)
+  try {
+    const sessions = await Session.find({ userId })
+      .sort({ createdAt: -1 })
+      .select("-originalHtml -currentHtml -changes")
+    return jsonResponse(sessions, 200)
+  } catch (error) {
+    logError("Session list failed", { userId, error })
+    return jsonResponse({ error: "Unable to load sessions" }, 500)
+  }
 }
 
 export async function POST(req) {
   await connectDB()
-  const userId = getUserId(req)
-  if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) {
+    logWarn("Session create denied: missing auth")
+    return jsonResponse({ error: "Unauthorized" }, 401)
+  }
 
-  const { label, html } = await req.json()
-  if (!label || !html) return new Response(JSON.stringify({ error: "Missing fields" }), { status: 400 })
+  try {
+    const body = await req.json().catch(() => ({}))
+    const { label, html } = body
+    if (!label || !html) return jsonResponse({ error: "Missing fields" }, 400)
 
-  const session = await Session.create({
-    userId,
-    label,
-    originalHtml: html,
-    currentHtml: html,
-    changes: []
-  })
+    const session = await Session.create({
+      userId,
+      label: String(label).trim().slice(0, 200),
+      originalHtml: String(html).slice(0, 2000000),
+      currentHtml: String(html).slice(0, 2000000),
+      changes: []
+    })
 
-  await User.findByIdAndUpdate(userId, { $inc: { totalAnalyses: 1 } })
+    await User.findByIdAndUpdate(userId, { $inc: { totalAnalyses: 1 } })
 
-  return Response.json({ sessionId: session._id })
+    return jsonResponse({ sessionId: session._id }, 200)
+  } catch (error) {
+    logError("Session create failed", { userId, error })
+    return jsonResponse({ error: "Unable to create session" }, 500)
+  }
 }

@@ -28,67 +28,6 @@ export const downloadUtils = {
   },
 
   /**
-   * Download complete package (HTML + CSS + metadata)
-   */
-  downloadPackage: (html, css, themeName = 'custom', modificationCount = 0) => {
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const packageName = `ui-modifications-${timestamp}`;
-
-    // Create HTML with reference to external CSS
-    const htmlWithCssLink = html.replace(
-      '</head>',
-      `  <link rel="stylesheet" href="style.css">\n</head>`
-    );
-
-    // Create a data structure for download
-    const metadata = {
-      name: packageName,
-      theme: themeName,
-      modifications: modificationCount,
-      createdAt: timestamp,
-      files: {
-        html: 'index.html',
-        css: 'style.css',
-        readme: 'README.txt',
-      },
-    };
-
-    const readme = `
-UI Modifications Package
-========================
-Theme Applied: ${themeName}
-Total Modifications: ${modificationCount}
-Created: ${new Date().toLocaleString()}
-
-Files Included:
-1. index.html - Your modified HTML file with theme applied
-2. style.css - CSS file containing all applied modifications
-3. README.txt - This file
-
-How to Use:
-1. Extract all files to the same directory
-2. Open index.html in your browser
-3. The style.css will automatically be applied
-
-Notes:
-- Make sure index.html and style.css are in the same folder
-- You can edit style.css to further customize the appearance
-- All inline styles from the original modifications are preserved in style.css
-
-For Support:
-Visit the AI UI Tool documentation for more help.
-    `.trim();
-
-    // Download metadata
-    downloadUtils.downloadFile(JSON.stringify(metadata, null, 2), `${packageName}-metadata.json`, 'application/json');
-
-    // Download files with descriptions
-    downloadUtils.downloadFile(readme, 'README.txt', 'text/plain');
-    downloadUtils.downloadFile(css, `${packageName}-style.css`, 'text/css');
-    downloadUtils.downloadFile(htmlWithCssLink, `${packageName}-index.html`, 'text/html');
-  },
-
-  /**
    * Generic file download method
    */
   downloadFile: (content, filename, mimeType = 'text/plain') => {
@@ -119,29 +58,6 @@ Visit the AI UI Tool documentation for more help.
     }
 
     downloadUtils.downloadHtmlFile(finalHtml, filename);
-  },
-
-  /**
-   * Create and download a combined report with all changes
-   */
-  downloadChangeReport: (changes, theme = null) => {
-    let report = '# UI Modifications Report\n\n';
-    report += `Generated: ${new Date().toLocaleString()}\n`;
-    report += `Active Theme: ${theme?.name || 'None'}\n\n`;
-
-    report += '## Changes Applied\n\n';
-
-    changes.forEach((change, index) => {
-      report += `### Change ${index + 1}: ${change.themeName}\n`;
-      report += `- **Applied At**: ${new Date(change.appliedAt).toLocaleString()}\n`;
-      report += `- **Type**: ${change.themeName.includes('Fix') ? 'Accessibility Fix' : change.themeName.includes('Layout') ? 'Layout Modification' : 'Theme Application'}\n`;
-      report += `- **HTML Size**: ${change.html?.length || 0} bytes\n\n`;
-    });
-
-    report += '---\n\n';
-    report += 'For more detailed information, check the accompanying HTML and CSS files.\n';
-
-    downloadUtils.downloadFile(report, 'changes-report.md', 'text/markdown');
   },
 
   /**

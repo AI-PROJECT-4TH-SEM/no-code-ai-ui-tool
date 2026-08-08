@@ -24,9 +24,12 @@ export async function POST(req) {
 
   await user.save()
 
-  const resetURL = `http://localhost:3000/reset-password/${resetToken}`
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000"
+  const resetURL = `${appUrl.replace(/\/$/, "")}/reset-password/${resetToken}`
 
-  console.log("RESET LINK:", resetURL)
+  if (process.env.NODE_ENV !== "production") {
+    console.log("RESET LINK:", resetURL)
+  }
 
   await sendEmail(
     user.email,
@@ -34,7 +37,7 @@ export async function POST(req) {
     `
       <p>Hi ${user.firstName},</p>
       <p>You have requested a password reset. Please click the link below to reset your password:</p>
-      <a href="${resetURL}" target="_blank">Reset Password</a>
+      <a href="${resetURL}" target="_blank" rel="noopener noreferrer">Reset Password</a>
       <p>This link will expire in 15 minutes.</p>
       <p>If you did not request this, please ignore this email.</p>
     `

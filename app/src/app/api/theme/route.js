@@ -1,84 +1,63 @@
 import connectDB from "@/lib/db"
 import Theme from "@/lib/models/Theme"
 import { themes } from "@/lib/themes"
-import jwt from "jsonwebtoken"
-
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET
+import { isNonEmptyString } from "@/lib/validation"
+import { getAuthenticatedUserId } from "@/lib/auth"
+import { jsonResponse } from "@/lib/http"
+import { logError, logWarn } from "@/lib/logger"
 
 export async function GET(req) {
   await connectDB()
 
-  const authHeader = req.headers.get("authorization")
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: "No token" }), { status: 401 })
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) {
+    logWarn("Theme fetch denied: missing auth")
+    return jsonResponse({ error: "No token" }, 401)
   }
-
-  const token = authHeader.split(" ")[1]
 
   try {
-    const payload = jwt.verify(token, ACCESS_SECRET)
+    const themeDoc = await Theme.findOne({ userId })
+    const selectedTheme = themeDoc?.selectedTheme || themes[0]?.name || "AI Minimal"
 
-    const themeDoc = await Theme.findOne({ userId: payload.userId })
-
-   
-    const selectedTheme = themeDoc?.selectedTheme || "theme-ai"
-
-    return new Response(
-      JSON.stringify({ theme: selectedTheme }),
-      { status: 200 }
-    )
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid token" }), { status: 403 })
+    return jsonResponse({ theme: selectedTheme }, 200)
+  } catch (error) {
+    logError("Theme fetch failed", { userId, error })
+    return jsonResponse({ error: "Invalid token" }, 403)
   }
 }
-
 
 export async function PATCH(req) {
   await connectDB()
 
-  const authHeader = req.headers.get("authorization")
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: "No token" }), { status: 401 })
+  const userId = getAuthenticatedUserId(req)
+  if (!userId) {
+    logWarn("Theme update denied: missing auth")
+    return jsonResponse({ error: "No token" }, 401)
   }
 
-  const token = authHeader.split(" ")[1]
+  const body = await req.json().catch(() => ({}))
+  const themeName = typeof body.themeName === "string" ? body.themeName.trim() : ""
 
-  let payload
-  try {
-    payload = jwt.verify(token, ACCESS_SECRET)
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid token" }), { status: 403 })
+  if (!isNonEmptyString(themeName)) {
+    return jsonResponse({ error: "Theme required" }, 400)
   }
 
-  const { themeName } = await req.json()
-
-  if (!themeName) {
-    return new Response(JSON.stringify({ error: "Theme required" }), { status: 400 })
-  }
-
-  
-  const validThemes = themes.map(t => t.class)
+  const validThemes = themes.map(t => t.name)
 
   if (!validThemes.includes(themeName)) {
-    return new Response(JSON.stringify({ error: "Invalid theme" }), { status: 400 })
+    return jsonResponse({ error: "Invalid theme" }, 400)
   }
 
   try {
     const updated = await Theme.findOneAndUpdate(
-      { userId: payload.userId },
+      { userId },
       { selectedTheme: themeName },
       { upsert: true, new: true }
     )
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        selectedTheme: updated.selectedTheme
-      }),
-      { status: 200 }
-    )
-  } catch (err) {
-    console.error(err)
-    return new Response(JSON.stringify({ error: "Server error" }), { status: 500 })
+    return jsonResponse({ success: true, selectedTheme: updated.selectedTheme }, 200)
+  } catch (error) {
+    logError("Theme update failed", { userId, error })
+    return jsonResponse({ error: "Server error" }, 500)
   }
 }

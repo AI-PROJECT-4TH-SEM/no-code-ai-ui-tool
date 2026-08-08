@@ -107,8 +107,6 @@ npm run dev
 
 ### Test 2: Extension Loads
 ```
-1. Open chrome://extensions/
-2. Click "Load unpacked"
 3. Select your extension folder
 4. Extension should show with no errors
 ```
@@ -383,7 +381,6 @@ echo $COHERE_KEY1
 **Solution**: Check manifest.json is valid
 ```bash
 # Reload extension
-chrome://extensions/ → Find extension → Reload button
 ```
 
 ---
@@ -435,7 +432,6 @@ grep -q '"reply"' /tmp/response.json && echo "✅ Backend OK" || echo "❌ Backe
 grep -q '"actions"' /tmp/response.json && echo "✅ Actions OK" || echo "❌ Actions Failed"
 
 # 4. Extension
-echo "✅ Check chrome://extensions/ for extension"
 ```
 
 ---

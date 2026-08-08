@@ -2126,28 +2126,91 @@ function getPageKey(url) {
   }
 }
 
+let extensionInitialized = false
+let authPollingInterval = null
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  currentTabId = tab?.id
-  currentUrl   = tab?.url || ""
-  currentPageKey = getPageKey(currentUrl)
-  document.getElementById("current-url").textContent = currentUrl
-
-
-  if (window.innerWidth > 420) {
-    document.body.style.width  = "100%"
-    document.body.style.minHeight = "100vh"
+function setAuthGateVisible(visible) {
+  const gate = document.getElementById("auth-gate")
+  if (gate) {
+    gate.classList.toggle("hidden", !visible)
   }
+  document.body.classList.toggle("auth-locked", visible)
+}
 
-  
-  chrome.runtime.sendMessage({ type:"LOAD_THEME", pageKey: currentPageKey }).then(res => {
+async function checkAuthStatus() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/refresh`, {
+      method: "GET",
+      credentials: "include",
+      headers: { "Cache-Control": "no-cache" },
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+function clearAuthPolling() {
+  if (authPollingInterval) {
+    clearInterval(authPollingInterval)
+    authPollingInterval = null
+  }
+}
+
+function waitForLoginAndActivate(loginWindow) {
+  clearAuthPolling()
+  authPollingInterval = setInterval(async () => {
+    const authenticated = await checkAuthStatus()
+    if (authenticated) {
+      clearAuthPolling()
+      try {
+        loginWindow?.close()
+      } catch {
+        // ignore
+      }
+      await initializeExtension(true)
+      return
+    }
+
+    if (!loginWindow || loginWindow.closed) {
+      clearAuthPolling()
+      return
+    }
+  }, 1200)
+}
+
+function openWebsiteLogin() {
+  const extensionUrl = `chrome-extension://${chrome.runtime.id}/popup.html`
+  const loginUrl = `${BASE_URL}/login?redirectBack=${encodeURIComponent(extensionUrl)}`
+  const loginWindow = window.open(loginUrl, "_blank")
+  if (loginWindow) {
+    waitForLoginAndActivate(loginWindow)
+  } else {
+    window.location.href = loginUrl
+  }
+}
+
+async function initializeExtension(forceInit = false) {
+  if (extensionInitialized && !forceInit) return
+
+  const authenticated = await checkAuthStatus()
+  if (!authenticated) {
+    setAuthGateVisible(true)
+    const loginButton = document.getElementById("open-login-btn")
+    if (loginButton) {
+      loginButton.onclick = openWebsiteLogin
+    }
+    return
+  }
+  setAuthGateVisible(false)
+  extensionInitialized = true
+
+  chrome.runtime.sendMessage({ type: "LOAD_THEME", pageKey: currentPageKey }).then(res => {
     activeThemeId = res?.theme?.id || null
     if (activeThemeId) {
       document.querySelector(`.theme-card[data-id="${activeThemeId}"]`)?.classList.add("active-theme")
     }
   }).catch(() => {
-  
   })
 
   setupTabs()
@@ -2159,6 +2222,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHistory()
   setupGlobalActions()
   setupAIThemeRefresh()
+}
+
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  currentTabId = tab?.id
+  currentUrl   = tab?.url || ""
+  currentPageKey = getPageKey(currentUrl)
+  document.getElementById("current-url").textContent = currentUrl
+
+  if (window.innerWidth > 420) {
+    document.body.style.width  = "100%"
+    document.body.style.minHeight = "100vh"
+  }
+
+  await initializeExtension()
 })
 
 

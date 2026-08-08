@@ -185,9 +185,6 @@ npm run dev  # Should start on port 3000
 ### Step 3: Load Extension
 ```bash
 1. Open Chrome
-2. Go to chrome://extensions/
-3. Enable "Developer mode"
-4. Click "Load unpacked"
 5. Select your extension folder
 ```
 
