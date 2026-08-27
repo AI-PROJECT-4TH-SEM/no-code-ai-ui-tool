@@ -37,5 +37,13 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.0",
     "tailwindcss": "^4"
+  },
+  "allowScripts": {
+    "@swc/core@1.15.33": true,
+    "bcrypt@6.0.0": true,
+    "less@4.5.1": true,
+    "puppeteer@24.43.1": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.11.1": true
   }
 }
