@@ -1,5 +1,6 @@
 import connectDB from "@/lib/db"
 import Theme from "@/lib/models/Theme"
+import User from "@/lib/models/User"
 import { themes } from "@/lib/themes"
 import { isNonEmptyString } from "@/lib/validation"
 import { getAuthenticatedUserId } from "@/lib/auth"
@@ -16,8 +17,16 @@ export async function GET(req) {
   }
 
   try {
+    // Try to get from Theme model first (primary), fall back to User model
     const themeDoc = await Theme.findOne({ userId })
-    const selectedTheme = themeDoc?.selectedTheme || themes[0]?.name || "AI Minimal"
+    let selectedTheme = themeDoc?.selectedTheme
+
+    if (!selectedTheme) {
+      const userDoc = await User.findById(userId)
+      selectedTheme = userDoc?.preferredTheme
+    }
+
+    selectedTheme = selectedTheme || themes[0]?.name || "AI Minimal"
 
     return jsonResponse({ theme: selectedTheme }, 200)
   } catch (error) {
@@ -49,10 +58,24 @@ export async function PATCH(req) {
   }
 
   try {
+    // Update Theme model
     const updated = await Theme.findOneAndUpdate(
       { userId },
-      { selectedTheme: themeName },
+      {
+        selectedTheme: themeName,
+        lastUpdated: new Date(),
+      },
       { upsert: true, new: true }
+    )
+
+    // Also update User model for redundant storage
+    await User.findByIdAndUpdate(
+      userId,
+      {
+        preferredTheme: themeName,
+        lastThemeUpdate: new Date(),
+      },
+      { new: true }
     )
 
     return jsonResponse({ success: true, selectedTheme: updated.selectedTheme }, 200)

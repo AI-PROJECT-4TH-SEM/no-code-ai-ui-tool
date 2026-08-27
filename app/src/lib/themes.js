@@ -37,6 +37,7 @@
   
   { 
     name: " Neon Cyberpunk",
+    preview: ["#0a0015", "#00f0ff", "#ff00ff"],
     css: `
       body {
         background: radial-gradient(circle at top, #0a0015, #000) !important;
@@ -70,6 +71,7 @@
 
   {
     name: "AI Minimal",
+    preview: ["#0b0f19", "#6366f1", "#e5e7eb"],
     css: `
       body {
         background: #0b0f19 !important;
@@ -96,6 +98,7 @@
 
   {
     name: "🌌 Glass Futuristic",
+    preview: ["#0f172a", "#38bdf8", "#ffffff"],
     css: `
       body {
         background: linear-gradient(135deg, #0f172a, #1e293b) !important;
@@ -122,6 +125,7 @@
 
   {
     name: "⚡ Electric Bold",
+    preview: ["#000000", "#f97316", "#facc15"],
     css: `
       body {
         background: #000 !important;
@@ -149,6 +153,7 @@
 
   {
     name: "🔥 Fiery",
+    preview: ["#1c0a00", "#ea580c", "#fed7aa"],
     css: `
       body { background: #1c0a00 !important; color: #fed7aa !important; }
       h1, h2, h3 { color: #f97316 !important; }
@@ -158,6 +163,7 @@
   },
   {
     name: "🌙 Midnight",
+    preview: ["#0f0f1a", "#7c3aed", "#c4b5fd"],
     css: `
       body { background: #0f0f1a !important; color: #c4b5fd !important; }
       h1, h2, h3 { color: #a78bfa !important; }
@@ -167,6 +173,7 @@
   },
   {
     name: "☀️ Sunny",
+    preview: ["#fefce8", "#eab308", "#713f12"],
     css: `
       body { background: #fefce8 !important; color: #713f12 !important; }
       h1, h2, h3 { color: #ca8a04 !important; }
@@ -176,6 +183,7 @@
   },
   {
     name: "🍬 Candy",
+    preview: ["#fdf2f8", "#ec4899", "#831843"],
     css: `
       body { background: #fdf2f8 !important; color: #831843 !important; }
       h1, h2, h3 { color: #db2777 !important; }
@@ -187,6 +195,7 @@
 
   {
     name: "🌈 Colorful",
+    preview: ["#fff7ed", "#f97316", "#f43f5e"],
     css:`
       body { background: #fff7ed !important; color: #333 !important; }
       h1, h2, h3 { color: #f97316 !important; }
@@ -197,6 +206,7 @@
 
   {
     name: "🌊 Ocean",
+    preview: ["#0c1e3c", "#0ea5e9", "#e0f0ff"],
     css: `
       body { background: #0c1e3c !important; color: #e0f0ff !important; }
       h1, h2, h3 { color: #38bdf8 !important; }
@@ -207,6 +217,7 @@
 
   {
     name: "🌿 Nature",
+    preview: ["#f0fdf4", "#22c55e", "#166534"],
     css: `
       body { background: #f0fdf4 !important; color: #166534 !important; }
       h1, h2, h3 { color: #16a34a !important; }
@@ -217,6 +228,7 @@
 
   {
     name: "🧬 Matrix Terminal",
+    preview: ["#000000", "#00ff00", "#004d00"],
     css: `
       body {
         background: #000 !important;

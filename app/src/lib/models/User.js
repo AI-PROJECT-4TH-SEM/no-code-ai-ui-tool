@@ -12,6 +12,16 @@ const userSchema = new mongoose.Schema({
   otp: String,
   otpExpire: Date,
   totalAnalyses: { type: Number, default: 0, index: true },
+
+  // Theme and preferences
+  preferredTheme: { type: String, default: "AI Minimal" },
+  customSettings: {
+    fontScale: { type: Number, default: 1 },
+    is3D: { type: Boolean, default: true },
+    animationSpeed: { type: Number, default: 1 },
+    contrastMode: { type: Boolean, default: false },
+  },
+  lastThemeUpdate: Date,
 });
 
 userSchema.index({ email: 1, createdAt: -1 });

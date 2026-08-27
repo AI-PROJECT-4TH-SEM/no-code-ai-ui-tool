@@ -12,20 +12,21 @@ const themeSchema = new mongoose.Schema(
     selectedTheme: {
   type: String,
   required: true,
-  default: "theme-ai",
+  default: "AI Minimal",
   enum: [
-    "Neon Cyberpunk",
+    "🌙 Midnight Luxury",
+    " Neon Cyberpunk",
     "AI Minimal",
     "🌌 Glass Futuristic",
     "⚡ Electric Bold",
-    "theme-matrix",
-    "theme-fiery",
-    "theme-midnight",
-    "theme-sunny",
-    "theme-candy",
-    "theme-colorful",
-    "theme-ocean",
-    "theme-nature"
+    "🔥 Fiery",
+    "🌙 Midnight",
+    "☀️ Sunny",
+    "🍬 Candy",
+    "🌈 Colorful",
+    "🌊 Ocean",
+    "🌿 Nature",
+    "🧬 Matrix Terminal"
   ],
 },
 

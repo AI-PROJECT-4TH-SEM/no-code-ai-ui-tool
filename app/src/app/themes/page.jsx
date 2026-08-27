@@ -35,22 +35,8 @@ export default function Themes() {
   }
 
   async function handleSelect(theme) {
-    themeManager.saveActiveTheme(theme)
-
-    if (accessToken) {
-      try {
-        await fetch("/api/theme", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ themeName: theme.name }),
-        })
-      } catch {
-        // Silent fallback: local theme selection still works for anonymous users
-      }
-    }
+    // Save theme to database for authenticated users, or sessionStorage for anonymous
+    await themeManager.saveActiveTheme(theme, accessToken)
 
     router.push(`/results?sessionId=${sessionId}&theme=${encodeURIComponent(theme.name)}`)
   }
@@ -86,9 +72,33 @@ export default function Themes() {
               onMouseLeave={handleMouseLeave}
               className="card cursor-pointer"
             >
-              <div className="h-24 mb-4 flex items-center justify-center opacity-70">
-                Preview
-              </div>
+              {(() => {
+                const previewColors = Array.isArray(theme.preview) && theme.preview.length > 0
+                  ? theme.preview
+                  : ["#111827", "#ec4899", "#f59e0b"]
+                
+                return (
+                  <div 
+                    className="mb-4 h-24 rounded-lg border border-white/10 overflow-hidden relative bg-gradient-to-r"
+                    style={{ backgroundImage: `linear-gradient(135deg, ${previewColors.join(", ")})` }}
+                  >
+                    <svg
+                      className="absolute inset-0 w-full h-full"
+                      viewBox="0 0 1000 100"
+                      preserveAspectRatio="none"
+                    >
+                      <path
+                        d="M0,30 Q250,10 500,30 T1000,30 L1000,100 L0,100 Z"
+                        fill="rgba(0,0,0,0.1)"
+                      />
+                      <path
+                        d="M0,50 Q250,30 500,50 T1000,50 L1000,100 L0,100 Z"
+                        fill="rgba(0,0,0,0.05)"
+                      />
+                    </svg>
+                  </div>
+                )
+              })()}
 
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">{theme.name}</span>

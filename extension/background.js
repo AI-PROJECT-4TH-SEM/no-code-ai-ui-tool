@@ -209,7 +209,7 @@ function _removeFromLocalCache(id) {
 }
 
 
-const THEME_SERVER  = "http://localhost:3001"
+const THEME_SERVER  = "http://localhost:3000"
 const DEVICE_ID_KEY = "extensionDeviceId"
 
 async function getDeviceId() {
@@ -240,6 +240,7 @@ async function saveThemeMongo(themeId, pageKey, theme) {
     return { success: false, source: "none", error: "Missing page key" }
   }
 
+  // Save to local session storage first
   await new Promise(resolve => {
     chrome.storage.session.get([THEME_PAGE_MAP_KEY], data => {
       const map = data[THEME_PAGE_MAP_KEY] || {}
@@ -259,19 +260,29 @@ async function saveThemeMongo(themeId, pageKey, theme) {
     })
   })
 
+  // Save to MongoDB via new API endpoint
   try {
     const deviceId = await getDeviceId()
-    const res = await fetch(`${THEME_SERVER}/theme`, {
+    const res = await fetch(`${THEME_SERVER}/api/extension-theme`, {
       method: "POST",
       headers: {
-        "Content-Type":    "application/json",
+        "Content-Type": "application/json",
         "x-extension-key": EXTENSION_KEY,
-        "x-device-id":     deviceId,
+        "x-device-id": deviceId,
       },
-      body: JSON.stringify({ themeId: themeId || (theme && theme.id) || null, themeName: (theme && theme.name) || themeId || null, pageKey: key }),
+      body: JSON.stringify({
+        pageKey: key,
+        themeName: (theme && theme.name) || themeId || null,
+        themeId: themeId || (theme && theme.id) || null,
+      }),
     })
-    if (res.ok) return { success: true, source: "mongodb" }
-  } catch {  }
+    if (res.ok) {
+      console.log("✅ Theme saved to MongoDB:", key)
+      return { success: true, source: "mongodb" }
+    }
+  } catch (err) {
+    console.warn("⚠️ Failed to save theme to MongoDB, using local storage:", err)
+  }
 
   return { success: true, source: "local" }
 }
@@ -282,6 +293,7 @@ async function loadThemeMongo(pageKey) {
     return { theme: null, source: "none" }
   }
 
+  // Check local session storage first
   const localTheme = await new Promise(resolve => {
     chrome.storage.session.get([THEME_PAGE_MAP_KEY], data => {
       const map = data[THEME_PAGE_MAP_KEY] || {}
@@ -291,6 +303,42 @@ async function loadThemeMongo(pageKey) {
 
   if (localTheme) {
     return { theme: localTheme, source: "local" }
+  }
+
+  // Try to load from MongoDB
+  try {
+    const deviceId = await getDeviceId()
+    const res = await fetch(
+      `${THEME_SERVER}/api/extension-theme?pageKey=${encodeURIComponent(key)}`,
+      {
+        headers: {
+          "x-extension-key": EXTENSION_KEY,
+          "x-device-id": deviceId,
+        },
+      }
+    )
+
+    if (res.ok) {
+      const data = await res.json()
+      if (data.success && data.theme) {
+        console.log("✅ Theme loaded from MongoDB:", key)
+        // Cache it locally
+        await new Promise(resolve => {
+          chrome.storage.session.get([THEME_PAGE_MAP_KEY], sessionData => {
+            const map = sessionData[THEME_PAGE_MAP_KEY] || {}
+            map[key] = {
+              name: data.theme,
+              themeId: data.themeId,
+              savedAt: new Date().toISOString(),
+            }
+            chrome.storage.session.set({ [THEME_PAGE_MAP_KEY]: map }, resolve)
+          })
+        })
+        return { theme: { name: data.theme }, source: "mongodb" }
+      }
+    }
+  } catch (err) {
+    console.warn("⚠️ Failed to load theme from MongoDB:", err)
   }
 
   return { theme: null, source: "none" }
