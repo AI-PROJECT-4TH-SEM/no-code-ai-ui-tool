@@ -96,7 +96,7 @@ export default function ForgotPassword() {
     <div
       className="flex items-center justify-center min-h-screen text-white"
       style={{
-        backgroundImage: "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('/forgot-password-bg2.jpg')",
+        backgroundImage: "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('/forgot-password-bg.avif')",
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}

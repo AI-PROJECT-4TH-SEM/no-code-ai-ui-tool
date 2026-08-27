@@ -24,7 +24,11 @@ export async function POST(req) {
 
   await user.save()
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000"
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_public_APP_URL ||
+    process.env.APP_URL ||
+    "http://localhost:3000"
   const resetURL = `${appUrl.replace(/\/$/, "")}/reset-password/${resetToken}`
 
   if (process.env.NODE_ENV !== "production") {

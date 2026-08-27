@@ -58,7 +58,7 @@ export default function ResetPassword() {
   <div
     className="flex items-center justify-center min-h-screen text-white"
     style={{
-      backgroundImage: "url('/forgot-password-bg2.jpg')",
+      backgroundImage: "url('/forgot-password-bg.avif')",
       backgroundSize: "cover",
       backgroundPosition: "center",
     }}
