@@ -7,29 +7,39 @@ export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(null)
   const [loading, setLoading] = useState(true)
 
- useEffect(() => {
-  async function tryRefresh() {
-    try {
-      const res = await fetch("/api/refresh", { 
-        method: "GET", 
-        credentials: "include",
-        
-        headers: { "Cache-Control": "no-cache" }
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setAccessToken(data.accessToken)
-      } else {
+  useEffect(() => {
+    async function tryRefresh() {
+      const hasRefreshToken = document.cookie
+        .split(";")
+        .some((cookie) => cookie.trim().startsWith("refreshToken="))
+
+      if (!hasRefreshToken) {
         setAccessToken(null)
+        setLoading(false)
+        return
       }
-    } catch {
-      setAccessToken(null)
-    } finally {
-      setLoading(false)
+
+      try {
+        const res = await fetch("/api/refresh", {
+          method: "GET",
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" },
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setAccessToken(data.accessToken)
+        } else {
+          setAccessToken(null)
+        }
+      } catch {
+        setAccessToken(null)
+      } finally {
+        setLoading(false)
+      }
     }
-  }
-  tryRefresh()
-}, [])
+
+    tryRefresh()
+  }, [])
   async function login(email, password) {
     const res = await fetch("/api/login", {
       method: "POST",
