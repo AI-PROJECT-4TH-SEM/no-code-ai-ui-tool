@@ -1,4 +1,4 @@
-const BASE_URL       = "https://no-code-ai-ui-tool.vercel.app/"
+const BASE_URL       = "https://no-code-ai-ui-tool.vercel.app"
 const EXTENSION_KEY  = "chai-ke-sath-extension-2025"
 const THEME_PAGE_MAP_KEY = "themeByPageKey"
 
@@ -119,7 +119,7 @@ async function handleAnalyse(url) {
     }
     return await res.json()
   } catch (err) {
-    return { error: "Cannot reach server. Is localhost:3000 running? " + err.message }
+    return { error: "Cannot reach the deployed server. " + err.message }
   }
 }
 
@@ -209,7 +209,7 @@ function _removeFromLocalCache(id) {
 }
 
 
-const THEME_SERVER  = "http://localhost:3000"
+const THEME_SERVER  = BASE_URL
 const DEVICE_ID_KEY = "extensionDeviceId"
 
 async function getDeviceId() {
