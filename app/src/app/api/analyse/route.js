@@ -64,6 +64,48 @@ function resolveHeadingFixes(violations) {
   return fixes
 }
 
+function buildLocalSuggestions(violations, contrastFixes) {
+  const suggestions = violations.flatMap((violation) => {
+    if (violation.id === "heading-order") {
+      return resolveHeadingFixes([violation])
+    }
+
+    const firstNode = violation.nodes[0]
+    const selector = firstNode?.target?.[0]
+    let domFix = null
+    if (violation.id === "region" || violation.id === "landmark-one-main") {
+      domFix = { type: "wrapWithMain", selector: null }
+    } else if (violation.id === "page-has-heading-one") {
+      domFix = { type: "ensureH1" }
+    } else if (violation.id === "color-contrast") {
+      const fixes = violation.nodes
+        .map(node => contrastFixes[node.target?.[0]])
+        .filter(Boolean)
+      if (fixes.length) domFix = { type: "multifix", fixes }
+    } else if (selector) {
+      domFix = mapAxeToFix({ id: violation.id, target: selector, nodes: violation.nodes })
+    }
+
+    return [{
+      id: violation.id,
+      impact: violation.impact,
+      title: violation.help,
+      explanation: violation.description,
+      fixDescription: firstNode?.failureSummary || "Fix manually",
+      codeExample: `BEFORE:\n${firstNode?.html || "Problematic element"}\n\nAFTER:\nReview the accessibility guidance and update this element.`,
+      domFix,
+    }]
+  })
+
+  const seen = new Set()
+  return suggestions.filter(suggestion => {
+    const key = `${suggestion.id}::${suggestion.domFix?.selector ?? "no-selector"}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export async function POST(req) {
   let browser
 
@@ -103,11 +145,12 @@ export async function POST(req) {
     }
 
     const contrastElements = []
-    for (const v of axeResults.violations.filter(v => v.id === "color-contrast")) {
-      for (const node of v.nodes.slice(0, 10)) {
+    const contrastViolations = axeResults.violations.filter(v => v.id === "color-contrast")
+    for (const v of contrastViolations) {
+      const elements = await Promise.all(v.nodes.slice(0, 10).map(async (node) => {
         const rawTarget = node.target?.[0]
         const selector = typeof rawTarget === "string" ? rawTarget : rawTarget?.[0]
-        if (!selector || typeof selector !== "string") continue
+        if (!selector || typeof selector !== "string") return null
 
         try {
           const colors = await page.evaluate((sel) => {
@@ -130,12 +173,14 @@ export async function POST(req) {
           }, selector)
 
           if (colors) {
-            contrastElements.push({ selector, fgStr: colors.color, bgStr: colors.background })
+            return { selector, fgStr: colors.color, bgStr: colors.background }
           }
         } catch (err) {
           console.log("EVALUATE ERROR:", selector, err.message)
         }
-      }
+        return null
+      }))
+      contrastElements.push(...elements.filter(Boolean))
     }
 
     const contrastFixes = await buildContrastFixesBatch(
@@ -161,6 +206,15 @@ export async function POST(req) {
 
     const totalDeductions = violations.reduce((sum, v) => sum + calcDeduction(v), 0)
     const score = Math.round(Math.max(0, 100 - totalDeductions))
+
+    if (process.env.ANALYSIS_AI_EXPLANATIONS !== "true") {
+      return Response.json({
+        score,
+        violations: violations.length,
+        suggestions: buildLocalSuggestions(violations, contrastFixes),
+        source: "axe-local",
+      })
+    }
 
 
     const response = await cohere.chat({
