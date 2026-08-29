@@ -13,11 +13,9 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "https://no-code-ai-ui-tool.vercel.app/*",
     "http://localhost:3000/*",
     "http://localhost:*/*",
-    "https://*/*",
-    "<all_urls>"
+    "https://*/*"
   ],
   "side_panel": {
     "default_path": "popup.html"
@@ -42,7 +40,7 @@
     }
   ],
   "externally_connectable": {
-    "matches": ["https://no-code-ai-ui-tool.vercel.app/*", "http://localhost:3000/*", "http://localhost:*/*", "<all_urls>"]
+    "matches": [ "http://localhost:3000/*", "http://localhost:*/*"]
   },
   "icons": {
     "16":  "icon/icon16.png",

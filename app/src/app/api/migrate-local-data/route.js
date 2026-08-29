@@ -39,7 +39,7 @@ export async function POST(req) {
             customSettings: themeData.customSettings || {},
             lastUpdated: new Date(),
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: "after" }
         )
         migrations.theme = true
       } catch (themeError) {

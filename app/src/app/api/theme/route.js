@@ -65,7 +65,7 @@ export async function PATCH(req) {
         selectedTheme: themeName,
         lastUpdated: new Date(),
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     )
 
     // Also update User model for redundant storage
@@ -75,7 +75,7 @@ export async function PATCH(req) {
         preferredTheme: themeName,
         lastThemeUpdate: new Date(),
       },
-      { new: true }
+      { returnDocument: "after" }
     )
 
     return jsonResponse({ success: true, selectedTheme: updated.selectedTheme }, 200)

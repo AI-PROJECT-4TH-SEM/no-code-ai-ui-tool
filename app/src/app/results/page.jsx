@@ -338,21 +338,13 @@ export default function Results() {
   const [saving, setSaving]                 = useState(false)
 
   const router       = useRouter()
-  const searchParams = typeof window === "undefined" ? null : new URLSearchParams(window.location.search)
-  const sessionId    = searchParams?.get("sessionId") || null
-  const themeParam   = searchParams?.get("theme") || null
+  const [sessionId, setSessionId] = useState(null)
+  const [themeParam, setThemeParam] = useState(null)
   const { accessToken } = useAuth()
   const pageUrl = session?.url || ""
 
   const [suppressedIds, setSuppressedIds]   = useState(new Set())
-  const [activeTheme, setActiveTheme]       = useState(() => {
-    if (typeof window === "undefined") return null
-    if (themeParam) {
-      return themes.find(t => t.name === decodeURIComponent(themeParam)) || null
-    }
-    const savedTheme = themeManager.getActiveTheme()
-    return savedTheme ? themes.find(t => t.name === savedTheme.name) || savedTheme : null
-  })
+  const [activeTheme, setActiveTheme]       = useState(null)
   const iframeKey = useMemo(() => `${html.length}-${activeTheme?.id ?? "none"}`, [html, activeTheme])
 
   const [layoutMode, setLayoutMode]         = useState(false)
@@ -373,6 +365,27 @@ export default function Results() {
   useEffect(() => { htmlRef.current = html },           [html])
   useEffect(() => { sessionRef.current = session },     [session])
   useEffect(() => { activeThemeRef.current = activeTheme }, [activeTheme])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search)
+      setSessionId(params.get("sessionId"))
+      setThemeParam(params.get("theme"))
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (themeParam) {
+        setActiveTheme(themes.find(t => t.name === decodeURIComponent(themeParam)) || null)
+        return
+      }
+      const savedTheme = themeManager.getActiveTheme()
+      setActiveTheme(savedTheme ? themes.find(t => t.name === savedTheme.name) || savedTheme : null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [themeParam])
 
   useEffect(() => {
     function onMsg(e) {

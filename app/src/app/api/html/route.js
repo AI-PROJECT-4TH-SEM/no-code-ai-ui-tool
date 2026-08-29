@@ -40,7 +40,7 @@ export async function POST(req) {
     await Html.findOneAndUpdate(
       { userId },
       { content, updatedAt: new Date() },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     )
 
     return jsonResponse({ ok: true }, 200)

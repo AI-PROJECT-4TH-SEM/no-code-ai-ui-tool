@@ -47,7 +47,7 @@ export async function POST(req) {
 
     await User.findByIdAndUpdate(userId, { $inc: { totalAnalyses: 1 } })
 
-    return jsonResponse({ sessionId: session._id }, 200)
+    return jsonResponse({ sessionId: String(session._id) }, 200)
   } catch (error) {
     logError("Session create failed", { userId, error })
     return jsonResponse({ error: "Unable to create session" }, 500)

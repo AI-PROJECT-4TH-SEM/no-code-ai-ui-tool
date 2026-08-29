@@ -21,7 +21,7 @@ export async function POST(req) {
     const user = await User.findByIdAndUpdate(
       userId,
       { firstName: firstName.trim(), lastName: lastName.trim() },
-      { new: true }
+      { returnDocument: "after" }
     )
 
     return jsonResponse({ success: true, user })

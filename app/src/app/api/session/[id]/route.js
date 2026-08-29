@@ -1,4 +1,5 @@
 import connectDB from "@/lib/db"
+import mongoose from "mongoose"
 import Session from "@/lib/models/Session"
 import { getAuthenticatedUserId } from "@/lib/auth"
 import { jsonResponse } from "@/lib/http"
@@ -10,10 +11,15 @@ export async function GET(req, context) {
   if (!userId) return jsonResponse({ error: "Unauthorized" }, 401)
 
   const { id } = await context.params
+  if (!mongoose.isValidObjectId(id)) {
+    return jsonResponse({ error: "Invalid session id" }, 400)
+  }
 
   try {
-    const session = await Session.findOne({ _id: id, userId })
-    if (!session) return jsonResponse({ error: "Not found" }, 404)
+    const session = await Session.findById(id)
+    if (!session || String(session.userId) !== String(userId)) {
+      return jsonResponse({ error: "Not found" }, 404)
+    }
 
     return jsonResponse(session, 200)
   } catch (error) {
@@ -28,6 +34,9 @@ export async function PATCH(req, context) {
   if (!userId) return jsonResponse({ error: "Unauthorized" }, 401)
 
   const { id } = await context.params
+  if (!mongoose.isValidObjectId(id)) {
+    return jsonResponse({ error: "Invalid session id" }, 400)
+  }
   const body = await req.json().catch(() => ({}))
   const { themeName, html, suppressedIds } = body
 
@@ -67,6 +76,9 @@ export async function DELETE(req, context) {
   if (!userId) return jsonResponse({ error: "Unauthorized" }, 401)
 
   const { id } = await context.params
+  if (!mongoose.isValidObjectId(id)) {
+    return jsonResponse({ error: "Invalid session id" }, 400)
+  }
 
   try {
     await Session.findOneAndDelete({ _id: id, userId })

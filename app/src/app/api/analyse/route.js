@@ -1,8 +1,8 @@
-import puppeteer from "puppeteer"
 import { AxePuppeteer } from "@axe-core/puppeteer"
 import { CohereClient } from "cohere-ai"
 import { mapAxeToFix } from "@/lib/fixEngine/rules"
 import { buildContrastFixesBatch } from "@/lib/fixEngine/contrast"
+import { launchPuppeteer } from "@/lib/puppeteer"
 
 
 const cohere = new CohereClient({ token: process.env.COHERE_KEY })
@@ -73,10 +73,7 @@ export async function POST(req) {
       return Response.json({ error: "No input" }, { status: 400 })
     }
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    })
+    browser = await launchPuppeteer({ headless: true })
 
     const page = await browser.newPage()
 

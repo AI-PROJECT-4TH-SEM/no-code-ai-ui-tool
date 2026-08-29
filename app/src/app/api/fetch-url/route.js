@@ -1,6 +1,6 @@
-import puppeteer from "puppeteer"
 import { isValidUrl } from "@/lib/validation"
 import { rateLimit } from "@/lib/rateLimit"
+import { launchPuppeteer } from "@/lib/puppeteer"
 
 // detect JS heavy
 function isJsHeavySite(html) {
@@ -92,14 +92,7 @@ export async function POST(request) {
 }
 
 async function fetchWithPuppeteer(url) {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-    ]
-  })
+  const browser = await launchPuppeteer({ headless: true })
 
   try {
     const page = await browser.newPage()
