@@ -12,6 +12,19 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "puppeteer"],
+  outputFileTracingIncludes: {
+    "/api/analyse": [
+      "./node_modules/@sparticuz/chromium/bin/**",
+      "./node_modules/@sparticuz/chromium/build/**",
+      "./node_modules/@sparticuz/chromium/package.json",
+    ],
+    "/api/fetch-url": [
+      "./node_modules/@sparticuz/chromium/bin/**",
+      "./node_modules/@sparticuz/chromium/build/**",
+      "./node_modules/@sparticuz/chromium/package.json",
+    ],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
   },
