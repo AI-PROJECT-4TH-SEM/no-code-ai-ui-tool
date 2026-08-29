@@ -3,6 +3,7 @@ import puppeteer from "puppeteer"
 import puppeteerCore from "puppeteer-core"
 import chromium from "@sparticuz/chromium"
 
+
 const linuxChromePaths = [
   "/usr/bin/google-chrome-stable",
   "/usr/bin/google-chrome",
@@ -10,13 +11,13 @@ const linuxChromePaths = [
   "/usr/bin/chromium-browser",
 ]
 
-function findChromeExecutable() {
+async function findChromeExecutable() {
   const configuredPath = process.env.PUPPETEER_EXECUTABLE_PATH
   if (configuredPath && fs.existsSync(/* turbopackIgnore: true */ configuredPath)) return configuredPath
 
   let bundledPath = ""
   try {
-    bundledPath = puppeteer.executablePath()
+    bundledPath = await puppeteer.executablePath()
   } catch {
     bundledPath = ""
   }
@@ -36,7 +37,7 @@ export async function launchPuppeteer(options = {}) {
     })
   }
 
-  const executablePath = findChromeExecutable()
+  const executablePath = await findChromeExecutable()
   if (!executablePath) {
     throw new Error(
       "Chrome is unavailable. Run `npx puppeteer browsers install chrome` during deployment or set PUPPETEER_EXECUTABLE_PATH."

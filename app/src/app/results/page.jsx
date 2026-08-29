@@ -438,11 +438,14 @@ export default function Results() {
       ? currentHtml + `<style>${activeThemeRef.current.css}</style>`
       : currentHtml
     setAnalysing(true); setError(null); setOpenId(null)
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000)
     try {
       const res  = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ html: htmlWithTheme, url: currentUrl }),
+        signal: controller.signal,
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Analysis failed")
@@ -450,8 +453,12 @@ export default function Results() {
       setScore(data.score ?? 0); setViolationCount(data.violations ?? 0)
       setSuggestions(filtered); setAnalysed(true)
     } catch (err) {
-      console.error(err); setError(err.message || "Analysis failed")
-    } finally { setAnalysing(false) }
+      console.error(err)
+      setError(err.name === "AbortError" ? "Analysis timed out. Please retry with a smaller page." : err.message || "Analysis failed")
+    } finally {
+      window.clearTimeout(timeoutId)
+      setAnalysing(false)
+    }
   }, [])
 
   useEffect(() => {

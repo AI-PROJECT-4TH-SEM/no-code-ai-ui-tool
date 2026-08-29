@@ -1,3 +1,4 @@
+export const runtime = "nodejs"
 import { isValidUrl } from "@/lib/validation"
 import { rateLimit } from "@/lib/rateLimit"
 import { launchPuppeteer } from "@/lib/puppeteer"

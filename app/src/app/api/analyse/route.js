@@ -1,4 +1,4 @@
-import { AxePuppeteer } from "@axe-core/puppeteer"
+import axe from "axe-core"
 import { CohereClient } from "cohere-ai"
 import { mapAxeToFix } from "@/lib/fixEngine/rules"
 import { buildContrastFixesBatch } from "@/lib/fixEngine/contrast"
@@ -27,6 +27,15 @@ const IMPACT_CAP = {
   serious: 18,
   moderate: 10,
   minor: 4,
+}
+
+const ANALYSIS_TIMEOUT_MS = 15000
+
+function withTimeout(promise, timeoutMs, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
+  ])
 }
 
 function calcDeduction(violation) {
@@ -115,34 +124,42 @@ export async function POST(req) {
       return Response.json({ error: "No input" }, { status: 400 })
     }
 
-    browser = await launchPuppeteer({ headless: true })
+    browser = await withTimeout(
+      launchPuppeteer({ headless: true }),
+      ANALYSIS_TIMEOUT_MS,
+      "Browser startup timed out. Please retry the scan."
+    )
 
-    const page = await browser.newPage()
+    let page = await browser.newPage()
+    page.setDefaultTimeout(5000)
+    page.setDefaultNavigationTimeout(10000)
 
-    if (html) {
-      await page.setRequestInterception(true)
-      page.on("request", (interceptedReq) => {
-        const type = interceptedReq.resourceType()
-        if (type === "stylesheet" || type === "font") {
-          interceptedReq.continue()
-        } else {
-          interceptedReq.abort()
+    async function loadAnalysisPage(targetPage) {
+      if (html) {
+        await targetPage.setContent(html, { waitUntil: "domcontentloaded" })
+      } else {
+        const finalUrl = url.startsWith("http") ? url : "https://" + url
+        try {
+          await targetPage.goto(finalUrl, { waitUntil: "domcontentloaded", timeout: 10000 })
+        } catch (navigationError) {
+          console.warn("Analysis navigation incomplete:", navigationError.message)
         }
-      })
-      await page.setContent(html, { waitUntil: "domcontentloaded" })
-    } else {
-      const finalUrl = url.startsWith("http") ? url : "https://" + url
-      await page.goto(finalUrl, { waitUntil: "domcontentloaded", timeout: 30000 })
+      }
+      await targetPage.waitForFunction(() => document.readyState !== "loading", { timeout: 5000 })
     }
 
-    let axeResults
-    try {
-      axeResults = await new AxePuppeteer(page).analyze()
-    } catch (axeErr) {
-      console.warn("Axe first attempt failed, retrying in 2s:", axeErr.message)
-      await new Promise(r => setTimeout(r, 2000))
-      axeResults = await new AxePuppeteer(page).analyze()
-    }
+    await loadAnalysisPage(page)
+
+    const axeResults = await withTimeout(
+      page.evaluate((axeSource) => {
+        const moduleContext = { exports: {} }
+        const loadAxe = new Function("module", "exports", axeSource)
+        loadAxe(moduleContext, moduleContext.exports)
+        return window.axe.run()
+      }, axe.source),
+      ANALYSIS_TIMEOUT_MS,
+      "Accessibility scan timed out. Please retry with a smaller page."
+    )
 
     const contrastElements = []
     const contrastViolations = axeResults.violations.filter(v => v.id === "color-contrast")
