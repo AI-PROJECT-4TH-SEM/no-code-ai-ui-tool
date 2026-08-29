@@ -157,6 +157,22 @@ function buildStaticFallback(html) {
   }
 }
 
+async function fetchUrlForStaticAnalysis(url) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+  try {
+    const response = await fetch(url.startsWith("http") ? url : `https://${url}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; ChaiKeSathAI/1.0)" },
+      signal: controller.signal,
+      redirect: "follow",
+    })
+    if (!response.ok) throw new Error(`Page fetch failed (${response.status})`)
+    return await response.text()
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function POST(req) {
   let browser
   let requestBody
@@ -168,10 +184,11 @@ export async function POST(req) {
       return Response.json({ error: "No input" }, { status: 400 })
     }
 
-    if (process.env.VERCEL && process.env.ANALYSIS_USE_BROWSER !== "true") {
+    if (process.env.VERCEL) {
+      const analysisHtml = html || await fetchUrlForStaticAnalysis(url).catch(() => "")
       return Response.json({
-        ...buildStaticFallback(html),
-        warning: "Fast deployment analysis is enabled. Set ANALYSIS_USE_BROWSER=true to use Chromium and axe-core.",
+        ...buildStaticFallback(analysisHtml),
+        warning: "Fast deployment analysis was used without Chromium.",
       }, { status: 200 })
     }
 

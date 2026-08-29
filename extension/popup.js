@@ -2807,7 +2807,20 @@ async function startScan() {
   animateLoadingSteps()
 
   try {
-    const data = await chrome.runtime.sendMessage({ type: "ANALYSE", url: currentUrl })
+    let pageHtml = ""
+    try {
+      const [pageSnapshot] = await chrome.scripting.executeScript({
+        target: { tabId: currentTabId },
+        func: () => document.documentElement?.outerHTML || "",
+      })
+      pageHtml = pageSnapshot?.result || ""
+    } catch (captureError) {
+      console.warn("Could not capture active page HTML, falling back to URL scan:", captureError.message)
+    }
+
+    const data = pageHtml
+      ? await chrome.runtime.sendMessage({ type: "ANALYSE_HTML", html: pageHtml })
+      : await chrome.runtime.sendMessage({ type: "ANALYSE", url: currentUrl })
     if (data?.error) { showToast("❌ " + data.error, "error"); return }
     lastResults = data
     renderResults(data)
