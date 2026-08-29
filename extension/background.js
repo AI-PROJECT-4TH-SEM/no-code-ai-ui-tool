@@ -1,4 +1,4 @@
-const BASE_URL       = "https://ui-extnson.vercel.app/"
+const BASE_URL       = "https://ui-changer.vercel.app/"
 const EXTENSION_KEY  = "chai-ke-sath-extension-2025"
 const THEME_PAGE_MAP_KEY = "themeByPageKey"
 

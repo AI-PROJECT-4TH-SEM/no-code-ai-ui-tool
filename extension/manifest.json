@@ -13,7 +13,7 @@
     "sidePanel"
   ],
   "host_permissions": [
-     "https://ui-extnson.vercel.app/*",
+     "https://ui-changer.vercel.app/*",
     "http://localhost:3000/*",
     "http://localhost:*/*",
     "https://*/*",
@@ -42,7 +42,7 @@
     }
   ],
   "externally_connectable": {
-    "matches": [ "https://ui-extnson.vercel.app/*", "http://localhost:3000/*", "http://localhost:*/*" ]
+    "matches": [ "https://ui-changer.vercel.app/*", "http://localhost:3000/*", "http://localhost:*/*" ]
   },
   "icons": {
     "16":  "icon/icon16.png",

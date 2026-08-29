@@ -32,6 +32,7 @@ const IMPACT_CAP = {
 const ANALYSIS_TIMEOUT_MS = 15000
 
 export const maxDuration = 30
+export const runtime = "nodejs"
 
 function withTimeout(promise, timeoutMs, message) {
   return Promise.race([
@@ -117,13 +118,61 @@ function buildLocalSuggestions(violations, contrastFixes) {
   })
 }
 
+function buildStaticFallback(html) {
+  const source = String(html || "")
+  const violations = []
+  const addViolation = (id, impact, help, description, nodeHtml, target, failureSummary) => {
+    violations.push({
+      id,
+      impact,
+      help,
+      description,
+      helpUrl: "https://dequeuniversity.com/rules/axe/",
+      nodes: [{ html: nodeHtml, target: [target], failureSummary }],
+    })
+  }
+
+  if (!/<html\b[^>]*\blang\s*=/i.test(source)) {
+    addViolation("html-has-lang", "serious", "<html> element must have a lang attribute", "Ensure every HTML document has a lang attribute", source.match(/<html\b[^>]*>/i)?.[0] || "<html>", "html", "The <html> element does not have a lang attribute")
+  }
+  if (!/<title\b[^>]*>\s*[^<]+\s*<\/title>/i.test(source)) {
+    addViolation("document-title", "serious", "Documents must have a <title> element", "Ensure every HTML document has a non-empty title", "<head>", "title", "The <title> element is missing or empty")
+  }
+  if (/<img\b(?![^>]*\balt\s*=)[^>]*>/i.test(source)) {
+    addViolation("image-alt", "critical", "Images must have alternative text", "Ensure <img> elements have alternative text or are marked decorative", source.match(/<img\b(?![^>]*\balt\s*=)[^>]*>/i)?.[0] || "<img>", "img", "Element does not have an alt attribute")
+  }
+  if (/<button\b[^>]*>\s*<\/button>/i.test(source)) {
+    addViolation("button-name", "critical", "Buttons must have discernible text", "Ensure buttons have an accessible name", "<button></button>", "button", "Element does not have inner text that is visible to screen readers")
+  }
+  if (!/<h1\b/i.test(source)) {
+    addViolation("page-has-heading-one", "moderate", "Page must contain a level-one heading", "Ensure the page contains a level-one heading", "<body>", "body", "The page does not contain a level-one heading")
+  }
+
+  const totalDeductions = violations.reduce((sum, violation) => sum + calcDeduction(violation), 0)
+  return {
+    score: Math.round(Math.max(0, 100 - totalDeductions)),
+    violations: violations.length,
+    suggestions: buildLocalSuggestions(violations, {}),
+    source: "static-fallback",
+  }
+}
+
 export async function POST(req) {
   let browser
+  let requestBody
 
   try {
-    const { html, url } = await req.json()
+    requestBody = await req.json()
+    const { html, url } = requestBody
     if (!html && !url) {
       return Response.json({ error: "No input" }, { status: 400 })
+    }
+
+    if (process.env.VERCEL && process.env.ANALYSIS_USE_BROWSER !== "true") {
+      return Response.json({
+        ...buildStaticFallback(html),
+        warning: "Fast deployment analysis is enabled. Set ANALYSIS_USE_BROWSER=true to use Chromium and axe-core.",
+      }, { status: 200 })
     }
 
     browser = await withTimeout(
@@ -408,6 +457,12 @@ Rules:
 
   } catch (err) {
     console.error("Analyse error:", err)
+    if (requestBody?.html) {
+      return Response.json({
+        ...buildStaticFallback(requestBody.html),
+        warning: "Full browser analysis was unavailable; static accessibility checks were used.",
+      }, { status: 200 })
+    }
     return Response.json({ error: err.message || "Analysis failed" }, { status: 500 })
   } finally {
     if (browser) await browser.close()
