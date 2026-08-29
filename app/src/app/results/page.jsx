@@ -786,6 +786,7 @@ export default function Results() {
     const themeStyle = activeTheme ? `<style>${activeTheme.css}</style>` : ""
     return html + themeStyle + (layoutMode ? INSPECTOR_SCRIPT : "")
   })()
+  const showOriginalPage = Boolean(pageUrl && !activeTheme && !changes.length && !layoutMode)
 
   const safeScore  = score ?? 0
   const scoreColor = safeScore >= 80 ? "text-green-400" : safeScore >= 50 ? "text-yellow-400" : "text-red-400"
@@ -946,7 +947,8 @@ export default function Results() {
                   ref={iframeRef}
                   key={iframeKey}
                   title="preview"
-                  srcDoc={iframeSrcDoc}
+                  src={showOriginalPage ? pageUrl : undefined}
+                  srcDoc={showOriginalPage ? undefined : iframeSrcDoc}
                   className="w-full h-full border-none"
                   sandbox="allow-scripts allow-same-origin"
                   onLoad={() => {

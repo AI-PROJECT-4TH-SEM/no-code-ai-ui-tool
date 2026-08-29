@@ -34,12 +34,13 @@ export async function POST(req) {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const { label, html } = body
+    const { label, html, url } = body
     if (!label || !html) return jsonResponse({ error: "Missing fields" }, 400)
 
     const session = await Session.create({
       userId,
       label: String(label).trim().slice(0, 200),
+      url: typeof url === "string" ? url.trim().slice(0, 2048) : undefined,
       originalHtml: String(html).slice(0, 2000000),
       currentHtml: String(html).slice(0, 2000000),
       changes: []

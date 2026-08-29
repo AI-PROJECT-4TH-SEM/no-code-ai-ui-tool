@@ -56,7 +56,7 @@ export default function Home() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ label: sessionLabel, html }),
+        body: JSON.stringify({ label: sessionLabel, html, url: url || undefined }),
       })
 
       const data = await res.json()

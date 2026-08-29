@@ -9,6 +9,7 @@ const changeSchema = new mongoose.Schema({
 const sessionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   label: { type: String, required: true, trim: true, maxlength: 200 },
+  url: { type: String, trim: true, maxlength: 2048 },
   originalHtml: { type: String, required: true, maxlength: 2000000 },
   currentHtml: { type: String, required: true, maxlength: 2000000 },
   changes: [changeSchema],
