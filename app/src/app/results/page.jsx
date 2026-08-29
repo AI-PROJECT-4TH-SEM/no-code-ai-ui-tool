@@ -949,8 +949,9 @@ export default function Results() {
                   title="preview"
                   src={showOriginalPage ? pageUrl : undefined}
                   srcDoc={showOriginalPage ? undefined : iframeSrcDoc}
+                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                   className="w-full h-full border-none"
-                  sandbox="allow-scripts allow-same-origin"
+                  sandbox={showOriginalPage ? undefined : "allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"}
                   onLoad={() => {
                    
                     if (layoutMode) {

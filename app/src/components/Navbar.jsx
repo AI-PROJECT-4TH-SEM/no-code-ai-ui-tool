@@ -20,16 +20,6 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  useEffect(() => {
-    if (!menuOpen) return
-
-    const timeoutId = window.setTimeout(() => {
-      setMenuOpen(false)
-    }, 0)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [menuOpen, pathname])
-
   const navigate = (path) => {
     router.push(path)
     setMenuOpen(false)
@@ -101,7 +91,14 @@ export default function Navbar() {
           </>
         )}
 
-        <button onClick={() => setMenuOpen((prev) => !prev)} className="ml-1 p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition" aria-label="Toggle menu">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((prev) => !prev)}
+          className="ml-1 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-white/20 bg-black/40 text-gray-200 shadow-lg hover:border-pink-400 hover:bg-white/10 hover:text-white transition"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-navigation-menu"
+        >
           {menuOpen ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -114,7 +111,7 @@ export default function Navbar() {
         </button>
 
         {menuOpen && (
-          <div className="absolute top-full right-4 mt-2 w-52 rounded-xl border border-gray-700 bg-gray-900/95 backdrop-blur-md shadow-xl overflow-hidden">
+          <div id="mobile-navigation-menu" className="absolute top-full right-4 mt-2 w-52 rounded-xl border border-gray-700 bg-gray-900/95 backdrop-blur-md shadow-xl overflow-hidden">
             {navLinks.map(({ label, path }) => {
               if (label === "Home" && pathname === "/") return null
               return (

@@ -11,6 +11,7 @@ export default function Home() {
   const [mode, setMode] = useState("html")
   const [url, setUrl] = useState("")
   const [loading, setLoading] = useState(false)
+  const [analysing, setAnalysing] = useState(false)
   const [fetchMethod, setFetchMethod] = useState("")
   const router = useRouter()
   const { accessToken } = useAuth()
@@ -32,9 +33,11 @@ export default function Home() {
   }
 
   async function handleAnalyse() {
+    if (analysing) return
     if (!html) { alert("Please paste some HTML first!"); return }
     if (!accessToken) { alert("Please login first!"); router.push("/login"); return }
 
+    setAnalysing(true)
     try {
 
       await fetch("/api/html", {
@@ -66,6 +69,8 @@ export default function Home() {
     } catch (err) {
       console.error(err)
       alert("Something went wrong!")
+    } finally {
+      setAnalysing(false)
     }
   }
   async function fetchUrl() {
@@ -201,9 +206,11 @@ export default function Home() {
 
             <button
               onClick={handleAnalyse}
-              className="w-full py-4 rounded-xl text-white font-semibold text-base bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-90 hover:scale-[1.02] transition shadow-lg shadow-pink-500/20"
+              disabled={analysing}
+              aria-busy={analysing}
+              className="w-full py-4 rounded-xl text-white font-semibold text-base bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-90 hover:scale-[1.02] transition shadow-lg shadow-pink-500/20 disabled:cursor-wait disabled:opacity-70 disabled:hover:scale-100"
             >
-              Analyse
+              {analysing ? "Analysing..." : "Analyse"}
             </button>
           </div>
 

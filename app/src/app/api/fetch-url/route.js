@@ -28,7 +28,7 @@ async function ensureFullHTML(html, url) {
     safeHtml = safeHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${baseTag}</head>`)
   }
 
-  safeHtml = safeHtml.replace(/\s(?:src|href)=(['"])(?!data:|https?:|\/\/|#|mailto:|javascript:)([^'"]+)\1/gi, (match, quote, value) => {
+  safeHtml = safeHtml.replace(/\s(?:src|href|poster)=(['"])(?!data:|https?:|\/\/|#|mailto:|javascript:)([^'"]+)\1/gi, (match, quote, value) => {
     try {
       return match.replace(value, new URL(value, baseUrl).href)
     } catch {
