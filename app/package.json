@@ -14,7 +14,6 @@
     "@axe-core/puppeteer": "^4.11.1",
     "@google/generative-ai": "^0.24.1",
     "@sparticuz/chromium": "^149.0.0",
-    "@sparticuz/chromium-min": "^149.0.0",
     "bcryptjs": "^3.0.3",
     "cohere-ai": "^7.21.0",
     "cookie": "^1.1.1",
@@ -38,8 +37,8 @@
     "@swc/core@1.15.33": true,
     "bcrypt@6.0.0": true,
     "less@4.5.1": true,
-    "puppeteer@24.43.1": true,
     "sharp@0.34.5": true,
-    "unrs-resolver@1.11.1": true
+    "unrs-resolver@1.11.1": true,
+    "puppeteer@25.9.0": true
   }
 }

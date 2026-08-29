@@ -31,6 +31,8 @@ const IMPACT_CAP = {
 
 const ANALYSIS_TIMEOUT_MS = 15000
 
+export const maxDuration = 30
+
 function withTimeout(promise, timeoutMs, message) {
   return Promise.race([
     promise,

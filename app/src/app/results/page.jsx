@@ -462,8 +462,8 @@ export default function Results() {
   }, [])
 
   useEffect(() => {
-    if (isFreshSession && sessionRef.current?.originalHtml && !analysed && !analysing) runAnalysis()
-  }, [isFreshSession, analysed, analysing, runAnalysis])
+    if (isFreshSession && sessionRef.current?.originalHtml && !analysed && !analysing && !error) runAnalysis()
+  }, [isFreshSession, analysed, analysing, error, runAnalysis])
 
   async function saveToBackend(htmlToSave, themeName = "Saved", newSuppressedIds = suppressedIds) {
     setSaving(true)
