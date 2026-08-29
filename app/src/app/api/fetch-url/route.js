@@ -10,20 +10,65 @@ function isJsHeavySite(html) {
 }
 
 // ✅ ensure full HTML (fix blank iframe + relative paths)
-function ensureFullHTML(html, url) {
+async function ensureFullHTML(html, url) {
   let safeHtml = html
 
   if (!html.includes("<html")) {
     safeHtml = `<html><head></head><body>${html}</body></html>`
   }
 
-  // 🔥 FIX: base tag (IMPORTANT)
-  const baseTag = `<base href="${url}" />`
+  const baseUrl = new URL(url)
+  const baseTag = `<base href="${baseUrl.href}" />`
 
-  if (safeHtml.includes("<head>")) {
-    safeHtml = safeHtml.replace("<head>", `<head>${baseTag}`)
+  if (/<base\b/i.test(safeHtml)) {
+    safeHtml = safeHtml.replace(/<base\b[^>]*>/i, baseTag)
+  } else if (/<head\b[^>]*>/i.test(safeHtml)) {
+    safeHtml = safeHtml.replace(/<head\b[^>]*>/i, match => `${match}${baseTag}`)
   } else {
-    safeHtml = safeHtml.replace("<html>", `<html><head>${baseTag}</head>`)
+    safeHtml = safeHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${baseTag}</head>`)
+  }
+
+  safeHtml = safeHtml.replace(/\s(?:src|href)=(['"])(?!data:|https?:|\/\/|#|mailto:|javascript:)([^'"]+)\1/gi, (match, quote, value) => {
+    try {
+      return match.replace(value, new URL(value, baseUrl).href)
+    } catch {
+      return match
+    }
+  }).replace(/\s(srcset)=(['"])([^'"]+)\2/gi, (match, attribute, quote, value) => {
+    const absoluteSources = value.split(',').map(source => {
+      const parts = source.trim().split(/\s+/)
+      try {
+        parts[0] = new URL(parts[0], baseUrl).href
+      } catch {
+        return source
+      }
+      return parts.join(' ')
+    })
+    return ` ${attribute}=${quote}${absoluteSources.join(', ')}${quote}`
+  })
+
+  const stylesheetLinks = [...safeHtml.matchAll(/<link\b([^>]*\brel\s*=\s*["'][^"']*stylesheet[^"']*["'][^>]*)>/gi)]
+  for (const link of stylesheetLinks) {
+    const hrefMatch = link[1].match(/\bhref\s*=\s*(["'])([^"']+)\1/i)
+    if (!hrefMatch) continue
+
+    try {
+      const stylesheetUrl = new URL(hrefMatch[2], baseUrl).href
+      const response = await fetch(stylesheetUrl)
+      if (!response.ok) continue
+      const css = await response.text()
+      const rebasedCss = css.replace(/url\(\s*(["']?)(?!data:|https?:|\/\/|#)([^)"']+)\1\s*\)/gi, (match, quote, value) => {
+        try {
+          return `url(${quote}${new URL(value.trim(), stylesheetUrl).href}${quote})`
+        } catch {
+          return match
+        }
+      })
+      const styleTag = `<style data-fetched-stylesheet="true">${rebasedCss}</style>`
+      safeHtml = safeHtml.replace(link[0], `${styleTag}${link[0]}`)
+    } catch {
+      // Keep the original stylesheet link as a fallback.
+    }
   }
 
   return safeHtml
@@ -54,7 +99,7 @@ export async function POST(request) {
     if (isJsHeavySite(simpleHtml)) {
 
       const html = await fetchWithPuppeteer(url)
-      const safeHtml = ensureFullHTML(html, url) 
+      const safeHtml = await ensureFullHTML(html, url)
 
       return Response.json({
         html: safeHtml,
@@ -62,7 +107,7 @@ export async function POST(request) {
       })
     }
 
-    const safeHtml = ensureFullHTML(simpleHtml, url) 
+    const safeHtml = await ensureFullHTML(simpleHtml, url) 
 
     return Response.json({
       html: safeHtml,
@@ -73,7 +118,7 @@ export async function POST(request) {
 
     try {
       const html = await fetchWithPuppeteer(url)
-      const safeHtml = ensureFullHTML(html, url) 
+      const safeHtml = await ensureFullHTML(html, url) 
 
       return Response.json({
         html: safeHtml,

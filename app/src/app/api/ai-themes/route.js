@@ -1220,7 +1220,8 @@ function buildPageDesignProfile({ userInput, scanResults, url }) {
 }
 
 function buildPageSeed({ userInput, scanResults, url, randomize = false }) {
-  const seedText = `${String(url || '').toLowerCase()}|${String(userInput || '').toLowerCase()}|${Number(scanResults?.score || 0)}|${Number(scanResults?.violations || 0)}|${(scanResults?.suggestions || []).map(s => `${s?.id || ''}:${s?.impact || ''}`).join(';')}|${randomize ? 'random' : 'stable'}`
+  const refreshEntropy = randomize ? `${Date.now()}|${Math.random()}` : 'stable'
+  const seedText = `${String(url || '').toLowerCase()}|${String(userInput || '').toLowerCase()}|${Number(scanResults?.score || 0)}|${Number(scanResults?.violations || 0)}|${(scanResults?.suggestions || []).map(s => `${s?.id || ''}:${s?.impact || ''}`).join(';')}|${refreshEntropy}`
   let seed = 0
   for (let i = 0; i < seedText.length; i++) {
     seed = (seed * 31 + seedText.charCodeAt(i)) % 2147483647
