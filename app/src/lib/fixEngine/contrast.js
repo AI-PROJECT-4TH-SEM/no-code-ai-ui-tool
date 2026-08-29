@@ -64,7 +64,7 @@ function nudgeFallback(selector, fg, bg) {
   }
 }
 
-export async function buildContrastFixesBatch(elements, cohereClient) {
+export async function buildContrastFixesBatch(elements, cohereClient, useAi = false) {
   
   const failing = elements
     .map(({ selector, fgStr, bgStr }) => {
@@ -77,6 +77,12 @@ export async function buildContrastFixesBatch(elements, cohereClient) {
     .filter(Boolean)
 
   if (failing.length === 0) return {}
+
+  if (!useAi) {
+    return Object.fromEntries(
+      failing.map(el => [el.selector, nudgeFallback(el.selector, el.fg, el.bg)])
+    )
+  }
 
   try {
     const response = await cohereClient.chat({

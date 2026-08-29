@@ -88,13 +88,9 @@ export async function POST(req) {
         }
       })
       await page.setContent(html, { waitUntil: "domcontentloaded" })
-      
-      await new Promise(r => setTimeout(r, 500))
     } else {
       const finalUrl = url.startsWith("http") ? url : "https://" + url
-      await page.goto(finalUrl, { waitUntil: "networkidle2", timeout: 60000 })
-     
-      await new Promise(r => setTimeout(r, 1000))
+      await page.goto(finalUrl, { waitUntil: "domcontentloaded", timeout: 30000 })
     }
 
     let axeResults
@@ -142,7 +138,11 @@ export async function POST(req) {
       }
     }
 
-    const contrastFixes = await buildContrastFixesBatch(contrastElements, cohere)
+    const contrastFixes = await buildContrastFixesBatch(
+      contrastElements,
+      cohere,
+      process.env.ANALYSIS_AI_CONTRAST === "true"
+    )
     console.log("CONTRAST FIXES BUILT:", JSON.stringify(contrastFixes, null, 2))
     console.log("VIOLATIONS FOUND:", axeResults.violations.length)
 
