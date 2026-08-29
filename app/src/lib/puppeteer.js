@@ -1,5 +1,7 @@
 import fs from "node:fs"
 import puppeteer from "puppeteer"
+import puppeteerCore from "puppeteer-core"
+import chromium from "@sparticuz/chromium"
 
 const linuxChromePaths = [
   "/usr/bin/google-chrome-stable",
@@ -25,6 +27,15 @@ function findChromeExecutable() {
 }
 
 export async function launchPuppeteer(options = {}) {
+  if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+    return puppeteerCore.launch({
+      ...options,
+      args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox", ...(options.args || [])],
+      defaultViewport: options.defaultViewport || { width: 1280, height: 800 },
+      executablePath: await chromium.executablePath(),
+    })
+  }
+
   const executablePath = findChromeExecutable()
   if (!executablePath) {
     throw new Error(

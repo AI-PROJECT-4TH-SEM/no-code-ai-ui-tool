@@ -1,4 +1,4 @@
-const BASE_URL       = "http://localhost:3000"
+const BASE_URL       = "https://no-code-ai-ui-tool.vercel.app"
 const EXTENSION_KEY  = "chai-ke-sath-extension-2025"
 const THEME_PAGE_MAP_KEY = "themeByPageKey"
 
