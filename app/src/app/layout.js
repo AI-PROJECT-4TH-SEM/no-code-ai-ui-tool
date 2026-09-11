@@ -1,6 +1,7 @@
 import "./globals.css"
 import { AuthProvider } from "@/context/AuthContext"
 import ErrorBoundary from "@/components/ErrorBoundary"
+import Footer from "@/components/Footer"
 
 export const metadata = {
   title: "UI Theme Lab",
@@ -12,7 +13,10 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning style={{ margin: 0 }}>
         <ErrorBoundary>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <Footer />
+          </AuthProvider>
         </ErrorBoundary>
       </body>
     </html>

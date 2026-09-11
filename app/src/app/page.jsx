@@ -133,7 +133,7 @@ export default function Home() {
             <h1 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">
               Transform Your Website&apos;s UI
               <br />
-              <span className="bg-gradient-to-r from-pink-400 to-purple-500 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-pink-400 to-purple-500 bg-clip-text text-transparent">
                 within Seconds
               </span>
             </h1>
@@ -153,13 +153,13 @@ export default function Home() {
             <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
               <button
                 onClick={() => setMode("html")}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${mode === "html" ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${mode === "html" ? "bg-linear-to-r from-pink-500 to-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}
               >
                 Paste your Code
               </button>
               <button
                 onClick={() => setMode("url")}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${mode === "url" ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${mode === "url" ? "bg-linear-to-r from-pink-500 to-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}
               >
                 Enter URL
               </button>
@@ -167,7 +167,7 @@ export default function Home() {
 
             {mode === "html" && (
               <textarea
-                className="flex-1 min-h-[280px] md:min-h-[400px] bg-white/5 border border-gray-700 rounded-xl text-white p-4 text-sm resize-none outline-none focus:border-pink-400 transition placeholder-gray-600"
+                className="flex-1 min-h-70 md:min-h-100 bg-white/5 border border-gray-700 rounded-xl text-white p-4 text-sm resize-none outline-none focus:border-pink-400 transition placeholder-gray-600"
                 placeholder="Paste your Code here..."
                 value={html}
                 onChange={async (e) => {
@@ -208,7 +208,7 @@ export default function Home() {
               onClick={handleAnalyse}
               disabled={analysing}
               aria-busy={analysing}
-              className="w-full py-4 rounded-xl text-white font-semibold text-base bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-90 hover:scale-[1.02] transition shadow-lg shadow-pink-500/20 disabled:cursor-wait disabled:opacity-70 disabled:hover:scale-100"
+              className="w-full py-4 rounded-xl text-white font-semibold text-base bg-linear-to-r from-pink-500 to-purple-600 hover:opacity-90 hover:scale-[1.02] transition shadow-lg shadow-pink-500/20 disabled:cursor-wait disabled:opacity-70 disabled:hover:scale-100"
             >
               {analysing ? "Analysing..." : "Analyse"}
             </button>

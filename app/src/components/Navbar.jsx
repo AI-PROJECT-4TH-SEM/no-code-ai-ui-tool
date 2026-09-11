@@ -35,9 +35,9 @@ export default function Navbar() {
   if (authPages.includes(pathname)) return null
 
   if (loading) return (
-    <nav className="flex items-center justify-between px-6 md:px-10 py-5 md:py-7 border-b border-gray-800 bg-gradient-to-l from-cyan-900 to-black relative z-50">
+    <nav className="flex items-center justify-between px-6 md:px-10 py-5 md:py-7 border-b border-gray-800 bg-linear-to-l from-cyan-900 to-black relative z-50">
       <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
-        <span className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent">
+        <span className="text-2xl md:text-3xl font-bold bg-linear-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent">
        UI_Changer-AI
         </span>
       </div>
@@ -45,10 +45,10 @@ export default function Navbar() {
   )
 
   return (
-    <nav className="flex items-center justify-between px-6 md:px-10 py-5 md:py-7 border-b border-gray-800 bg-gradient-to-l from-cyan-900 to-black relative z-50">
+    <nav className="flex items-center justify-between px-6 md:px-10 py-5 md:py-7 border-b border-gray-800 bg-linear-to-l from-cyan-900 to-black relative z-50">
 
       <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
-        <span className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent">
+        <span className="text-2xl md:text-3xl font-bold bg-linear-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent">
          UI_Changer-AI
         </span>
       </div>
@@ -72,7 +72,7 @@ export default function Navbar() {
             <button onClick={() => navigate("/login")} className="px-6 py-3 rounded-xl text-base font-medium border-2 border-gray-600 text-gray-300 hover:border-pink-400 hover:text-pink-400 transition">
               Login
             </button>
-            <button onClick={() => navigate("/signup")} className="px-7 py-3 rounded-xl text-base font-semibold bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:opacity-90 hover:scale-105 transition">
+            <button onClick={() => navigate("/signup")} className="px-7 py-3 rounded-xl text-base font-semibold bg-linear-to-r from-pink-500 to-purple-600 text-white hover:opacity-90 hover:scale-105 transition">
               Sign Up
             </button>
           </>
@@ -85,7 +85,7 @@ export default function Navbar() {
             <button onClick={() => navigate("/login")} className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-600 text-gray-300 hover:border-pink-400 hover:text-pink-400 transition">
               Login
             </button>
-            <button onClick={() => navigate("/signup")} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:opacity-90 transition">
+            <button onClick={() => navigate("/signup")} className="px-4 py-2 rounded-lg text-sm font-semibold bg-linear-to-r from-pink-500 to-purple-600 text-white hover:opacity-90 transition">
               Sign Up
             </button>
           </>

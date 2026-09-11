@@ -3,6 +3,17 @@ import { createContext, useContext, useState, useEffect } from "react"
 
 const AuthContext = createContext(null)
 
+async function readJsonResponse(response) {
+  const text = await response.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -25,7 +36,7 @@ export function AuthProvider({ children }) {
           credentials: "include",
           headers: { "Cache-Control": "no-cache" },
         })
-        const data = await res.json()
+        const data = await readJsonResponse(res)
         if (res.ok) {
           setAccessToken(data.accessToken)
         } else {
@@ -41,18 +52,22 @@ export function AuthProvider({ children }) {
     tryRefresh()
   }, [])
   async function login(email, password) {
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setAccessToken(data.accessToken)
-      return { ok: true }
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await readJsonResponse(res)
+      if (res.ok && data.accessToken) {
+        setAccessToken(data.accessToken)
+        return { ok: true }
+      }
+      return { ok: false, error: data.error || "Login failed. Please try again." }
+    } catch {
+      return { ok: false, error: "Unable to connect to the login service. Please try again." }
     }
-    return { ok: false, error: data.error }
   }
 
   async function logout() {

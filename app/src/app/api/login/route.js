@@ -19,7 +19,13 @@ export async function POST(req) {
     return jsonResponse({ error: "Too many requests" }, 429);
   }
 
-  await connectDB();
+  try {
+    await connectDB();
+  } catch (error) {
+    logError("Login database connection failed", { ip, error })
+    return jsonResponse({ error: "Authentication service unavailable" }, 503);
+  }
+
   const body = await req.json().catch(() => ({}));
   const email = normalizeEmail(body.email);
   const password = typeof body.password === "string" ? body.password : "";
