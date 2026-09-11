@@ -1,4 +1,4 @@
-const BASE_URL       = "https://ui-changer.vercel.app/"
+const BASE_URL       = "https://ui-changers.vercel.app/"
 const EXTENSION_KEY  = "chai-ke-sath-extension-2025"
 const THEME_PAGE_MAP_KEY = "themeByPageKey"
 
@@ -8,7 +8,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
   chrome.contextMenus.create({
     id: "accessi-scan",
-    title: "♿ Scan this page with Chai Ke Sath AI",
+    title: "♿ UI_Changer-AI Scan",
     contexts: ["page", "link"]
   })
  

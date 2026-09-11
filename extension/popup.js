@@ -2083,7 +2083,7 @@ const THEMES = [
 
 
 const domFixMap = new Map()
-const BASE_URL =  "https://ui-changer.vercel.app/"
+const BASE_URL =  "https://ui-changers.vercel.app/"
 
 let layoutChangeCount = 0
 
@@ -2701,7 +2701,7 @@ function setupScan() {
     if (!lastResults) return
     const { score, violations, suggestions } = lastResults
     const lines = [
-      `Chai Ke Sath AI — Accessibility Report`,
+      `UI_Changer-AI — Accessibility Report`,
       `Generated: ${new Date().toLocaleString()}`,
       `URL: ${currentUrl}`,
       `Score: ${score}/100  |  Grade: ${calcGrade(score).grade}  |  Violations: ${violations}`,
@@ -3198,7 +3198,7 @@ async function downloadAllChanges() {
 
     const cssLines = []
     cssLines.push("/* ================================================================")
-    cssLines.push("   CHAI KE SATH AI — Extracted CSS Changes")
+    cssLines.push("   UI_Changer-AI — Extracted CSS Changes")
     cssLines.push("   Downloaded: " + now.toLocaleString())
     cssLines.push("   Source: " + currentUrl)
     cssLines.push("================================================================ */")
@@ -3258,7 +3258,7 @@ async function downloadAllChanges() {
     }
 
     if (layoutChanges.length > 0) {
-      const layoutStyleLines = ["", "  <!-- ── LAYOUT INSPECTOR CHANGES (Chai Ke Sath AI) ── -->", "  <style id=\"cksa-layout-changes\">"]
+      const layoutStyleLines = ["", "  <!-- ── LAYOUT INSPECTOR CHANGES (UI_Changer-AI) ── -->", "  <style id=\"cksa-layout-changes\">"]
       layoutChanges.forEach((lc, i) => {
         layoutStyleLines.push("    /* Layout Change " + (i+1) + ": " + lc.label + " */")
         if (lc.style) {
@@ -3278,7 +3278,7 @@ async function downloadAllChanges() {
     if (fixTitles.length > 0) {
       const fixMarkerCSS = [
         "",
-        "  <!-- ── ACCESSIBILITY FIX MARKERS (Chai Ke Sath AI) ── -->",
+        "  <!-- ── ACCESSIBILITY FIX MARKERS (UI_Changer-AI) ── -->",
         "  <style id=\"cksa-fix-markers\">",
         "    /* Elements that had accessibility violations fixed are underlined */",
         "    [data-cksa-fixed] {",
@@ -3309,7 +3309,7 @@ async function downloadAllChanges() {
     const headerLines = [
       "<!--",
       sep,
-      "  CHAI KE SATH AI — COMPLETE MODIFIED PAGE",
+      "  UI_Changer-AI — COMPLETE MODIFIED PAGE",
       sep,
       "  Source URL    : " + currentUrl,
       "  Downloaded    : " + now.toLocaleString(),

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Chai Ke Sath AI",
+  "name": "UI_Changer-AI",
   "version": "2.2.0",
   "description": "Accessibility scanner, live fixes,chatbot, themes, layout inspector.",
   "permissions": [
@@ -13,17 +13,14 @@
     "sidePanel"
   ],
   "host_permissions": [
-     "https://ui-changer.vercel.app/*",
-    "http://localhost:3000/*",
-    "http://localhost:*/*",
-    "https://*/*",
-    "<all_urls>"
+     "https://ui-changers.vercel.app/*"
+    
   ],
   "side_panel": {
     "default_path": "popup.html"
   },
   "action": {
-    "default_title": "Chai Ke Sath AI — Click to open"
+    "default_title": "UI_Changer-AI — Click to open"
   },
   "background": {
     "service_worker": "background.js"
@@ -42,7 +39,7 @@
     }
   ],
   "externally_connectable": {
-    "matches": [ "https://ui-changer.vercel.app/*", "http://localhost:3000/*", "http://localhost:*/*" ]
+    "matches": [ "https://ui-changers.vercel.app/*" ]
   },
   "icons": {
     "16":  "icon/icon16.png",
