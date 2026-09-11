@@ -2083,7 +2083,7 @@ const THEMES = [
 
 
 const domFixMap = new Map()
-const BASE_URL =  "https://ui-changers.vercel.app/"
+const BASE_URL =  "https://uichangerai.vercel.app/"
 
 let layoutChangeCount = 0
 

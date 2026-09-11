@@ -13,7 +13,7 @@
     "sidePanel"
   ],
   "host_permissions": [
-     "https://ui-changers.vercel.app/*"
+     "https://uichangerai.vercel.app/*"
     
   ],
   "side_panel": {
@@ -39,7 +39,7 @@
     }
   ],
   "externally_connectable": {
-    "matches": [ "https://ui-changers.vercel.app/*" ]
+    "matches": [ "https://uichangerai.vercel.app/*" ]
   },
   "icons": {
     "16":  "icon/icon16.png",
