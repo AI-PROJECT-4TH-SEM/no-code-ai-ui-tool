@@ -14,7 +14,7 @@ export default function Footer() {
         <div className="grid gap-10 md:grid-cols-[minmax(0,1.5fr)_1fr_1fr]">
           <div>
             <Link href="/" className="inline-block text-2xl font-bold bg-linear-to-r from-pink-400 to-purple-500 bg-clip-text text-transparent">
-              UI_Changer-AI
+             UI Changer AI
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-7 text-gray-500">
               Turn ordinary website markup into clearer, more accessible interfaces with AI-powered design guidance.
@@ -58,7 +58,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-gray-600 md:flex-row md:items-center md:justify-between">
-          <p>© {new Date().getFullYear()} UI_Changer-AI. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} UI Changer AI. All rights reserved.</p>
           <p>Designed for better interfaces.</p>
         </div>
       </div>

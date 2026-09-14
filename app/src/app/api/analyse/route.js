@@ -162,7 +162,7 @@ async function fetchUrlForStaticAnalysis(url) {
   const timeout = setTimeout(() => controller.abort(), 8000)
   try {
     const response = await fetch(url.startsWith("http") ? url : `https://${url}`, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; UI_Changer-AI/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; UI Changer AI/1.0)" },
       signal: controller.signal,
       redirect: "follow",
     })

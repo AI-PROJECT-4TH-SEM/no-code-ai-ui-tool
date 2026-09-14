@@ -4,14 +4,14 @@ const sections = [
   {
     title: "1. Information We Collect",
     paragraphs: [
-      "When you use UI_Changer-AI, we may collect information you provide directly, such as your name, email address, account credentials, HTML or URLs submitted for analysis, saved themes, and messages sent to the assistant.",
+      "When you use UI Changer AI, we may collect information you provide directly, such as your name, email address, account credentials, HTML or URLs submitted for analysis, saved themes, and messages sent to the assistant.",
       "We also collect limited technical information needed to operate and secure the service, including authentication tokens, session details, approximate usage activity, browser information, and error logs.",
     ],
   },
   {
     title: "2. How We Use Information",
     paragraphs: [
-      "We use your information to provide, personalize, maintain, and improve UI_Changer-AI. This includes analyzing submitted website markup, generating design suggestions, saving your sessions and themes, responding to support requests, and authenticating your account.",
+      "We use your information to provide, personalize, maintain, and improve UI Changer AI. This includes analyzing submitted website markup, generating design suggestions, saving your sessions and themes, responding to support requests, and authenticating your account.",
       "We may also use aggregated or de-identified information to understand product performance, prevent abuse, and improve our features. We do not use your private account content to advertise to you.",
     ],
   },
@@ -39,7 +39,7 @@ const sections = [
   {
     title: "6. Cookies and Local Storage",
     paragraphs: [
-      "UI_Changer-AI uses cookies, browser storage, or similar technologies to keep you signed in, maintain session security, remember preferences, and support essential functionality. You can control cookies through your browser settings, but disabling essential storage may prevent parts of the service from working.",
+      "UI Changer AI uses cookies, browser storage, or similar technologies to keep you signed in, maintain session security, remember preferences, and support essential functionality. You can control cookies through your browser settings, but disabling essential storage may prevent parts of the service from working.",
     ],
   },
   {
@@ -51,19 +51,19 @@ const sections = [
   {
     title: "8. Your Choices and Rights",
     paragraphs: [
-      "Depending on where you live, you may have rights to access, correct, export, restrict, or delete your personal information, or to object to certain processing. To make a request, contact the UI_Changer-AI team through the support channel in the application. We may need to verify your identity before completing a request.",
+      "Depending on where you live, you may have rights to access, correct, export, restrict, or delete your personal information, or to object to certain processing. To make a request, contact the UI Changer AI team through the support channel in the application. We may need to verify your identity before completing a request.",
     ],
   },
   {
     title: "9. Children’s Privacy",
     paragraphs: [
-      "UI_Changer-AI is not intended for children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child has provided personal information, please contact us so we can remove it.",
+      "UI Changer AI is not intended for children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child has provided personal information, please contact us so we can remove it.",
     ],
   },
   {
     title: "10. Changes to This Policy",
     paragraphs: [
-      "We may update this Privacy Policy as the service changes. When we make material changes, we will update the date below and, where appropriate, provide additional notice. Your continued use of UI_Changer-AI after an update means you acknowledge the revised policy.",
+      "We may update this Privacy Policy as the service changes. When we make material changes, we will update the date below and, where appropriate, provide additional notice. Your continued use of UI Changer AI after an update means you acknowledge the revised policy.",
     ],
   },
 ]
@@ -74,8 +74,8 @@ const navigation = sections.map((section) => ({
 }))
 
 export const metadata = {
-  title: "Privacy Policy | UI_Changer-AI",
-  description: "Privacy Policy for UI_Changer-AI.",
+  title: "Privacy Policy | UI Changer AI",
+  description: "Privacy Policy for UI Changer AI.",
 }
 
 export default function PrivacyPolicyPage() {
@@ -93,10 +93,10 @@ export default function PrivacyPolicyPage() {
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white md:text-6xl">Privacy, made clear.</h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-gray-300 md:text-lg">
-              We built UI_Changer-AI to make web design simpler. This policy explains, in plain language, what happens to your information while you use it.
+              We built UI Changer AI to make web design simpler. This policy explains, in plain language, what happens to your information while you use it.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-gray-500">
-              <span>UI_Changer-AI</span>
+              <span>UI Changer AI</span>
               <span className="h-1 w-1 rounded-full bg-pink-400" />
               <span>Effective September 12, 2026</span>
             </div>
