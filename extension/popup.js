@@ -2701,7 +2701,7 @@ function setupScan() {
     if (!lastResults) return
     const { score, violations, suggestions } = lastResults
     const lines = [
-      `UI_Changer-AI — Accessibility Report`,
+      `UI Changer AI — Accessibility Report`,
       `Generated: ${new Date().toLocaleString()}`,
       `URL: ${currentUrl}`,
       `Score: ${score}/100  |  Grade: ${calcGrade(score).grade}  |  Violations: ${violations}`,
@@ -3198,7 +3198,7 @@ async function downloadAllChanges() {
 
     const cssLines = []
     cssLines.push("/* ================================================================")
-    cssLines.push("   UI_Changer-AI — Extracted CSS Changes")
+    cssLines.push("   UI Changer AI — Extracted CSS Changes")
     cssLines.push("   Downloaded: " + now.toLocaleString())
     cssLines.push("   Source: " + currentUrl)
     cssLines.push("================================================================ */")
@@ -3258,7 +3258,7 @@ async function downloadAllChanges() {
     }
 
     if (layoutChanges.length > 0) {
-      const layoutStyleLines = ["", "  <!-- ── LAYOUT INSPECTOR CHANGES (UI_Changer-AI) ── -->", "  <style id=\"cksa-layout-changes\">"]
+      const layoutStyleLines = ["", "  <!-- ── LAYOUT INSPECTOR CHANGES (UI Changer AI) ── -->", "  <style id=\"cksa-layout-changes\">"]
       layoutChanges.forEach((lc, i) => {
         layoutStyleLines.push("    /* Layout Change " + (i+1) + ": " + lc.label + " */")
         if (lc.style) {
@@ -3278,7 +3278,7 @@ async function downloadAllChanges() {
     if (fixTitles.length > 0) {
       const fixMarkerCSS = [
         "",
-        "  <!-- ── ACCESSIBILITY FIX MARKERS (UI_Changer-AI) ── -->",
+        "  <!-- ── ACCESSIBILITY FIX MARKERS (UI Changer AI) ── -->",
         "  <style id=\"cksa-fix-markers\">",
         "    /* Elements that had accessibility violations fixed are underlined */",
         "    [data-cksa-fixed] {",
@@ -3309,7 +3309,7 @@ async function downloadAllChanges() {
     const headerLines = [
       "<!--",
       sep,
-      "  UI_Changer-AI — COMPLETE MODIFIED PAGE",
+      "  UI Changer AI — COMPLETE MODIFIED PAGE",
       sep,
       "  Source URL    : " + currentUrl,
       "  Downloaded    : " + now.toLocaleString(),

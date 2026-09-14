@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "UI_Changer-AI",
+  "name": "UI Changer AI",
   "version": "2.2.1",
   "description": "Accessibility scanner, live fixes,chatbot, themes, layout inspector.",
   "permissions": [
@@ -20,7 +20,7 @@
     "default_path": "popup.html"
   },
   "action": {
-    "default_title": "UI_Changer-AI — Click to open"
+    "default_title": "UI Changer AI — Click to open"
   },
   "background": {
     "service_worker": "background.js"

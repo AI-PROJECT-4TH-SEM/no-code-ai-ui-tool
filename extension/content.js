@@ -3343,7 +3343,7 @@ function capturePageForDownload() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${document.title || 'Downloaded Page'}</title>
-  <!-- Exported by UI_Changer-AI UI Editor -->
+  <!-- Exported by UI Changer AI UI Editor -->
   <!-- Generated: ${timestamp} -->
   <style>
     /* Reset & Base Styles */

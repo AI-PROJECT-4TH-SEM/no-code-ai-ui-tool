@@ -8,7 +8,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
   chrome.contextMenus.create({
     id: "accessi-scan",
-    title: "♿ UI_Changer-AI Scan",
+    title: "♿ UI Changer AI Scan",
     contexts: ["page", "link"]
   })
  
