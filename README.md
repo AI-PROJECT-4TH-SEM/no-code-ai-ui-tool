@@ -1,1 +1,1 @@
-https://uichangerai.vercel.app/login
+https://uichangerai.vercel.app/
